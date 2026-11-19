@@ -6335,3 +6335,48 @@ open jammed 90% but sat in the range 69% (`test_pf_charts` `Jams` failed). The j
 - The merged tree: the full matrix exits 0 (0 hard, 45 soft: 34 `prov.settled`, 5 `pf.follow`, 3 `ref.missing`,
   3 `ref.context`); `--pf-agree` has no Mistake or Blunder at any heads-up spot, and its four hard `pf.follow` are the
   6-max ones it had before (A2o and 87o at the small blind, AJo and A5o's 3-bet at the big blind).
+
+
+## 2026-11-19 — Where the charts and the preflop solve part: a cap, and the short-stack flat fixed
+
+Four 6-max 100bb chart moves were graded Mistakes by the stored preflop solve: the small blind first in raising A2o
+(the chart's 100%) and folding 87o (71%), and the big blind over a button open 3-betting AJo and A5o (60%). Looked
+into, and fixed where it can be (ACCURACY 18.11):
+- Why: not the charts (they agree with `solver/tests/preflop_refs.py`). The solve's flop model puts a hand-shape river
+  term on single-raised pots (the small blind's pair) and applies it again, at r2 = 0.73, to 3-bet pots whose library
+  values already have the river dealt, its surplus charged to the 3-bettor (the big blind's pair; r2 = 0 takes AJo's
+  gap from 0.46bb to 0.03). A model fix with the library's measured river correction doubled 6-max 100bb's hard hits
+  (8 to 16), so it waits for a later model behind a no-worse gate over 14 games.
+- How wide: over every first-in node and the blinds facing one open in 14 stored games (20,280 class-spots), the solve
+  graded the chart's main move a Mistake or Blunder at 133.
+- The cap: a preflop-solve grade of a move the charts play 10% or more stops at Inaccuracy short of a clear blunder,
+  saying the two part and nothing there settles which is right (`grade.ts` `CHART_PARTS`). Charts and push/fold only,
+  not fallbacks; no chart beside an ICM preset's prize-equity answer. Its frequencies reach the grade from Practice, the
+  preflop drill, Review's retries and Analyze.
+- The charts' own bug: a short-stack jam's flat alternative counted the chart's raise share as a flat, so the 20bb small
+  blind flatted 99, 88, AQo and AJs where both class-level solves jam. It now counts the calls alone
+  (`engine/pf_charts.py` `flat_ev`; library-feeding nodes keep upstream's). Hard hits 133 → 119; with the cap 3, all
+  clear blunders (the raked 20bb small blind flatting 99 and 77). 40bb moved too: read as the solve's 3-bet, the moved
+  mixes give up 1.53% and 1.22% of the pot (was 2.85% and 2.97%). Two changes to the flat's implied odds were
+  measured and not kept, since neither was better in every game: dropping them (the 20bb small blind then jams 77 and
+  66, but the big blind jams small pairs the solve calls with), and setting the realization with the weakest flats'
+  own implied odds (better at 20bb, worse at 40bb raked).
+- Practice, every seat on the charts (6,000 hands a game, `scripts/pf_practice_coverage.py`, before measured with its
+  new `--upstream-flat`): Mistakes and Blunders by the solve 0.9% → 0.0% of 20bb decisions (0.3% → 0.0% raked),
+  0.8% → 0.1% at 40bb (0.7% → 0.1% raked). The script now applies Practice's untrained-move rule, which it had
+  lacked: at 40bb it had counted the HJ's untrained 3-bet over a UTG open (-7.5bb for every class) as 8 Blunders of
+  the chart's main move. Practice grades that node by the chart, as it did.
+- QA: `pf.parts` (soft) counts capped grades, `pf.chart` (hard) fires where a surface lost the chart or the cap didn't
+  hold; `grade.monotone` leaves capped grades out; `--pf-agree` covers 14 spots with a capped column.
+  `--pf-agree` now has no hard violation and exits 0: 20 classes are capped, the four 6-max ones among them.
+- Review (a workflow: four readers, a skeptic per finding). One finding held: what a short-stack jam doesn't take of a
+  hand the chart only 3-bets is served as a flat (upstream's `_push`), where the docs said it folds. Over a 20bb HJ
+  open the small blind flats A2s-A5s and 65s-T9s, inside the solve's noise. Folding that share was measured two ways
+  over the 20bb and 40bb games, and neither was better in every game: holding the call to the chart's call share was
+  worse in three of four (AJo then folds 93% where the solve jams it), and folding only what the equilibrium never jams
+  was worse at 20bb without rake. So the advice stays, and the docs say so (ACCURACY 18.11, `pf_charts.py`). A test
+  now pins where the rest goes.
+- Tests: `gradeAnswer.test.ts`, `pfGrade.test.ts`, `checks.test.ts`, `DrillsPanel.test.tsx`, `grade.props.test.ts`,
+  `scripts/engine/test_pf_charts.py` `FlatAlternative` (with `test_what_the_jam_doesnt_take_still_calls`).
+  Vitest 4047 passed (9 skipped); typecheck, the QA scripts' typecheck and lint clean; `test_pf_charts.py` (23, one
+  skipped: the library index check, with no local index) and `scripts/library/test_published_fps.py` (3) pass.

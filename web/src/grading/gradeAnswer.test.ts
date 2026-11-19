@@ -3,7 +3,7 @@
 import { describe, expect, it } from "vitest";
 import type { AdvisorResponse } from "@/solver/protocol";
 import { basisOf, roughOf } from "./basis";
-import { actionNoise, answerNoise, capReason, CLEAR_PCT, gradeAnswer, lossBrief, lossWords, noiseTail, roughErrPct, scored, SCORE_LOSS_WORDS, whyText } from "./grade";
+import { actionNoise, answerNoise, capReason, CHART_PARTS, CLEAR_PCT, gradeAnswer, lossBrief, lossWords, noiseTail, roughErrPct, scored, SCORE_LOSS_WORDS, whyText } from "./grade";
 
 describe("an answer's noise", () => {
   it("is half a percent of the pot at least, twice a solve's measured distance from equilibrium, and two stored EV steps of a library flop", () => {
@@ -105,6 +105,44 @@ describe("what an answer can't condemn", () => {
     expect(call).toMatchObject({ verdict: "Inaccuracy", capped: true });
     expect(call.loss).toBeCloseTo(0.45, 9);
     expect(gradeAnswer(shove, 1, { source: "preflop-solve", players: 3 }).verdict).toBe("Mistake");
+  });
+
+  it("the preflop solve can't condemn a move the charts play 10% or more: Inaccuracy, the loss as measured, both numbers said", () => {
+    // 6-max 100bb BB facing a BTN open to 2.5 (the SB folds), AJo: the charts 3-bet to 10 60% and call 40%, the stored
+    // solve calls 100% (3-bet 0.893bb, call 1.357bb: its flop model counts the river twice in 3-bet pots, ACCURACY 18.11)
+    const ajo = { freqs: [0, 1, 0], evs: [0.893, 1.357, 0], pot: 4 };
+    const basis = { source: "preflop-solve", players: 6, chart: [0.6, 0.4, 0] };
+    const g = gradeAnswer(ajo, 0, basis);
+    expect([g.verdict, g.capped]).toEqual(["Inaccuracy", true]);
+    expect(g.loss).toBeCloseTo(0.464, 9);
+    expect(g.noise).toBeCloseTo(0.3125, 3);
+    expect(g.past).toBeCloseTo(0.1515, 3);
+    expect(g.capWhy).toContain(CHART_PARTS);
+    expect(g.capWhy).toMatch(/^The chart \(not a solve\) plays this 60\.0% of the time here and the preflop solve 0\.0%: they part here/);
+    expect(g.capWhy).toMatch(/so the solve can't condemn it: this grade stops at Inaccuracy, short of a clear blunder \(20% of the pot past the noise\)\.$/);
+    // (the solve's own move is graded as ever)
+    expect(gradeAnswer(ajo, 1, basis).verdict).toBe("Best");
+    // a move the charts play under 10%, or with no frequency of theirs, is graded as without them
+    // (at the page's precision: 9.5% is under the 10% line, 9.95% shows as 10.0%)
+    for (const chart of [[0.05, 0.95, 0], [0.0951, 0.9049, 0], [null, 1, 0]]) expect(gradeAnswer(ajo, 0, { ...basis, chart })).toEqual(gradeAnswer(ajo, 0, { source: "preflop-solve", players: 6 }));
+    expect(gradeAnswer(ajo, 0, { ...basis, chart: [0.0995, 0.9005, 0] }).capped).toBe(true);
+    // a rules or equity fallback's frequencies are no chart's: graded as without them
+    for (const chartSource of ["rules", "equity"]) expect(gradeAnswer(ajo, 0, { ...basis, chartSource })).toEqual(gradeAnswer(ajo, 0, { source: "preflop-solve", players: 6 }));
+    // only the preflop solve's grade: another answer with EVs is graded as without them
+    const live = gradeAnswer(ajo, 0, { source: "live", exploitabilityPct: 0.1, chart: [0.6, 0.4, 0] });
+    expect([live.verdict, live.capped]).toEqual(["Blunder", undefined]);
+    // heads-up, the heads-up cap's words come first
+    expect(gradeAnswer(ajo, 0, { ...basis, players: 2 }).capWhy).toMatch(/^The heads-up preflop solve/);
+    // the push/fold model's frequency is said as its own
+    expect(gradeAnswer(ajo, 0, { ...basis, chartSource: "push-fold" }).capWhy).toMatch(/^The push\/fold model \(not a solve\) plays this 60\.0%/);
+  });
+
+  it("a clear blunder is still a Blunder however often the charts play the move, and says so", () => {
+    // 6-max 20bb SB facing a CO open, 99: the charts flat it 97%, the stored solve shoves (2.765bb against 1.343bb)
+    const nines = { freqs: [0, 0, 1], evs: [0, 1.343, 2.765], pot: 4 };
+    const g = gradeAnswer(nines, 1, { source: "preflop-solve", players: 6, chart: [0, 0.97, 0.03] });
+    expect([g.verdict, g.capped]).toEqual(["Blunder", undefined]);
+    expect(g.clearWhy).toMatch(/^The chart \(not a solve\) plays this 97\.0% of the time here and the preflop solve 0\.0%: they part here .*, but this gives up 27\.7% of the pot past its noise, 20% or more: a clear blunder, graded as measured\.$/);
   });
 
   it("leaves a grade already milder as it is", () => {

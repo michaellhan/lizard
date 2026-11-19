@@ -19,6 +19,7 @@ the table's half big blind). Anywhere else your raise stays the chart's, and tha
         [--players 2..6] [--stack 20..200]   (a game of engine/pf_solve.py's grid; 6 players at 100bb by default)
         [--chart-sizes]   (the grid's game at the charts' raise sizes: what Practice's grade asks at 6-max since 11-13)
         [--upstream]      (pf_study's stored grid, what ACCURACY sections 18 to 18.3 measured)
+        [--upstream-flat] (a short-stack jam's flat alternative as upstream's, raises and all: before ACCURACY 18.11's fix)
 """
 import argparse
 import collections
@@ -35,6 +36,7 @@ from gto.advisor import Advisor          # noqa: E402
 from gto import pf_study                 # noqa: E402
 from gto.preflop import SEATS as TABLES  # noqa: E402
 import engine.pf_stored                  # noqa: E402,F401  (Lizard's stored games, as the worker has them)
+import engine.pf_charts                  # noqa: E402,F401  (the charts as the worker serves them: repaired, 13-19bb moved)
 from engine import pf_solve as LZ        # noqa: E402  (the solver every chip-game preflop request goes to since 11-11)
 
 SEATS = ["UTG", "HJ", "CO", "BTN", "SB", "BB"]
@@ -45,6 +47,31 @@ SIZE_EPS = 0.051                         # pf_study.Solve.walk's, and pfGrade.ts
 CHIP_EPS = 0.011                         # pfGrade.ts CHIP_EPS
 TOL, MIX, INACCURACY_PCT, MISTAKE_PCT = 0.011, 0.1, 2.0, 8.0     # web/src/grading/grade.ts
 CLEAR_PCT = 20.0                         # grade.ts CLEAR_PCT: past the noise, a Blunder even where a grade is capped
+UNTRAINED_SHARE, UNTRAINED_LOSS = 0.005, 0.5   # pfGrade.ts: a move the solve never plays, whose EV is untrained
+
+
+def untrained(r):
+    """pfGrade.ts untrainedMoves: the node's moves the solve plays under UNTRAINED_SHARE of the range where even the
+    class with the best EV over folding loses UNTRAINED_LOSS or more by them against folding. Their EVs are untrained (a
+    6-max 40bb HJ's 3-bet over a UTG open is -7.5bb for every class, AA's too), so Practice grades the node by the chart."""
+    names = r["grid"]["actions"]
+    fold = names.index("fold") if "fold" in names else -1
+
+    def rel(ev, i):
+        return ev[i] - (ev[fold] if fold >= 0 else 0.0)
+    best, top = -math.inf, None
+    for c in r["grid"]["cells"].values():
+        ev = c.get("ev")
+        if not ev or len(ev) != len(names) or any(not isinstance(x, (int, float)) for x in ev):
+            continue
+        m = max(rel(ev, i) for i in range(len(ev)))
+        if m > best:
+            best, top = m, ev
+    if top is None:
+        return []
+    return [a["action"] for i, a in enumerate(r["actions"])
+            if a["action"] != "fold" and i < len(names) and names[i] == a["action"]
+            and isinstance(a.get("freq"), (int, float)) and a["freq"] < UNTRAINED_SHARE and rel(top, i) <= -UNTRAINED_LOSS]
 
 
 def class_of(hole: str) -> str:
@@ -140,6 +167,9 @@ def read(solve, t, hero, hole, opts, own_sizes):
         return "line-size", "chips differ (an all-in the tree plays as a raise)", r
     if r["rough"]:
         return "rough", "; ".join(n for n in r["notes"] if "never" in n)[:60], r
+    u = untrained(r)
+    if u:
+        return "untrained", "the solve never plays " + ", ".join(u), r
     cell = r["grid"]["cells"].get(class_of(hole))
     if cell is None:
         return "class-gone", "", r
@@ -165,18 +195,21 @@ def noise(pot):
     return pot * (4 + 2.75 * math.log(max(pot, 1.0))) / 100 if pot > 0 else 0.0
 
 
-def verdict(evs, freqs, a, pot, capped=True):
+def verdict(evs, freqs, a, pot, capped=True, chart=None):
     """web/src/grading/grade.ts gradeAnswer with source "preflop-solve": within the noise Correct, past it only the
-    excess; heads-up, short of a clear blunder, no worse than Inaccuracy (grade.ts HEADS_UP_PF), unless `capped` is off
-    (the verdict the cap stands in front of, which the run also counts)."""
+    excess (its thresholds on the pot's percent to 0.1, the frequencies to 0.1%, as grade.ts pct1 and freq1 round them).
+    Short of a clear blunder no worse than Inaccuracy heads-up (grade.ts HEADS_UP_PF) or, with `chart` the charts'
+    frequency of the move, where they play it 10% or more (grade.ts CHART_PARTS); `capped` off, neither (the verdict the
+    caps stand in front of, which the run also counts)."""
     raw = max(0.0, max(evs) - evs[a])
     if raw <= TOL:
         return "Best", 0.0
-    if freqs[a] >= MIX or raw <= noise(pot):
+    if round(freqs[a], 3) >= MIX or raw <= noise(pot):
         return "Correct", raw
-    pct = (raw - noise(pot)) / pot * 100
+    pct = round((raw - noise(pot)) / pot * 100, 1)
     v = "Inaccuracy" if pct < INACCURACY_PCT else "Mistake" if pct < MISTAKE_PCT else "Blunder"
-    if capped and len(SEATS) == 2 and v != "Inaccuracy" and round(pct, 1) < CLEAR_PCT:
+    cap = len(SEATS) == 2 or (chart is not None and round(chart, 3) >= MIX)
+    if capped and cap and v != "Inaccuracy" and pct < CLEAR_PCT:
         v = "Inaccuracy"
     return v, raw
 
@@ -200,6 +233,7 @@ def run(policy, hands, seed, rake, own_sizes, upstream=False, sizes=()):
         raise SystemExit("no stored solve")
     seen, why, by = collections.Counter(), collections.Counter(), collections.defaultdict(collections.Counter)
     verdicts, uncapped, handsseen, loss, seats = collections.Counter(), collections.Counter(), collections.Counter(), [0.0, 0], collections.defaultdict(collections.Counter)
+    nochart, follow, worst = collections.Counter(), collections.Counter(), collections.Counter()
     for h in range(hands):
         deck = DECK[:]
         rnd.shuffle(deck)
@@ -236,9 +270,20 @@ def run(policy, hands, seed, rake, own_sizes, upstream=False, sizes=()):
             if cell:
                 names = [o["action"].split()[0] for o in opts]
                 order = [r["grid"]["actions"].index(n) for n in names]
-                v, raw = verdict([cell["ev"][k] for k in order], [cell["f"][k] for k in order], opts.index(pick), r["pot_bb"])
+                evs, sf, i = [cell["ev"][k] for k in order], [cell["f"][k] for k in order], opts.index(pick)
+                # (the charts' frequency of your move: the options are the chart advice's, so its own; pfGrade.ts asOptions)
+                v, raw = verdict(evs, sf, i, r["pot_bb"], chart=freqs[i])
                 verdicts[v] += 1
-                uncapped[verdict([cell["ev"][k] for k in order], [cell["f"][k] for k in order], opts.index(pick), r["pot_bb"], False)[0]] += 1
+                nochart[verdict(evs, sf, i, r["pot_bb"])[0]] += 1
+                uncapped[verdict(evs, sf, i, r["pot_bb"], False)[0]] += 1
+                # (the chart's most played move graded Mistake or worse: qa/checks.ts pf.follow, hard)
+                if max(freqs) > 0 and freqs[i] == max(freqs):
+                    follow[v] += 1
+                    if v in ("Mistake", "Blunder"):
+                        line = " ".join(f"{m['pos']} {m['action']}{' ' + format(m['to'], 'g') if m.get('to') else ''}"
+                                        for m in t.line if m["action"] != "fold")
+                        worst[(v, hero, line or "folded to", class_of(holes[hero]), names[i], round(freqs[i], 2),
+                               round(raw, 2))] += 1
                 loss[0] += raw
                 loss[1] += 1
             name = pick["action"].split()[0]
@@ -257,7 +302,7 @@ def run(policy, hands, seed, rake, own_sizes, upstream=False, sizes=()):
             handsseen["with a decision"] += 1
             if kinds_here != {"answered"}:
                 handsseen["a decision the solve can't grade"] += 1
-    return dict(policy=policy, hands=hands, seen=seen, why=why, by=by, verdicts=verdicts, uncapped=uncapped, loss=loss, handsseen=handsseen, seats=seats)
+    return dict(policy=policy, hands=hands, seen=seen, why=why, by=by, verdicts=verdicts, nochart=nochart, uncapped=uncapped, follow=follow, worst=worst, loss=loss, handsseen=handsseen, seats=seats)
 
 
 def main():
@@ -272,14 +317,20 @@ def main():
     ap.add_argument("--upstream", action="store_true", help="pf_study's stored solve (before 2026-11-11), not Lizard's")
     ap.add_argument("--chart-sizes", action="store_true", help="the stored game at the charts' raise sizes "
                     "(engine/pf_solve.py CHART_SIZES), as Practice's grade asks it at 6-max since 2026-11-13")
+    ap.add_argument("--upstream-flat", action="store_true", help="a short-stack jam's flat alternative as upstream's "
+                    "(engine/pf_charts.py _upstream_flat): the charts before ACCURACY 18.11's fix")
     a = ap.parse_args()
+    if a.upstream_flat:
+        import gto.advisor
+        # (set for the whole run: an _upstream_flat() context left unreferenced is collected at once, restoring the fix)
+        gto.advisor._flat_ev = engine.pf_charts._flat_ev
     global SEATS, STACK
     SEATS, STACK = list(TABLES[a.players]), a.stack
     for pol in a.policy.split(","):
         t0 = time.time()
         o = run(pol, a.hands, a.seed, a.rake, a.own_sizes, a.upstream, LZ.CHART_SIZES if a.chart_sizes else ())
         n = sum(o["seen"].values())
-        print(f"== {a.players} players {a.stack:g}bb {pol}{' raked' if a.rake else ''}{' own-sizes' if a.own_sizes else ''}{' upstream' if a.upstream else ''}{' chart-sizes' if a.chart_sizes else ''}: {a.hands} hands, {n} decisions, {time.time() - t0:.0f}s", flush=True)
+        print(f"== {a.players} players {a.stack:g}bb {pol}{' raked' if a.rake else ''}{' own-sizes' if a.own_sizes else ''}{' upstream' if a.upstream else ''}{' chart-sizes' if a.chart_sizes else ''}{' upstream-flat' if a.upstream_flat else ''}: {a.hands} hands, {n} decisions, {time.time() - t0:.0f}s", flush=True)
         for k, v in o["seen"].most_common():
             print(f"  {k:12s} {v:7d} {v / n:6.1%}")
         for pot in ("first in", "facing an open", "facing a 3-bet", "facing a 4-bet", "facing a 5-bet+"):
@@ -295,8 +346,16 @@ def main():
         vn = sum(o["verdicts"].values())
         if vn:
             print("  verdicts by the solve:", {k: f"{v / vn:.1%}" for k, v in o["verdicts"].most_common()}, f"EV lost per decision {o['loss'][0] / max(o['loss'][1], 1):.4f}bb")
+            if o["nochart"] != o["verdicts"]:
+                print("  without the chart cap:", {k: f"{v / vn:.1%}" for k, v in o["nochart"].most_common()})
             if o["uncapped"] != o["verdicts"]:
-                print("  without the heads-up cap:", {k: f"{v / vn:.1%}" for k, v in o["uncapped"].most_common()})
+                print("  without either cap:", {k: f"{v / vn:.1%}" for k, v in o["uncapped"].most_common()})
+            fn = sum(o["follow"].values())
+            if fn:
+                bad = o["follow"]["Mistake"] + o["follow"]["Blunder"]
+                print(f"  the chart's most played move: {fn} graded, {bad} Mistake or worse ({bad / fn:.2%}): " + ", ".join(f"{k} {v}" for k, v in o["follow"].most_common()))
+                for (v, hero, line, cls, move, f, raw), c in o["worst"].most_common(8):
+                    print(f"      {c:4d}x {v}: {hero} {cls} {move} (the chart's {f:.0%}) after {line}, {raw:.2f}bb lost")
         for (k, d), v in o["why"].most_common(14):
             print(f"    {v:6d} {k}: {d}")
         print(flush=True)

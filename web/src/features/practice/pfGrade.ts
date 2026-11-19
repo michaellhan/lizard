@@ -20,6 +20,8 @@ import { kindOf } from "@/components/actions";
 import { classOf } from "@/engine/nlhe/cards";
 import { behind, recordOf, type Move, type Sim, type TableSetup } from "@/poker/table";
 import type { AdvisorActionStat, AdvisorResponse, AdvisorState } from "@/solver/protocol";
+import { sourceOf } from "@/solver/provenance";
+import { CHART_SOURCES } from "@/grading/grade";
 import type { Provenance, SolveResult } from "@/solver/types";
 import { bb } from "@/components/actions";
 import type { GradeCell } from "@/features/history/history";
@@ -121,11 +123,52 @@ function lineUp(moves: readonly { action: string; to?: number | null }[], action
   return at.includes(-1) || new Set(at).size !== at.length ? null : at;
 }
 
-/** The solve's answer as your options': yours in their order and with their names, its numbers for your class. */
-const asOptions = (read: Extract<NodeRead, { node: unknown }>, options: readonly Pick<AdvisorActionStat, "action" | "amount_bb">[], at: readonly number[]): AdvisorResponse => ({
-  ...read.node,
-  actions: options.map((o, i) => ({ action: o.action, ...(typeof o.amount_bb === "number" ? { amount_bb: o.amount_bb } : {}), freq: read.f[at[i]!]!, ev_bb: read.ev[at[i]!]! })),
-});
+/** The charts' play beside the solve's, where both answer the spot: each option's frequency in the charts (null for a move
+ * they don't name), and whose they are ("charts" or "push-fold"). A move they play 10% or more the solve can't condemn
+ * (grade.ts CHART_PARTS). */
+export type ChartPlay = { freqs: readonly (number | null)[]; source?: string };
+
+/** The solve's answer as your options': yours in their order and with their names, its numbers for your class, and where
+ * the charts answer the spot too, their frequency of each (`chart_freq`, read into the grade's basis: grading/basis.ts). */
+const asOptions = (read: Extract<NodeRead, { node: unknown }>, options: readonly Pick<AdvisorActionStat, "action" | "amount_bb">[], at: readonly number[], chart?: ChartPlay | null): AdvisorResponse => {
+  // (not where the solve pays prize equity: a tournament's charts are chips' with a risk premium)
+  const c = chart && read.provenance.evIn !== "prize" && CHART_SOURCES.has(chart.source ?? "charts") && chart.freqs.length === options.length && chart.freqs.some((x) => typeof x === "number") ? chart : null;
+  return {
+    ...read.node,
+    actions: options.map((o, i) => ({ action: o.action, ...(typeof o.amount_bb === "number" ? { amount_bb: o.amount_bb } : {}), freq: read.f[at[i]!]!, ev_bb: read.ev[at[i]!]!, ...(c ? { chart_freq: c.freqs[i] ?? null } : {}) })),
+    ...(c?.source ? { chart_source: c.source } : {}),
+  };
+};
+
+/** A raise of any size, an all-in among them: what the charts' and the solve's aggressive moves are matched as. */
+const AGGRESSIVE = new Set(["raise", "bet", "all-in"]);
+const passive = (name: string) => (AGGRESSIVE.has(kindOf(name)) ? null : kindOf(name));
+
+/** The charts' frequency of each of a spot's moves, from the charts' answer there (`chart`), where the moves are the
+ * solve's own (a drill, a site's hand, a retry of a decision kept before the charts were): a fold, check or call by its
+ * kind (0 where the charts don't name it); a raise by its size (within SIZE_EPS), or where the charts and the moves each
+ * have one raise, that one (the charts' raise to 10bb for the solve's to 12bb, as a session's `pfSizes` offers it); null
+ * where that leaves it unmatched. Null where the charts gave no frequencies. */
+export function chartFreqs(chart: AdvisorResponse | null | undefined, moves: readonly Pick<AdvisorActionStat, "action" | "amount_bb">[]): ChartPlay | null {
+  const opts = optionsOf(chart);
+  if (!chart || !opts.length || opts.some((o) => typeof o.freq !== "number" || !Number.isFinite(o.freq))) return null;
+  const source = sourceOf(chart);
+  if (!CHART_SOURCES.has(source)) return null;
+  const raises = opts.filter((o) => passive(o.action) === null);
+  const ours = moves.filter((m) => passive(m.action) === null).length;
+  // (an all-in and a sized raise are different moves: the charts' jam, where their 3-bet would commit the stack, is no
+  // frequency of the solve's 10bb 3-bet)
+  const jam = (name: string) => kindOf(name) === "all-in";
+  const freqs = moves.map((m) => {
+    const k = passive(m.action);
+    if (k !== null) return opts.filter((o) => passive(o.action) === k).reduce((x, o) => x + o.freq!, 0);
+    if (!raises.length) return 0;
+    if (raises.length === 1 && ours === 1 && jam(raises[0]!.action) === jam(m.action)) return raises[0]!.freq!;
+    const sized = raises.filter((o) => jam(o.action) === jam(m.action) && typeof o.amount_bb === "number" && typeof m.amount_bb === "number" && Math.abs(o.amount_bb - m.amount_bb) <= SIZE_EPS);
+    return sized.length === 1 ? sized[0]!.freq! : null;
+  });
+  return { freqs, source };
+}
 
 export type PfRead = { data: AdvisorResponse; provenance: Provenance } | { why: string };
 
@@ -157,18 +200,22 @@ export function pfReadAt(spot: PfSpot, res: AdvisorResponse, asked: PfAsked | un
   const { node } = read;
   const off = chipsOff(spot, node);
   if (off) return chart(off);
+  // (a tournament preset's options are the solve's own, priced by prize equity, where the charts are chips' with a risk
+  // premium: they aren't set beside it)
   if (spot.ownOptions) {
     const acts = node.actions ?? [];
     return { data: asOptions(read, acts, acts.map((_, i) => i)), provenance: read.provenance };
   }
   const options = optionsOf(res);
+  // (your options are the charts' own, so each one's frequency is theirs: grade.ts CHART_PARTS)
+  const play: ChartPlay = { freqs: options.map((o) => (typeof o.freq === "number" ? o.freq : null)), source: sourceOf(res) };
   const moves = options.map((a) => recordOf(spot.table, spot.sim, { action: kindOf(a.action), to: typeof a.amount_bb === "number" ? a.amount_bb : undefined, clamp: true }));
   const table = moves.flatMap((m) => (typeof m === "string" ? [] : [m]));
   const whole = table.length === moves.length;
   const at = whole ? lineUp(table, node.actions ?? []) : null;
-  if (at) return { data: asOptions(read, options, at), provenance: read.provenance };
+  if (at) return { data: asOptions(read, options, at, play), provenance: read.provenance };
   const own = whole && spot.ownSizes ? lineUp(table, node.actions ?? [], true) : null;
-  if (own) return { data: asOptions(read, options.map((o, i) => (kindOf(o.action) === "raise" ? { ...o, amount_bb: node.actions![own[i]!]!.amount_bb } : o)), own), provenance: read.provenance };
+  if (own) return { data: asOptions(read, options.map((o, i) => (kindOf(o.action) === "raise" ? { ...o, amount_bb: node.actions![own[i]!]!.amount_bb } : o)), own, play), provenance: read.provenance };
   const its = (node.actions ?? []).map((a) => ({ action: a.action, to: a.amount_bb }));
   return chart(`The solve's options aren't yours here: you have ${sizes(table)}, and it has ${sizes(its)}.`);
 }
@@ -180,8 +227,9 @@ export function pfRead(h: PracticeHand, res: AdvisorResponse, asked: PfAsked | u
 
 /** A site's hand: no buttons were offered, so there are no options to line up, and what the solve can say of it is the move
  * made. It reads where the node is this spot and holds that move, a raise at its own size: an EV of a raise to 12bb isn't one
- * of a raise to 11bb. So here, unlike the table, the size you raised to can leave a decision with the chart. */
-export function pfPlayed(spot: PfSpot, m: Move, asked: PfAsked | undefined): PfRead {
+ * of a raise to 11bb. So here, unlike the table, the size you raised to can leave a decision with the chart. `res`: the
+ * charts' answer at the spot, whose frequencies are set beside the solve's (chartFreqs). */
+export function pfPlayed(spot: PfSpot, m: Move, asked: PfAsked | undefined, res?: AdvisorResponse): PfRead {
   const read = readNode(asked, spot.hero, spot.hole);
   if ("why" in read) return read;
   const { node } = read;
@@ -189,16 +237,17 @@ export function pfPlayed(spot: PfSpot, m: Move, asked: PfAsked | undefined): PfR
   if (off) return chart(off);
   const actions = node.actions ?? [];
   if (!lineUp([m], actions.filter((a) => a.action === m.action))) return chart(`The solve has no such move here: you played ${sizes([m])}, and it has ${sizes(actions.map((a) => ({ action: a.action, to: a.amount_bb })))}.`);
-  return { data: asOptions(read, actions, actions.map((_, i) => i)), provenance: read.provenance };
+  return { data: asOptions(read, actions, actions.map((_, i) => i), chartFreqs(res, actions)), provenance: read.provenance };
 }
 
-/** A drill's spot (PreflopDrill): its options are the node's own, so all there is to read is the node and your class. */
-export function pfNodeRead(asked: PfAsked | undefined, seat: string, hole: string): PfRead {
+/** A drill's spot (PreflopDrill): its options are the node's own, so all there is to read is the node and your class.
+ * `res`: the charts' answer for your hand there, whose frequencies are set beside the solve's (chartFreqs). */
+export function pfNodeRead(asked: PfAsked | undefined, seat: string, hole: string, res?: AdvisorResponse): PfRead {
   const read = readNode(asked, seat, hole);
   if ("why" in read) return read;
   const actions = read.node.actions ?? [];
   if (!actions.length) return chart("The solve has no actions here.");
-  return { data: asOptions(read, actions, actions.map((_, i) => i)), provenance: read.provenance };
+  return { data: asOptions(read, actions, actions.map((_, i) => i), chartFreqs(res, actions)), provenance: read.provenance };
 }
 
 /** What a decision at this spot is graded on: the solve's answer where it reads, else the chart's, with why. */
@@ -216,14 +265,14 @@ export function optionsAt(h: PracticeHand, held: HeldAnswer | null | undefined, 
 
 /** A retry of a decision graded by the solve: the same read, of the answer asked now, against the options and pot kept with
  * the decision. Anything it can't answer the same way it refuses, in words: a retry never falls back to the charts, as the
- * first grade was the solve's. */
-export function pfAgain(asked: SolveResult, state: Pick<AdvisorState, "hero" | "hole">, kept: Decision["mix"] | undefined, pot: number): PfRead {
+ * first grade was the solve's. `play`: the charts' play kept with the decision (its basis), set beside the solve's again. */
+export function pfAgain(asked: SolveResult, state: Pick<AdvisorState, "hero" | "hole">, kept: Decision["mix"] | undefined, pot: number, play?: ChartPlay | null): PfRead {
   const read = readNode(asked, state.hero ?? "", state.hole ?? "");
   if ("why" in read) return read;
   const options = (kept ?? read.node.actions ?? []).map((a) => ("amount_bb" in a ? a : { action: a.action, ...(a.amount !== undefined ? { amount_bb: a.amount } : {}) }));
   if (Math.abs((read.node.pot_bb ?? NaN) - pot) > CHIP_EPS) return chart(`The solve's pot here is ${read.node.pot_bb}bb now, and it was ${pot}bb.`);
   const at = lineUp(options.map((o) => ({ action: kindOf(o.action), to: o.amount_bb })), read.node.actions ?? []);
-  return at ? { data: asOptions(read, options, at), provenance: read.provenance } : chart("The solve's options here aren't the ones you had.");
+  return at ? { data: asOptions(read, options, at, play), provenance: read.provenance } : chart("The solve's options here aren't the ones you had.");
 }
 
 /** A session's preflop decisions by what graded them, in words, each basis on its own: null with none graded. */

@@ -55,6 +55,12 @@ function* cases(n = 12000, seed = 1): Generator<Case> {
       basis.rough = freqs.map((f) => f < 0.01 && r() < 0.5);
       if (r() < 0.5) basis.iterations = pick([60, 150, 300, 800, 2000]);
     }
+    // (the charts' play beside the preflop solve's: grade.ts CHART_PARTS)
+    if (source === "preflop-solve" && r() < 0.5) {
+      basis.chart = freqs.map(() => (r() < 0.1 ? null : pick([0, 0.005, 0.0949, 0.0951, 0.1, 0.3, 0.6, 0.97, 1])));
+      if (r() < 0.3) basis.chartSource = pick(["charts", "push-fold"]);
+      if (r() < 0.2) basis.players = pick([2, 6]);
+    }
     yield { spot: { freqs, evs, pot }, basis };
   }
 }
@@ -139,6 +145,25 @@ describe("the verdict and the best", () => {
         if (g.verdict === "Blunder" && pct1(g.pastPct ?? 0) >= CLEAR_PCT) return g.clearWhy ? null : "a clear blunder without its reason";
         if (g.verdict === "Mistake" || g.verdict === "Blunder") return "condemned on an unmeasured answer";
         return g.capped && !g.capWhy ? "capped without a reason" : null;
+      }),
+    ).toEqual([]);
+  });
+
+  it("the charts' play beside the preflop solve's only softens a verdict, and only where they play the move MIX or more", () => {
+    const rank = (v: string) => ["Best", "Correct", "Inaccuracy", "Mistake", "Blunder"].indexOf(v);
+    expect(
+      broken((c, g, _w, a) => {
+        if (!c.basis.chart) return null;
+        const alone = { ...c.basis };
+        delete alone.chart;
+        delete alone.chartSource;
+        const h = gradeAnswer(c.spot, a, alone);
+        if (rank(g.verdict) > rank(h.verdict)) return `${g.verdict} beside the charts, ${h.verdict} without them`;
+        if (g.loss !== h.loss || g.past !== h.past || g.noise !== h.noise) return "the charts moved the EV lost";
+        const x = c.basis.chart[a];
+        const plays = typeof x === "number" && Math.round(x * 1000) / 1000 >= MIX;
+        if (!plays && JSON.stringify(g) !== JSON.stringify(h)) return "a move the charts play under MIX graded differently";
+        return null;
       }),
     ).toEqual([]);
   });

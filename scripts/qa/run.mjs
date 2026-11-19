@@ -43,7 +43,7 @@ const jiti = createJiti(import.meta.url, { alias: { "@": resolve(ROOT, "web/src"
 
 try {
   if (flag("--pf-agree")) {
-    // (the chart against the preflop solve at every hand class of a set of spots: pfagree.ts; about 3 minutes)
+    // (the chart against the preflop solve at every hand class of a set of spots: pfagree.ts; about 20 minutes over its 14 spots)
     const { pfAgree, pfAgreeMarkdown, PF_SPOTS } = await jiti.import(resolve(HERE, "pfagree.ts"));
     const stamp = new Date().toISOString().replace(/[-:]/g, "").replace("T", "-").slice(0, 15);
     const out = resolve(ROOT, opt("--out", `qa-out/pfagree-${stamp}`));

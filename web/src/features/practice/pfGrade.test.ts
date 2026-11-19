@@ -6,7 +6,7 @@ import nodes from "@/test/fixtures/pf_nodes.json";
 import untrained from "@/test/fixtures/pf_untrained.json";
 import { keptHand } from "./keep";
 import { adviceKey, needOf, pfKey } from "./flow";
-import { gradedOn, optionsAt, pfAgain, PF_MODEL, pfNodeRead, pfPlayed, pfRead, pfWords, plainReason, UNTRAINED_LOSS, UNTRAINED_SHARE, untrainedMoves, type HeldAnswer, type PfAsked } from "./pfGrade";
+import { chartFreqs, gradedOn, optionsAt, pfAgain, PF_MODEL, pfNodeRead, pfPlayed, pfRead, pfWords, plainReason, UNTRAINED_LOSS, UNTRAINED_SHARE, untrainedMoves, type HeldAnswer, type PfAsked } from "./pfGrade";
 import { dealNext, decide, following, gradeMix, newHand, optionsOf, pfBlocked, pfState, rangeAt, setupOf, simOf, stateFor, studyOf, withVillain, type PracticeHand } from "./practice";
 import { reviewed } from "./review";
 import { afterDecision, freshSession, toRecord } from "./session";
@@ -16,6 +16,8 @@ import { streetTotals } from "@/features/history/progress";
 import { answerChange, handMistake, retried, spotKey } from "@/features/review/mistakes";
 import { askAgain, askSolver } from "@/features/review/retry";
 import { basisOf } from "@/grading/basis";
+import { CHART_PARTS } from "@/grading/grade";
+import { isBasis } from "@/data/shapes";
 import { readSetup, scenarioWords } from "@/data/scenarios";
 import { SolverClient } from "@/solver/client";
 import type { Move } from "@/poker/table";
@@ -412,6 +414,136 @@ describe("at the solve's raise sizes", () => {
     const kept = JSON.parse(JSON.stringify(sized("BB", ["Ah", "Kd"], toBb)));
     expect(keptHand(kept)?.pfSizes).toBe(true);
     expect(keptHand({ ...kept, pfSizes: "yes" })).toBeNull();
+  });
+});
+
+describe("beside the charts", () => {
+  // BTN facing a UTG open to 2.5 with AJo: the stored solve calls (raise to 7.5 -0.162bb, call 0.407, fold 0), and the
+  // charts here fold 10%, call 60% and 3-bet 30%. Pot 4bb, the solve's noise 0.31bb.
+  const ajo = (opts = {}) => spot("BTN", ["Ah", "Jd"], OPEN, opts);
+  const at = (h: PracticeHand) => ({ hero: h.hero, hole: h.hands[h.hero]!.join(""), sim: simOf(h), table: setupOf(h) });
+  const read = (r: ReturnType<typeof pfRead>) => {
+    if ("why" in r) throw new Error(r.why);
+    return r;
+  };
+  const graded = (h: PracticeHand, held: HeldAnswer, i: number) => {
+    const on = gradedOn(h, held);
+    const r = decide(h, on.data, i, on.provenance, undefined, on.pfWhy);
+    if ("error" in r) throw new Error(r.error);
+    return r.decision;
+  };
+
+  it("puts the charts' frequency of each of your options beside the solve's, and the grade reads it", () => {
+    const h = ajo();
+    const on = gradedOn(h, { data: CHART_OPENED, provenance: CHART_P, pf: asked(NODES.opened) });
+    expect(optionsOf(on.data).map((a) => [a.action, a.freq, a.chart_freq])).toEqual([["fold", 0, 0.1], ["call", 1, 0.6], ["raise", 0, 0.3]]);
+    expect(on.data.chart_source).toBe("charts");
+    const b = basisOf(on.provenance, { res: on.data });
+    expect(b).toMatchObject({ source: "preflop-solve", players: 6, chart: [0.1, 0.6, 0.3], chartSource: "charts" });
+    // (kept with a mistake, the record's shape takes it, and refuses a chart that can't be one)
+    expect(isBasis(b)).toBe(true);
+    expect(isBasis({ ...b, chart: [0.1, null, 0.3] })).toBe(true);
+    for (const chart of [[0.1, 1.2, 0.3], [0.1, -0.1], ["0.1"], [Number.NaN], 0.3]) expect(isBasis({ ...b, chart })).toBe(false);
+    expect(isBasis({ ...b, chartSource: 3 })).toBe(false);
+  });
+  it("can't have the solve condemn the charts' 3-bet or their 10% fold: Inaccuracy, capped, with the loss as measured", () => {
+    const h = ajo();
+    const on = gradedOn(h, { data: CHART_OPENED, provenance: CHART_P, pf: asked(NODES.opened) });
+    const pick = (i: number) => {
+      const r = decide(h, on.data, i, on.provenance);
+      if ("error" in r) throw new Error(r.error);
+      return r.decision;
+    };
+    const raise = pick(2);
+    expect(raise.grade).toMatchObject({ verdict: "Inaccuracy", capped: true });
+    expect(raise.grade!.loss).toBeCloseTo(0.569, 6);
+    expect(raise.grade!.capWhy).toContain(CHART_PARTS);
+    expect(raise.grade!.capWhy).toContain("plays this 30.0% of the time here and the preflop solve 0.0%");
+    expect(raise.basis!.chart).toEqual([0.1, 0.6, 0.3]);
+    expect(pick(0).grade).toMatchObject({ verdict: "Inaccuracy", capped: true });
+    expect(pick(1).grade!.verdict).toBe("Best");
+    // where the charts play the 3-bet under 10% the solve grades it as ever
+    const rare: AdvisorResponse = { ...CHART_OPENED, actions: [{ action: "fold", freq: 0.05 }, { action: "call", freq: 0.9 }, { action: "raise", freq: 0.05, amount_bb: 7.5 }] };
+    const off = gradedOn(h, { data: rare, provenance: CHART_P, pf: asked(NODES.opened) });
+    const r = decide(h, off.data, 2, off.provenance);
+    if ("error" in r) throw new Error(r.error);
+    expect([r.decision.grade!.verdict, r.decision.grade!.capped]).toEqual(["Mistake", undefined]);
+  });
+  it("does it at the solve's raise sizes too, the charts' raise to 10bb beside the solve's to 12bb", () => {
+    const h = spot("BB", ["Ah", "5d"], toBb, { pfSizes: true });
+    const on = gradedOn(h, { data: CHART_BB, provenance: CHART_P, pf: asked(NODES.offSize) });
+    expect(optionsOf(on.data).map((a) => [a.action, a.amount_bb, a.chart_freq])).toEqual([["raise", 12, 0.2], ["call", undefined, 0.7], ["fold", undefined, 0.1]]);
+    const r = decide(h, on.data, 0, on.provenance);
+    if ("error" in r) throw new Error(r.error);
+    // (A5o's raise to 12 gives up 1.00bb, 17.1% of the pot past the noise: a Blunder, short of a clear one)
+    expect(r.decision.grade).toMatchObject({ verdict: "Inaccuracy", capped: true });
+  });
+  it("sets nothing beside a tournament preset's own options, nor beside prize equity", () => {
+    const own = read(pfRead({ ...ajo(), pfOptions: true }, CHART_OPENED, asked(NODES.opened)));
+    expect(optionsOf(own.data).some((a) => "chart_freq" in a)).toBe(false);
+    expect(basisOf(own.provenance, { res: own.data }).chart).toBeUndefined();
+    const solved = asked(NODES.opened);
+    const prize = read(pfRead(ajo(), CHART_OPENED, { ...solved, provenance: { ...solved.provenance, evIn: "prize" } }));
+    expect(optionsOf(prize.data).some((a) => "chart_freq" in a)).toBe(false);
+  });
+  it("reads a site's hand and a drill's node against the charts' answer there, by the move's kind and size", () => {
+    const h = ajo();
+    const played = read(pfPlayed(at(h), { pos: "BTN", action: "raise", to: 7.5 }, asked(NODES.opened), CHART_OPENED));
+    expect(optionsOf(played.data).map((a) => [a.action, a.chart_freq])).toEqual([["raise", 0.3], ["call", 0.6], ["fold", 0.1]]);
+    expect(optionsOf(read(pfPlayed(at(h), { pos: "BTN", action: "raise", to: 7.5 }, asked(NODES.opened))).data).some((a) => "chart_freq" in a)).toBe(false);
+    const node = read(pfNodeRead(asked(NODES.opened), "BTN", "AhJd", CHART_OPENED));
+    expect(optionsOf(node.data).map((a) => a.chart_freq)).toEqual([0.3, 0.6, 0.1]);
+    expect(optionsOf(read(pfNodeRead(asked(NODES.opened), "BTN", "AhJd")).data).some((a) => "chart_freq" in a)).toBe(false);
+  });
+  it("matches a raise by size, one raise to one raise, and leaves an unmatched one unknown", () => {
+    const moves = [{ action: "fold" }, { action: "call" }, { action: "raise", amount_bb: 12 }];
+    expect(chartFreqs(CHART_BB, moves)).toEqual({ freqs: [0.1, 0.7, 0.2], source: "charts" });
+    // two raises of the solve's against the charts' one: by size, the other unknown
+    const two = [{ action: "fold" }, { action: "raise", amount_bb: 2.5 }, { action: "all-in", amount_bb: 20 }];
+    const jam: AdvisorResponse = { street: "preflop", pot_bb: 1.5, actions: [{ action: "fold", freq: 0.4 }, { action: "all-in", freq: 0.6, amount_bb: 20 }] };
+    expect(chartFreqs(jam, two)!.freqs).toEqual([0.4, null, 0.6]);
+    // a move the charts don't have they play 0%; an answer with no frequencies gives nothing
+    expect(chartFreqs({ street: "preflop", actions: [{ action: "fold", freq: 1 }] }, moves)!.freqs).toEqual([1, 0, 0]);
+    expect(chartFreqs({ street: "preflop", error: "x", actions: [] }, moves)).toBeNull();
+    expect(chartFreqs(undefined, moves)).toBeNull();
+    // the charts' jam (where their 3-bet would commit the stack) is no frequency of the solve's sized 3-bet
+    const jam40: AdvisorResponse = { street: "preflop", pot_bb: 4, actions: [{ action: "fold", freq: 0.5 }, { action: "call", freq: 0.2, amount_bb: 1.5 }, { action: "all-in", freq: 0.3, amount_bb: 40 }] };
+    expect(chartFreqs(jam40, [{ action: "raise", amount_bb: 10 }, { action: "call" }, { action: "fold" }])!.freqs).toEqual([null, 0.2, 0.5]);
+    expect(chartFreqs(jam40, [{ action: "all-in", amount_bb: 40 }, { action: "fold" }])!.freqs).toEqual([0.3, 0.5]);
+    // a rules or equity fallback's frequencies are no chart's
+    expect(chartFreqs({ ...CHART_BB, fallback: "rules" }, moves)).toBeNull();
+    expect(chartFreqs({ ...CHART_BB, fallback: "equity" }, moves)).toBeNull();
+  });
+  it("puts no chart frequencies beside the solve where the table's answer is a fallback's", () => {
+    const h = ajo();
+    const on = gradedOn(h, { data: { ...CHART_OPENED, fallback: "rules" }, provenance: { ...CHART_P, source: "rules" }, pf: asked(NODES.opened) });
+    expect(on.provenance.source).toBe("preflop-solve");
+    expect(optionsOf(on.data).some((a) => "chart_freq" in a)).toBe(false);
+    expect(basisOf(on.provenance, { res: on.data }).chart).toBeUndefined();
+    // (and a basis that says its frequencies are a fallback's doesn't take them)
+    expect(basisOf(on.provenance, { res: { ...NODES.opened, actions: NODES.opened.actions!.map((a) => ({ ...a, chart_freq: 0.5 })), chart_source: "rules" } }).chart).toBeUndefined();
+  });
+  it("keeps the charts' play with the decision, and a retry grades beside it again, as Practice did", async () => {
+    const h = ajo();
+    const d = graded(h, { data: CHART_OPENED, provenance: CHART_P, pf: asked(NODES.opened) }, 2);
+    expect(d.grade).toMatchObject({ verdict: "Inaccuracy", capped: true });
+    const m = handMistake("s", h, { ...d, grade: { ...d.grade!, ok: false } }, 1)!;
+    if (m.ask.via !== "solver") throw new Error(m.ask.via);
+    expect(m.basis?.chart).toEqual([0.1, 0.6, 0.3]);
+    const answer = await askAgain(m, async () => ({ solve: async () => asked(NODES.opened) }));
+    expect(answer.basis?.chart).toEqual([0.1, 0.6, 0.3]);
+    expect(retried(m, answer, 2, 5).grade).toEqual(d.grade);
+    // an answer that comes back without it keeps the play kept with the decision
+    expect(retried(m, { ...answer, basis: undefined }, 2, 5).grade).toEqual(d.grade);
+    // (by each move's name, so options that come back in another order keep their own frequencies)
+    const turned = { ...answer, basis: undefined, mix: [...answer.mix].reverse() };
+    expect(retried(m, turned, 0, 5).grade).toMatchObject({ verdict: d.grade!.verdict, capped: true, loss: d.grade!.loss });
+    expect(retried(m, turned, 0, 5).grade.capWhy).toMatch(/plays this 30\.0% of the time/);
+    // a decision kept before the charts' play was is graded again as it was
+    const old = { ...m, basis: { source: "preflop-solve", players: 6 } };
+    const again = await askAgain(old, async () => ({ solve: async () => asked(NODES.opened) }));
+    expect(again.basis?.chart).toBeUndefined();
+    expect(retried(old, again, 2, 5).grade.verdict).toBe("Mistake");
   });
 });
 

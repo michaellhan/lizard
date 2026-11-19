@@ -276,6 +276,17 @@ describe("grade sanity", () => {
     expect(checkGrades([{ action: "raise 2.5", freq: 0.9, ev: null }, { action: "fold", freq: 0.1, ev: null }], 1.5, { source: "charts" }).violations).toEqual([]);
   });
 
+  it("leaves a move the charts play MIX or more, capped beside the preflop solve, out of the monotone pool", () => {
+    // (6-max 20bb SB first in, pot 1.5: the solve jams; the charts raise 95% and fold 5%. The fold, 4.9% of the pot past
+    // the noise, is a Mistake; the raise, 10.2% past it, is capped at Inaccuracy as the charts' move: pf.parts, by design)
+    const mix: Decision["mix"] = [{ action: "fold", freq: 0, ev: 0 }, { action: "raise 2.2", freq: 0, ev: -0.08, amount: 2.2 }, { action: "all-in", freq: 1, ev: 0.15 }];
+    const { grades, violations } = checkGrades(mix, 1.5, { source: "preflop-solve", players: 6, chart: [0.05, 0.95, 0] });
+    expect(grades.map((g) => [g.verdict, !!g.capped])).toEqual([["Mistake", false], ["Inaccuracy", true], ["Best", false]]);
+    expect(violations).toEqual([]);
+    // (without the charts' play the same node is monotone as ever)
+    expect(checkGrades(mix, 1.5, { source: "preflop-solve", players: 6 }).violations).toEqual([]);
+  });
+
   const real = async () => (await vi.importActual<typeof import("@/features/practice/practice")>("@/features/practice/practice")).gradeMix;
 
   it("catches a mixed action condemned, the top EV not Best, and a verdict that improves with the loss", async () => {
@@ -317,8 +328,9 @@ describe("grade sanity", () => {
 // ---- preflop
 
 describe("preflop", () => {
-  const chart = res({ actions: [{ action: "raise 2.5", freq: 0.9, amount_bb: 2.5 }, { action: "fold", freq: 0.1 }] });
-  const solve: AnswerBasis = { source: "preflop-solve" };
+  const chart = res({ street: "preflop", actions: [{ action: "raise 2.5", freq: 0.9, amount_bb: 2.5 }, { action: "fold", freq: 0.1 }] });
+  // (the chart's play beside the solve's, as pfGrade.ts puts it in the basis: grade.ts CHART_PARTS)
+  const solve: AnswerBasis = { source: "preflop-solve", chart: [0.9, 0.1] };
 
   it("passes a solve that agrees with the chart, and a chart's own most played move", () => {
     const mix = [{ action: "raise 2.5", freq: 0.85, ev: 0.5, amount: 2.5 }, { action: "fold", freq: 0.15, ev: 0 }];
@@ -327,7 +339,7 @@ describe("preflop", () => {
     expect(checkPreflop({ chart, graded: { mix: byChart, pot: 1.5, basis: { source: "charts" }, source: "charts" } })).toEqual([]);
   });
 
-  it("fails the chart's most played move condemned by the solve", () => {
+  it("fails the chart's most played move condemned by the solve as a clear blunder", () => {
     const mix = [{ action: "raise 2.5", freq: 0, ev: -3, amount: 2.5 }, { action: "fold", freq: 1, ev: 0 }];
     const got = checkPreflop({ chart, graded: { mix, pot: 1.5, basis: solve, source: "preflop-solve" } });
     expect(checksOf(got)).toEqual(["hard pf.follow"]);
@@ -336,31 +348,42 @@ describe("preflop", () => {
     expect(checkPreflop({ chart, graded: { mix, pot: 1.5, basis: solve, source: "preflop-solve" }, ownOptions: true })).toEqual([]);
   });
 
-  it("holds the chart's most played move graded Inaccuracy soft, Mistake or worse hard", () => {
-    // (pot 1.5: the solve's noise is 0.077bb; past it under 2% of the pot an Inaccuracy, under 8% a Mistake)
-    const at = (ev: number) => checkPreflop({ chart, graded: { mix: [{ action: "raise 2.5", freq: 0, ev, amount: 2.5 }, { action: "fold", freq: 1, ev: 0 }], pot: 1.5, basis: solve, source: "preflop-solve" } });
+  it("holds the chart's most played move graded Inaccuracy soft, capped soft where the two part, a clear blunder hard", () => {
+    // (pot 1.5: the solve's noise is 0.077bb; past it under 2% of the pot an Inaccuracy, under 8% a Mistake, 20% or more
+    // a clear blunder)
+    const at = (ev: number, basis = solve) => checkPreflop({ chart, graded: { mix: [{ action: "raise 2.5", freq: 0, ev, amount: 2.5 }, { action: "fold", freq: 1, ev: 0 }], pot: 1.5, basis, source: "preflop-solve" } });
     const inacc = at(-0.09);
     expect(checksOf(inacc)).toEqual(["soft pf.follow"]);
     expect(inacc[0]!.detail).toMatch(/chart's most played move, raise 2.5 \(90.0%\), graded Inaccuracy/);
-    expect(checksOf(at(-0.15))).toEqual(["hard pf.follow"]);
-    expect(at(-0.15)[0]!.detail).toMatch(/graded Mistake/);
+    expect(checksOf(at(-0.15))).toEqual(["soft pf.parts"]);
+    expect(at(-0.15)[0]!.detail).toMatch(/most played move, raise 2.5 \(90.0%\), which the solve plays 0.0%: capped at Inaccuracy/);
+    expect(checksOf(at(-0.5))).toEqual(["hard pf.follow"]);
+    expect(at(-0.5)[0]!.detail).toMatch(/graded Blunder/);
     expect(checksOf(at(-0.05))).toEqual([]);
+    // (a basis without the chart's play where the chart answered: a surface that lost it, failed as such)
+    expect(checksOf(at(-0.15, { source: "preflop-solve" }))).toEqual(["hard pf.chart", "hard pf.follow"]);
+    expect(checksOf(at(-0.05, { source: "preflop-solve" }))).toEqual(["hard pf.chart"]);
+    // (but not beside a tournament's prize equity, nor where the table's answer is a fallback's: no chart stands there)
+    const bare = { mix: [{ action: "raise 2.5", freq: 0, ev: -0.05, amount: 2.5 }, { action: "fold", freq: 1, ev: 0 }], pot: 1.5, basis: { source: "preflop-solve" }, source: "preflop-solve" };
+    expect(checkPreflop({ chart, graded: bare, prize: true })).toEqual([]);
+    expect(checkPreflop({ chart: { ...chart, fallback: "rules" }, graded: bare })).toEqual([]);
   });
 
   it("holds a tie for the chart's most played move the same whichever the chart lists first", () => {
     // (a 50/50 chart, the solve folding: the raise is a mixed move whichever way round; hard only where the solve condemns both)
     const mix = [{ action: "raise 2.5", freq: 0, ev: -0.2, amount: 2.5 }, { action: "fold", freq: 1, ev: 0 }];
     const tie = (first: "raise" | "fold") =>
-      res({ actions: first === "raise" ? [{ action: "raise 2.5", freq: 0.5, amount_bb: 2.5 }, { action: "fold", freq: 0.5 }] : [{ action: "fold", freq: 0.5 }, { action: "raise 2.5", freq: 0.5, amount_bb: 2.5 }] });
-    const a = checkPreflop({ chart: tie("raise"), graded: { mix, pot: 1.5, basis: solve, source: "preflop-solve" } });
-    const b = checkPreflop({ chart: tie("fold"), graded: { mix, pot: 1.5, basis: solve, source: "preflop-solve" } });
+      res({ street: "preflop", actions: first === "raise" ? [{ action: "raise 2.5", freq: 0.5, amount_bb: 2.5 }, { action: "fold", freq: 0.5 }] : [{ action: "fold", freq: 0.5 }, { action: "raise 2.5", freq: 0.5, amount_bb: 2.5 }] });
+    const half: AnswerBasis = { source: "preflop-solve", chart: [0.5, 0.5] };
+    const a = checkPreflop({ chart: tie("raise"), graded: { mix, pot: 1.5, basis: half, source: "preflop-solve" } });
+    const b = checkPreflop({ chart: tie("fold"), graded: { mix, pot: 1.5, basis: half, source: "preflop-solve" } });
     expect(checksOf(a)).toEqual(checksOf(b));
-    expect(checksOf(a)).toEqual(["soft pf.follow"]);
+    expect(checksOf(a)).toEqual(["soft pf.parts"]);
     expect(a[0]!.detail).toMatch(/most played \(tied with 1 other\) move, raise 2.5/);
-    // (both tied moves condemned: hard)
+    // (both tied moves condemned past a clear blunder: hard)
     const both = [{ action: "raise 2.5", freq: 0, ev: -3, amount: 2.5 }, { action: "fold", freq: 0, ev: -3 }, { action: "call", freq: 1, ev: 0 }];
-    const three = res({ actions: [{ action: "raise 2.5", freq: 0.5, amount_bb: 2.5 }, { action: "fold", freq: 0.5 }, { action: "call", freq: 0 }] });
-    expect(checksOf(checkPreflop({ chart: three, graded: { mix: both, pot: 1.5, basis: solve, source: "preflop-solve" } }))).toEqual(["hard pf.follow", "hard pf.follow"]);
+    const three = res({ street: "preflop", actions: [{ action: "raise 2.5", freq: 0.5, amount_bb: 2.5 }, { action: "fold", freq: 0.5 }, { action: "call", freq: 0 }] });
+    expect(checksOf(checkPreflop({ chart: three, graded: { mix: both, pot: 1.5, basis: { source: "preflop-solve", chart: [0.5, 0.5, 0] }, source: "preflop-solve" } }))).toEqual(["hard pf.follow", "hard pf.follow"]);
   });
 
   it("fails a node graded by EV with a move the solve never trained", () => {

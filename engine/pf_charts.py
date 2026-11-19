@@ -1,6 +1,6 @@
 """Lizard's repairs to the preflop charts as the advice serves them. solver/ is untouched: importing this module wraps
-gto.pf_formats.moves, gto.preflop.strategy_for, gto.advisor._jam_range and Advisor._priced, _icm_open, _push and
-_preflop_play. The worker imports it at start (scripts/pyodide/worker-edits.mjs), with the other engine patches. A local
+gto.pf_formats.moves, gto.preflop.strategy_for, gto.advisor._jam_range and _flat_ev, and Advisor._priced, _icm_open,
+_push and _preflop_play. The worker imports it at start (scripts/pyodide/worker-edits.mjs), with the other engine patches. A local
 server runs upstream without engine/, so there the charts are upstream's (13 to 19bb on the 100bb charts, hands out of
 order as before).
 
@@ -39,6 +39,19 @@ order as before).
    library nodes. Away from them 38 continue inversions stay: 14 the big blind's check or raise over a heads-up limp
    (no fold to continue against), 24 facing an all-in (a call by equity against the jam range, as the ranges the
    later streets play read it). docs/ACCURACY.md section 18.9 has the measurements.
+
+3. A short-stack jam's flat alternative. Where a raise would commit much of the stack, Advisor._push jams from the
+   push/fold equilibrium with flatting as the alternative (advisor._flat_ev): the flat's EV times how often the chart
+   continues with the hand, its raises included. So a hand the chart 3-bets took the whole flat's EV for its raising
+   share too, though the jam stands in for that raise: the small blind at 20bb flatted 99 98.5% over a HJ open and
+   97.2% over a CO's, and AJs 93.8% and 86.2%, where the stored preflop solve jams them by a fifth of the pot or more
+   past its noise (docs/ACCURACY.md section 18.11). The flat's EV is now times how often the chart calls, so for its
+   raising share a hand's jam is weighed against folding. What the jam doesn't take still calls, as upstream's _push
+   serves it (the chart's continuing share that doesn't shove): a hand the chart only 3-bets, whose jam loses to
+   folding, is served as a flat (over a 20bb HJ open without rake A2s-A5s, 65s, 76s, 98s and T9s, all inside the
+   solve's noise there). Folding that share instead was measured and not kept: neither holding the call to the chart's
+   call share nor folding only the combos the equilibrium never jams was better in every game. Nodes that feed a
+   published flop library spot keep upstream's, as in 2, and so does upstream() (a node's answer before its repair).
 """
 from __future__ import annotations
 
@@ -190,6 +203,7 @@ _icm_open = A.Advisor._icm_open
 _push = A.Advisor._push
 _preflop_play = A.Advisor._preflop_play
 _jam_range = A._jam_range
+_flat_ev = A._flat_ev
 _SF_CACHE: Dict[tuple, tuple] = {}
 # a class arriving at a node at least this much (its share of the class's combos) where upstream's ranges bring under it
 # arrives only through a repair: upstream's re-draw there never weighed it, so it plays the chart's own answer
@@ -207,18 +221,37 @@ def upstream():
         yield
         return
     saved = (P.strategy_for, A.Advisor.__dict__["_priced"], A.Advisor.__dict__["_icm_open"], A._jam_range,
-             A._PF_CACHE, P._STRAT_CACHE)
+             A._flat_ev, A._PF_CACHE, P._STRAT_CACHE)
     P.strategy_for = _strategy_for
     A.Advisor._priced = staticmethod(_priced)
     A.Advisor._icm_open = staticmethod(_icm_open)
     A._jam_range = _jam_range
+    A._flat_ev = _flat_ev
     A._PF_CACHE, P._STRAT_CACHE = _UP["pf"], _UP["strat"]
     _UP["depth"] = 1
     try:
         yield
     finally:
         _UP["depth"] = 0
-        P.strategy_for, A.Advisor._priced, A.Advisor._icm_open, A._jam_range, A._PF_CACHE, P._STRAT_CACHE = saved
+        (P.strategy_for, A.Advisor._priced, A.Advisor._icm_open, A._jam_range, A._flat_ev, A._PF_CACHE,
+         P._STRAT_CACHE) = saved
+
+
+@contextlib.contextmanager
+def _upstream_flat():
+    """Upstream's flat alternative alone (a node that feeds a published spot), the rest as served."""
+    saved = A._flat_ev
+    A._flat_ev = _flat_ev
+    try:
+        yield
+    finally:
+        A._flat_ev = saved
+
+
+def flat_ev(full, w, raiser, pot, to_call, behind=0.0):
+    """advisor._flat_ev times how often the chart calls, not how often it continues (3. above): its raising share is
+    the jam's, so it weighs nothing against it."""
+    return _flat_ev({a: v for a, v in full.items() if a != "raise"}, w, raiser, pot, to_call, behind)
 
 
 def _classes(v) -> np.ndarray:
@@ -286,9 +319,12 @@ def icm_open(hero, preflop, positions, stack, st, full, notes):
 
 
 def push(hero, preflop, positions, stack, st, jam, full, notes, pool=False, locks=()):
-    out = _push(hero, preflop, positions, stack, st, jam, full, notes, pool, locks)
+    """Advisor._push with the flat alternative of 3. above, then repaired (2.); what the jam doesn't take of the chart's
+    continuing share calls, as upstream's does. A node that feeds a published spot is upstream's, its flat included."""
     if feeds_library(hero, preflop, positions, stack):
-        return out
+        with _upstream_flat():
+            return _push(hero, preflop, positions, stack, st, jam, full, notes, pool, locks)
+    out = _push(hero, preflop, positions, stack, st, jam, full, notes, pool, locks)
     return repair(out, _arriving(hero, preflop, positions, stack))
 
 
@@ -363,6 +399,7 @@ def install():
     PF.moves = moves
     P.strategy_for = strategy_for
     A._jam_range = jam_range
+    A._flat_ev = flat_ev
     A.Advisor._priced = staticmethod(priced)
     A.Advisor._icm_open = staticmethod(icm_open)
     A.Advisor._push = staticmethod(push)
@@ -375,6 +412,7 @@ def uninstall():
     PF.moves = _moves
     P.strategy_for = _strategy_for
     A._jam_range = _jam_range
+    A._flat_ev = _flat_ev
     A.Advisor._priced = staticmethod(_priced)
     A.Advisor._icm_open = staticmethod(_icm_open)
     A.Advisor._push = staticmethod(_push)

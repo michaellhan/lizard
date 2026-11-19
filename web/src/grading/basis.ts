@@ -3,7 +3,7 @@
 import type { AdvisorResponse } from "@/solver/protocol";
 import { leansOnRules } from "@/solver/provenance";
 import type { Provenance } from "@/solver/types";
-import type { AnswerBasis } from "./grade";
+import { CHART_SOURCES, type AnswerBasis } from "./grade";
 
 /** The provenance fields a grade reads; a kept record may carry only some of them. */
 export type BasisProvenance = Pick<Provenance, "source"> & Partial<Pick<Provenance, "band" | "exploitabilityPct" | "partial" | "approximate" | "leansOnRules" | "iterations" | "approximateReason">>;
@@ -28,7 +28,22 @@ export function basisOf(p: BasisProvenance | null | undefined, more: Omit<Answer
   if (leans) b.leans = true;
   // (the preflop solve's table size: heads-up, it can't condemn a line: grade.ts HEADS_UP_PF)
   if (p.source === "preflop-solve" && b.players === undefined && typeof res?.players === "number") b.players = res.players;
+  // (the charts' frequency of each move, where pfGrade.ts read the solve at a spot the charts answer: a move they play 10%
+  // or more the solve can't condemn, grade.ts CHART_PARTS)
+  if (p.source === "preflop-solve" && b.chart === undefined && CHART_SOURCES.has(typeof res?.chart_source === "string" ? res.chart_source : "charts")) {
+    const chart = chartFreqsOf(res);
+    if (chart) b.chart = chart;
+    if (chart && b.chartSource === undefined && typeof res?.chart_source === "string") b.chartSource = res.chart_source;
+  }
   return b;
+}
+
+/** The charts' frequency of each of an answer's actions (pfGrade.ts stamps `chart_freq` on the solve's answer as your
+ * options), null for a move they don't have; null where none is stamped. */
+export function chartFreqsOf(res: AdvisorResponse | null | undefined): (number | null)[] | null {
+  const acts = res && !res.error && Array.isArray(res.actions) ? res.actions : [];
+  const c = acts.map((a) => (typeof a.chart_freq === "number" && Number.isFinite(a.chart_freq) && a.chart_freq >= 0 && a.chart_freq <= 1 ? a.chart_freq : null));
+  return c.some((x) => x !== null) ? c : null;
 }
 
 /** Per action, whether the engine marked its EV rough (advisor.py rough_ev; practice.ts mixOf carries it as `rough`). */

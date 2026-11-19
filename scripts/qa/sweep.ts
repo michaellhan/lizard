@@ -437,7 +437,7 @@ export async function sweep(o: SweepOptions): Promise<Summary> {
         const pfNode = held.pf && "data" in held.pf && !held.pf.data.error ? held.pf : null;
         if (pfNode) violations.push(...K.checkProvenance(pfNode.data, pfNode.provenance, null, { asked: "pf", street }).map((x) => ({ ...x, detail: `the preflop solve's node: ${x.detail}` })));
         violations.push(...K.checkPot(on.data, t, sim, h.hero));
-        if (street === "preflop") violations.push(...K.checkPreflop({ chart: held.data, graded: { mix, pot, basis, source: on.provenance.source }, pf: pfNode?.data ?? null, ownOptions: !!h.pfOptions }));
+        if (street === "preflop") violations.push(...K.checkPreflop({ chart: held.data, graded: { mix, pot, basis, source: on.provenance.source }, pf: pfNode?.data ?? null, ownOptions: !!h.pfOptions, prize: on.provenance.evIn === "prize" }));
         if (cfg.mode === "quick" && secs > 15) violations.push(K.violation("perf.slow", `Quick took ${secs} s`, "soft"));
         // your move: mostly the graded answer's mix (in a preflop-solve session half the time the chart's, as its buttons
         // are), and now and then any option, so moves off the mix are graded too

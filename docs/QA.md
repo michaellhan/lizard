@@ -194,7 +194,10 @@ builds it, not only the action taken)
 
 - `grade.mix`: an action played at least MIX (10%) is Best or Correct.
 - `grade.top`: the top-EV action (within TOL) is Best.
-- `grade.monotone`: among the actions left to EV, the verdict never improves as the EV given up past the noise grows.
+- `grade.monotone`: among the actions left to EV, the verdict never improves as the EV given up past the noise grows,
+  except a move the charts play MIX or more graded by the preflop solve: since 2026-11-18 that one stops at Inaccuracy
+  short of a clear blunder (`grade.ts` `CHART_PARTS`), so it can grade milder than a smaller loss at a move the charts
+  don't play, by design. Those are counted as `pf.parts`.
 - `grade.cap`: a capped grade has a `capWhy`, and a `clearWhy` grade is a Blunder.
 - `grade.nan`: no loss, percentage, noise or word is NaN, undefined or Infinity.
 - `grade.words`: the loss is measured against the top EV, and the stated loss, whyText's "gives up only X against the
@@ -210,6 +213,14 @@ builds it, not only the action taken)
   most played (a 50/50 hand), they are hard only if the solve grades every one of them below Correct, otherwise each one
   graded down is soft: before 2026-11-18 whichever the chart listed first was hard and the other soft. Graded by the
   charts: the chart's most played move is Best.
+- `pf.parts` (soft, since 2026-11-18): a move the charts play MIX or more, graded by the preflop solve below Correct and
+  capped at Inaccuracy because the two part (`grade.ts` `CHART_PARTS`, ACCURACY 18.11). The detail gives both
+  frequencies, the EV given up and its share of the pot past the noise. A clear blunder (20% of the pot or more past the
+  noise) isn't capped, so it is still a hard `pf.follow` where it is the chart's most played move.
+- `pf.chart` (hard, since 2026-11-18): a grade by the solve where the chart answered the spot but the grade's basis has
+  no chart frequencies (a surface that lost them), or a chart move at MIX or more graded Mistake or Blunder short of a
+  clear blunder (the cap didn't hold). Not checked where your options are the solve's own (`pfOptions`) or the answer is
+  a tournament's prize equity, where no chart stands beside the solve.
 - `pf.untrained`: a node with a move the solve never learned an EV for (`untrainedMoves`) is never graded by EV.
 
 **Coverage.** What answered each spot type is tallied: library, live, rules, charts, preflop solve, push-fold. Two
@@ -432,9 +443,10 @@ request up to 431 MB, a Fast reference's 566 MB, an Accurate one's 611 MB.
 
 ### Preflop: the chart against the solve
 
-`node scripts/qa/run.mjs --pf-agree` asks every one of the 169 classes at nine spots through the Practice path, and
-grades the chart's most played move by the solve (about 13 minutes). Share of the hands dealt (by combos) where the move
-the chart plays most is graded below Correct, and Mistake or Blunder, after the fixes (the first run's in brackets):
+`node scripts/qa/run.mjs --pf-agree` asks every one of the 169 classes at 14 spots (nine until later 2026-11-18, see
+below) through the Practice path, and grades the chart's most played move by the solve (about 13 minutes). Share of
+the hands dealt (by combos) where the move the chart plays most is graded below Correct, and Mistake or Blunder, after
+the fixes (the first run's in brackets):
 
 | spot | below Correct | Mistake or Blunder | worst |
 |---|---|---|---|
@@ -457,6 +469,24 @@ it raises: 0.11-0.15bb), 2.1% and 1.8% at the 6-max big blind (AJo and A5o 3-bet
 (ACCURACY 18.10), the 20bb big blind would add three hard ones (A9o and 77 calling a raise to 3 where the solve shoves,
 KQs shoving where it calls: 0.42-0.45bb, 1.7% of its hands), and the matrix's 2max-20bb config would fail on hand 3 (the
 A9o); the cap stays.
+
+Since 2026-11-18 (later, ACCURACY 18.11) `--pf-agree` asks 14 spots: the nine above, plus the 6-max 100bb small blind
+over a UTG open and big blind over a small blind open to 3, the 20bb small blind over a button open, and the 40bb and
+200bb small blind first in. Its table adds a column for the grades the chart cap stopped at Inaccuracy (the charts
+play the move 10% or more and the two part past the noise). Run on the merged tree with the cap and the short-stack
+flat fix, it has no hard `pf.follow` or `pf.chart`, so it exits 0 (13 minutes). The capped classes:
+
+| spot | capped | the chart's move, the solve's, loss |
+|---|---:|---|
+| 6-max 100bb, SB first in | 2 | A2o raises 100%, the solve folds, 0.15bb; 87o folds 71%, it raises, 0.11bb |
+| 6-max 100bb, BB facing a BTN open to 2.5 | 2 | AJo and A5o 3-bet 60%, the solve calls, 0.46 and 0.41bb |
+| 6-max 100bb, SB facing a UTG open to 2.5 | 1 | AQo 3-bets 72%, the solve calls, 0.64bb |
+| 6-max 100bb, BB facing an SB raise to 3 | 2 | A8s 3-bets 60% and KJo 100%, the solve calls, 0.63 and 0.47bb |
+| 6-max 20bb, SB facing a BTN open to 2.5 | 4 | 77-44 call, the solve shoves, 0.43-1.11bb (77 19.9% of the pot past the noise, short of a clear blunder) |
+| 6-max 40bb, SB first in | 7 | T8o, 98o and 87o fold, the solve raises; 73s, 63s, 85o and K4o raise, it folds: 0.12-0.31bb |
+| 6-max 200bb, SB first in | 2 | A2o and 87o, as at 100bb |
+
+The heads-up spots and the 6-max UTG and button first in have none.
 
 Two changes moved the heads-up rows (docs/ACCURACY.md section 18.10). The solve's off-path classes, the ones its own
 equilibrium never brings to a node, now play a best response there instead of whatever the iterations left

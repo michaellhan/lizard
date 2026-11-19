@@ -1804,6 +1804,197 @@ A9o, graded a Mistake with the cap off: the one grade the change moved in that c
 there over the charts, so the grade would condemn the chart's own advice on a disagreement of two models, which is what
 the cap is for. 3-max's rate stays a question of its own (above). Not measured: 50, 80 and 125 to 200bb heads-up.
 
+### 18.11 Where the charts and the solve part (2026-11-18)
+
+Practice graded four 6-max 100bb chart moves as Mistakes by the stored preflop solve (lz3_6max_100bb_blind_3bet4,
+no rake, the charts' sizes): the small blind first in raising A2o (the chart's 100%) and folding 87o (71%), and the big
+blind over a button open to 2.5 3-betting AJo and A5o (60% each). The solve folds A2o (its raise -0.145bb), raises 87o
+(+0.114bb), and calls AJo (1.357bb against the 3-bet's 0.893) and A5o (0.236 against -0.169).
+
+**Why the solve parts there [M].** Not the charts: they agree with `solver/tests/preflop_refs.py` (A5o 3-bets 40-90%
+there, AQs, AKo and JJ+ always). The small blind's pair comes of `advisor._river_fix`, a hand-shape term (offsuit
+non-connectors -0.05, suited +0.10, connectors to J-high +0.15, 22-66 +0.10, times equity) applied to single-raised
+pots' flop values at r1 = 0.626. It sets 87o above A2o, and nothing measured settles which is right (the full
+reference's small blind limps, so its A2o at 0% is limp-or-fold, not a fold over a raise). The big blind's pair is a
+defect of the flop model. r2 = 0.734 applies the same term to the 3-bet pots' library values, which were solved with
+the river dealt, so the river counts twice. The term goes on both players' targets, so `LibraryModel._solve_ac`, which
+fits the caller exactly, charges the surplus to the 3-bettor as a flat -0.026 of the pot. A re-solve of the big blind's
+subgame with r2 = 0 takes AJo's gap from 0.46bb to 0.03 and A5o's from 0.40 to 0.24 (most of the rest is ext=2's low
+A6o-A9o, which s2's smoothing pulls A5o down with). Ruled out: the button 4-betting too much (10.1% of its range, the
+published 10.3%) and missing blockers (rank-level card removal is in `PAIR_COMPAT`).
+
+**How wide [M].** A sweep graded the chart's most played move by the solve for every class at every first-in node and
+at the blinds facing one open, in 14 stored games: 6-max 20, 40, 100 and 200bb at the charts' sizes, and 3- to 5-max
+100bb, each raked and not, 20,280 class-spots in all. It found a Mistake or Blunder at 133 of them, 70 of those at
+hands the charts play one way. The largest group, 50 hits (23 without rake, 27 raked), was the 20bb small blind facing
+an open: the chart flatted 99, 88, AQo and AJs where the solve jams. That one was the charts' bug (below).
+
+**A model fix, tried and not shipped [M].** One variant replaced the river term with the library's measured correction
+(river dealt minus blind, 1,755 `srp_btn_bb` flops) and smoothed only classes in range. It fixed three of the four
+classes (AJo stays a Mistake, at the boundary), but doubled 6-max 100bb's hard hits (8 to 16): the big blind over a CO
+open 3-bet J9s, T9s, 98s and 87s pure where the chart calls 60-80%. It also took the 3-bet hand order from 3 hands out of
+order to 7-8. That fix waits for a later model, which must be no worse in any of the 14 games.
+
+**The rule.** A grade by the preflop solve can't condemn a move the charts play 10% or more at the same spot (MIX, at
+the page's 0.1% precision). Past the noise the grade stops at Inaccuracy, the EV lost is shown as measured, and the
+words say the charts (not a solve) play it N% and the solve M%: "they part here by more than the solve's noise, and
+nothing here settles which is right" (`web/src/grading/grade.ts` `CHART_PARTS`). A clear blunder (20% of the pot or more
+past the noise) is still a Blunder, and the heads-up cap (18.10) comes first. It counts only the charts or push/fold
+(`CHART_SOURCES`): a rules or equity fallback isn't chart play. A tournament's prize-equity answer and the solve's own
+sizes (`pfOptions`, the ICM presets) have no chart beside them. The charts' frequencies travel in the grade's basis on
+every surface that grades by the solve:
+- Practice, lined up by move and size, a jam only with a jam (`pfGrade.ts` `chartFreqs`).
+- The preflop drill, which asks the chart once per node (`PreflopDrill.tsx`).
+- Review's retries, matched by action name (`mistakes.ts` `retried`).
+- Analyze.
+
+The QA sweep counts the capped grades as `pf.parts` (soft), and `pf.chart` (hard) fires where a surface lost the
+chart or the cap didn't hold (`docs/QA.md`). Tests: `gradeAnswer.test.ts`, `pfGrade.test.ts`, `checks.test.ts`,
+`DrillsPanel.test.tsx`.
+
+**The 20bb small blind's flats: the charts' own bug [M].** At short stacks a raise becomes a jam drawn from the
+push/fold equilibrium, with the hand's flat as the alternative it must beat (`advisor._flat_ev`, section 26). That flat
+was weighed by how often the chart continues, raise share included. So a hand the chart only 3-bets counted a flat's EV
+it never plays, and the equilibrium jammed other hands in its place. In the stored 20bb game, 99 over a CO open jams for
+2.765bb against the call's 1.343, yet the chart flatted it. Now the flat is weighed by the chart's call share alone
+(`engine/pf_charts.py` `flat_ev`, installed over `advisor._flat_ev`; nodes that feed a published library spot keep
+upstream's). For a hand the chart raises and never flats, the jam is weighed against folding (what the jam doesn't
+take still calls, below). Over CO and BTN opens, 99, 88, AQo and AJs
+now jam, and A9o over a BTN open goes from jamming 56% to folding 98%, which the solve agrees with (its jam -0.038bb).
+Tests: `scripts/engine/test_pf_charts.py` `FlatAlternative`.
+
+Class-spots it moved:
+
+| Games | Moved | Moved by 0.25+ |
+|---|---:|---:|
+| 20bb, no rake | 150 | 89 |
+| 20bb, raked | 192 | 129 |
+| 40bb, no rake | 63 | 35 |
+| 40bb, raked | 79 | 50 |
+| 100bb, 200bb and 3- to 5-max | 0 | 0 |
+
+At 20bb, by combos, the chart's mix gives up less against the solve: 0.448 → 0.385% of the pot without rake and
+0.436 → 0.287% raked. The share of the mix graded Mistake or Blunder falls from 1.11% to 0.82%, and from 0.87% to 0.51%
+raked. At 40bb the solve's tree 3-bets to a size where the charts jam, so nothing grades the jam there. Read as the
+solve's 3-bet, the moved mixes give up less as well:
+
+| 40bb | EV given up, % of the pot | Better by 0.5%+ of the pot | Worse by 0.5%+ |
+|---|---|---:|---:|
+| No rake | 2.85 → 1.53 | 36 | 9 |
+| Raked | 2.97 → 1.22 | 39 | 8 |
+
+An example from the small blind over a 40bb CO open, where the chart 3-bets A5s-A3s and folds A6s. The old weighting
+flatted A5s-A3s, which the chart never calls, and jammed A6s 95%. Now A5s-A3s jam 94-95% and A6s folds (the solve calls
+it there; the chart's fold costs 3.9% of the pot, one of the 9 worse).
+
+**The implied odds, tried twice and kept [M].** `_flat_ev` sets the flat's realization so the chart's weakest flats
+(the bottom 5% by equity) break even, then adds implied odds on the stack behind: 6% of it for 22-99, 3% for suited
+hands below the broadways. At the 20bb small blind the weakest flats are those same hands, so their implied odds count
+twice. Two changes were measured over the 20bb and 40bb games (no other game moves):
+- No implied term. The small blind then jams 77 and 66 over a button open, as the solve does, and 20bb chart play past
+  the noise falls (0.057% to 0.047% of the pot without rake, 0.055% to 0.046% raked). But the big blind's weakest
+  flats are offsuit hands with no implied weight, so it lost odds it had earned: it jams 22-66, A2s and K8s where the
+  solve calls. The chart's mix then gives up more without rake (0.385% to 0.398%), and at 40bb the moved mixes, read
+  as the solve's 3-bet, give up more too (1.96% to 2.70% without rake, 1.56% to 1.96% raked).
+- The realization set with the weakest flats' own implied odds counted. Better at 20bb (0.385% to 0.375%, and 0.287%
+  to 0.279% raked) and at 40bb without rake (1.38% to 1.23% over the 39 class-spots it moved). Worse at 40bb raked:
+  1.34% to 1.72% over 21, with 3 worse by 0.5% of the pot or more and none better.
+
+Neither is better in every game, so the flat keeps upstream's implied odds.
+
+**What the jam doesn't take [M].** Upstream's `_push` serves the share of the chart's continuing range that doesn't jam
+as a call, and the fix leaves that alone. So a hand the chart only 3-bets, whose jam the equilibrium now weighs against
+folding, is still served as a flat where the jam loses. Over a 20bb HJ open without rake, A2s, A3s, A5s, 65s, 76s, 98s
+and T9s flat 100%; A4s flats 64% and jams the rest, and AJo flats 93%. The solve has those flats inside its noise there
+(A2s's is -0.207bb against folding, the noise 0.31bb). A4s's mix is one neither model would play alone: its jam share
+is where the equilibrium has jamming level with folding, while upstream's flat EV for it is positive. The solve has
+A4s's jam level with folding (-0.002bb) and its flat at -0.124bb, so the mix gives up less than upstream's 100% flat.
+A review (2026-11-19) found that this file and `engine/pf_charts.py` had said such hands fold. Two ways to fold that
+share were measured over the 20bb and 40bb games:
+- The call held to the chart's call share, the rest folding. Worse in three of the four. At 20bb without rake the
+  chart's mix gives up 0.385% → 0.409% of the pot, and Mistake or worse goes from 0.82% to 1.06% of the mix (AJo over
+  a HJ open folds 93%, where the solve jams it for +0.558bb). At 40bb, read as the solve's 3-bet, 1.64% → 1.89% of the
+  pot, and 0.70% → 1.06% raked. 20bb raked is about even (0.287% → 0.293%).
+- Only the combos the equilibrium never jams folding. Better at 20bb raked: the small blind's 33, 44, 55, 76s, 87s and
+  T9s flats over CO and button opens stop being hard hits, and Mistake or worse goes from 0.51% to 0.48% of the mix.
+  Better at 40bb: 2.26% → 2.19%, and 0.55% → 0.51% raked. Worse at 20bb without rake: 0.385% → 0.393%, and 0.82% →
+  0.96%.
+
+Neither is better in every game, so the rest still calls. Count the 20bb class-spots where the served call takes 5% or
+more from the chart's raise share: 144 without rake, 131 raked. The solve grades none of those calls Mistake or worse
+without rake, and 8 raked, at 2.1-3.4% of the pot past the noise:
+- QTs over a HJ open (the advice's 10%).
+- 44-66 and 76s over a CO open.
+- T9s, 87s and 76s over a button open.
+
+Where the advice plays them 10% or more, the cap shows them as Inaccuracies, though the chart itself only 3-bets those
+hands.
+
+**The sweep after both.** Hard hits fell from 133 to 119 with the flat fix (20bb: 23 → 18 without rake, 27 → 18
+raked; the other games as they were). With the cap, 3 remain, down from 12 before the flat fix: all clear blunders, all
+the raked 20bb small blind flatting a pair where the solve jams:
+
+| Hand | Opener | The chart's call | Past the noise |
+|---|---|---:|---:|
+| 99 | UTG | 75% | 25.2% of the pot |
+| 77 | HJ | 100% | 20.0% |
+| 77 | BTN | 90% | 29.2% |
+
+The chart's top move is graded Inaccuracy instead of Mistake at 128 class-spots.
+
+**Practice, measured [M].** `scripts/pf_practice_coverage.py` plays 6,000 seeded 6-max hands per game through the
+Practice path. Every seat plays the charts at the charts' sizes, and each decision the stored solve can grade is graded.
+Its new `--upstream-flat` switch plays the flat as upstream's, for the charts before the flat fix. The table gives the
+share of those decisions graded Mistake or Blunder, with neither change, each alone, and both:
+
+| Game | Neither | The cap alone | The flat fix alone | Both | EV lost per decision |
+|---|---:|---:|---:|---:|---|
+| 20bb, no rake | 0.9% | 0.0% | 0.5% | 0.0% | 0.0155 → 0.0117bb |
+| 20bb, raked | 0.3% | 0.1% | 0.2% | 0.0% | 0.0128 → 0.0112bb |
+| 40bb, no rake | 0.8% | 0.1% | 0.8% | 0.1% | 0.0087 → 0.0088bb |
+| 40bb, raked | 0.7% | 0.0% | 0.6% | 0.1% | 0.0116 → 0.0117bb |
+
+At 40bb the flat fix changes no graded decision: the spots it moved are those where the solve's tree 3-bets to a size
+and the charts jam, which the solve doesn't grade. What stays is Blunders: clear ones, or moves the charts play under
+10%. Of the chart's own most played move, the solve graded these Mistake or worse:
+- 20bb without rake: 2 of 4,813 before (the small blind flatting 99 over a CO open, the chart's 97%), and 1 of 4,733
+  after. That one is the big blind calling 44 (the chart's 100%) after a button open and a small blind call, 1.75bb.
+- 20bb raked: 5 of 4,678 before (88 and 99 flatted over CO, HJ and UTG opens) and 2 of 4,706 after (99 over a UTG
+  open, the chart's 75%).
+- 40bb: none of about 4,300 in either game, before or after.
+
+The script lacked Practice's untrained-move rule (`pfGrade.ts` `untrainedMoves`, section 18.9) until now, so its
+counts before 2026-11-19 graded those moves by their untrained EVs. At 6-max 40bb the HJ's 3-bet over a UTG open is
+-7.5bb for every class, AA's included. That alone gave 8 Blunders of the chart's main move in 4,489 decisions, and
+0.0279bb lost per decision instead of 0.0088. Practice never graded them so: it grades that node by the chart. Its
+untrained nodes are 9.9% of 20bb decisions (9.4% raked) and 4.4% at 40bb (1.1% raked). None of the 222 nodes of the 14-game
+sweep above has an untrained move, so its counts stand.
+
+`node scripts/qa/run.mjs --pf-agree` now covers 14 spots and adds a column for the grades the cap stopped. It finds no
+hard `pf.follow` or `pf.chart`, so it exits 0 (it exited 1 on the four 6-max classes before). The capped grades are
+listed below.
+- 6-max 100bb: the small blind's A2o and 87o, the big blind's AJo and A5o over a button open, the small blind's AQo over
+  a UTG open, and the big blind's A8s and KJo over a small blind open: 0.11-0.64bb.
+- The 20bb small blind over a button open: 77-44 flatted where the solve jams, 0.43-1.11bb.
+- The 40bb small blind first in: seven classes, 0.12-0.31bb. It folds T8o, 98o and 87o where the solve raises, and
+  raises 73s, 63s, 85o and K4o where the solve folds.
+- The 200bb small blind first in: A2o and 87o again.
+
+The heads-up spots have none.
+
+**Not established.**
+- The model's river term stays: the solve still calls AJo and A5o and folds A2o, and the grades say so as
+  Inaccuracies. The fix (no river term on river-dealt spots, a term that sums to zero, a clamp on ext=2's edge) is a
+  model change: a new model tag and a rebuilt grid, behind the 14-game no-worse gate.
+- The 20bb small blind still flats small pairs where the solve jams. Over a button open that is 77-44 without rake
+  (capped Inaccuracies). Raked, it is 99 over a UTG open and 77 over HJ and button opens, clear blunders at 20-29% of
+  the pot past the noise. The doubled implied odds above are one cause (without them 77 and 66 jam), but removing them
+  moves the big blind the wrong way. A fix that separates the two seats is not measured.
+- The cap takes the charts' word that a move is played. The charts are themselves approximate, so a capped Inaccuracy
+  can be the charts' error rather than the solve's. At a short stack the word is the advice's: a flat the jam left over (above) counts as
+  the charts', though the chart itself only 3-bets the hand.
+- 40bb is checked only by reading the jam as the solve's 3-bet.
+
 ## 19. Nut advantage on Reports (2026-11-06)
 
 Reports' Nut adv is each range's nut share and the lead between them, by flop: a range's weight at 80% equity or more against the
@@ -2435,7 +2626,10 @@ has a closed form (`pf_classes.equity_vs`), so each class's estimate moves by it
 **Cause 2: a sliver of a flat weighed as a whole one.** A short-stack raise is a jam from the push/fold equilibrium,
 against the hand's flat as its alternative (`_flat_ev`), and every hand the chart continued with at all took the whole
 flat's EV. At 40bb over a UTG open and a HJ call the button's re-priced calls left A9s 0.6%, A8s 1.8%, A7s 0: A8s and A9s
-were held to 1.4bb flats and folded, A7s jammed 87%. Fix: the flat's EV times how often the chart continues.
+were held to 1.4bb flats and folded, A7s jammed 87%. Fix: the flat's EV times how often the chart continues. Since
+2026-11-18 (section 18.11) that is how often it flats, its raises left out (`engine/pf_charts.py` `flat_ev`): a hand
+the chart only 3-bets counted a flat it never plays, so the 20bb small blind flatted 99, 88, AQo and AJs where both
+class-level solves jam.
 
 **Sweep, true dominance only** (same top card, next kicker; A6/A5 left out for the wheel): continuing 25 points or more
 below the dominated hand, 19 cases before, 14 after, none of them T9o/T8o. (Same kicker over a higher top card, 74s

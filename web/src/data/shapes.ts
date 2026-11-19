@@ -65,10 +65,11 @@ export const isBasis = (x: unknown): boolean =>
     x !== null &&
     !Array.isArray(x) &&
     ((b: Record<string, unknown>) =>
-      [b.source, b.band, b.approximateReason].every(isOptStr) &&
+      [b.source, b.band, b.approximateReason, b.chartSource].every(isOptStr) &&
       [b.exploitabilityPct, b.flopPot, b.noise, b.iterations, b.players].every(isOptNum) &&
       [b.partial, b.approximate, b.leans].every(isOptBool) &&
-      (b.rough === undefined || (Array.isArray(b.rough) && b.rough.every(isBool))))(x as Record<string, unknown>));
+      (b.rough === undefined || (Array.isArray(b.rough) && b.rough.every(isBool))) &&
+      (b.chart === undefined || (Array.isArray(b.chart) && b.chart.every((c) => c === null || (isNum(c) && c >= 0 && c <= 1)))))(x as Record<string, unknown>));
 
 export const isPotName = (x: unknown): x is string => isStr(x) && POT_NAMES.includes(x);
 /** A seat at any table, in action order: every table's seats are among the nine-handed one's. */

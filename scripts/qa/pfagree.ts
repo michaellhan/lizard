@@ -10,6 +10,7 @@ import * as P from "@/features/practice/practice";
 import { needOf } from "@/features/practice/flow";
 import { gradedOn, type HeldAnswer, type PfAsked } from "@/features/practice/pfGrade";
 import { gradeMix } from "@/features/practice/practice";
+import { CHART_PARTS } from "@/grading/grade";
 import { DECK, type Move } from "@/poker/table";
 import { SolverClient } from "@/solver/client";
 import * as K from "@/qa/checks";
@@ -37,6 +38,13 @@ export const PF_SPOTS: PfSpot[] = [
   { name: "6max-100bb BTN first in", players: 6, stack: 100, hero: "BTN", pre: [f("UTG"), f("HJ"), f("CO")] },
   { name: "6max-100bb SB first in", players: 6, stack: 100, hero: "SB", pre: [f("UTG"), f("HJ"), f("CO"), f("BTN")] },
   { name: "6max-100bb BB vs BTN 2.5", players: 6, stack: 100, hero: "BB", pre: [f("UTG"), f("HJ"), f("CO"), r("BTN", 2.5), f("SB")] },
+  // (where the stored games' sweep of every first-in node and the blinds facing one open found the chart and the solve
+  // parting most: docs/ACCURACY.md section 18.11)
+  { name: "6max-100bb SB vs UTG 2.5", players: 6, stack: 100, hero: "SB", pre: [r("UTG", 2.5), f("HJ"), f("CO"), f("BTN")] },
+  { name: "6max-100bb BB vs SB 3", players: 6, stack: 100, hero: "BB", pre: [f("UTG"), f("HJ"), f("CO"), f("BTN"), r("SB", 3)] },
+  { name: "6max-20bb SB vs BTN 2.5", players: 6, stack: 20, hero: "SB", pre: [f("UTG"), f("HJ"), f("CO"), r("BTN", 2.5)] },
+  { name: "6max-40bb SB first in", players: 6, stack: 40, hero: "SB", pre: [f("UTG"), f("HJ"), f("CO"), f("BTN")] },
+  { name: "6max-200bb SB first in", players: 6, stack: 200, hero: "SB", pre: [f("UTG"), f("HJ"), f("CO"), f("BTN")] },
 ];
 
 const RANKS = "AKQJT98765432";
@@ -66,6 +74,8 @@ export interface PfAgreeRow {
   verdict?: string;
   loss?: number;
   pastPct?: number;
+  /** the grade of the chart's move stopped at Inaccuracy, as the chart plays it 10% or more (grade.ts CHART_PARTS) */
+  capped?: boolean;
   hard: boolean;
   violations: K.Violation[];
 }
@@ -123,16 +133,18 @@ export async function pfAgree(o: { spots: PfSpot[]; out: string; log: (s: string
           row.verdict = g.verdict;
           row.loss = Math.round(g.loss * 1000) / 1000;
           row.pastPct = Math.round((g.pastPct ?? 0) * 10) / 10;
+          if (g.capped && g.capWhy?.includes(CHART_PARTS)) row.capped = true;
         }
         row.violations = K.checkPreflop({ chart: res.data, graded: { mix, pot, basis, source: "preflop-solve" }, pf: "data" in pf ? pf.data : null });
-        row.hard = row.violations.some((v) => v.severity === "hard" && v.check === "pf.follow");
+        row.hard = row.violations.some((v) => v.severity === "hard" && (v.check === "pf.follow" || v.check === "pf.chart"));
       }
       rows.push(row);
       appendFileSync(file, JSON.stringify(row) + "\n");
     }
     const mine = rows.filter((x) => x.spot === spot.name);
     const solved = mine.filter((x) => x.graded === "preflop-solve");
-    o.log(`  ${solved.length} of ${mine.length} classes graded by the solve; the chart's most played move below Correct in ${solved.filter((x) => x.verdict && !["Best", "Correct"].includes(x.verdict)).length} (hard pf.follow in ${solved.filter((x) => x.hard).length})\n`);
+    const hardOf = (c: string) => solved.filter((x) => x.violations?.some((v) => v.severity === "hard" && v.check === c)).length;
+    o.log(`  ${solved.length} of ${mine.length} classes graded by the solve; the chart's most played move below Correct in ${solved.filter((x) => x.verdict && !["Best", "Correct"].includes(x.verdict)).length} (hard pf.follow in ${hardOf("pf.follow")}, hard pf.chart in ${hardOf("pf.chart")})\n`);
   }
   adv.close();
   return rows;
@@ -142,14 +154,14 @@ type PracticeHand = P.PracticeHand;
 
 /** The tally as markdown. */
 export function pfAgreeMarkdown(rows: readonly PfAgreeRow[]): string {
-  const L = ["# Preflop: the chart's most played move graded by the solve", "", "| spot | classes | graded by the solve | Best/Correct | Inaccuracy | Mistake | Blunder | worst (class: chart's move, solve's move, loss) |", "|---|---|---|---|---|---|---|---|"];
+  const L = ["# Preflop: the chart's most played move graded by the solve", "", "| spot | classes | graded by the solve | Best/Correct | Inaccuracy | of them capped (the chart plays it) | Mistake | Blunder | worst (class: chart's move, solve's move, loss) |", "|---|---|---|---|---|---|---|---|---|"];
   for (const spot of [...new Set(rows.map((x) => x.spot))]) {
     const mine = rows.filter((x) => x.spot === spot);
     const s = mine.filter((x) => x.graded === "preflop-solve" && x.verdict);
     const n = (v: string[]) => s.filter((x) => v.includes(x.verdict!)).length;
     const worst = [...s].filter((x) => !["Best", "Correct"].includes(x.verdict!)).sort((a, b) => (b.loss ?? 0) - (a.loss ?? 0)).slice(0, 4);
     const w = worst.map((x) => `${x.cls}: ${x.chartTop} ${((x.chartFreq ?? 0) * 100).toFixed(0)}%, solve ${x.solveTop} ${((x.solveFreq ?? 0) * 100).toFixed(0)}%, ${x.verdict} ${x.loss}bb`).join("; ");
-    L.push(`| ${spot} | ${mine.length} | ${s.length} | ${n(["Best", "Correct"])} | ${n(["Inaccuracy"])} | ${n(["Mistake"])} | ${n(["Blunder"])} | ${w} |`);
+    L.push(`| ${spot} | ${mine.length} | ${s.length} | ${n(["Best", "Correct"])} | ${n(["Inaccuracy"])} | ${s.filter((x) => x.capped).length} | ${n(["Mistake"])} | ${n(["Blunder"])} | ${w} |`);
   }
   return L.join("\n") + "\n";
 }

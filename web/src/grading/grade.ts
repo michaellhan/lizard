@@ -245,6 +245,12 @@ export interface AnswerBasis {
   /** the table's size, where the preflop solve answered (its answer's `players`): heads-up, it can't condemn a line
    * (HEADS_UP_PF) */
   players?: number;
+  /** per action, aligned with the spot's, where the preflop solve answered a spot the charts also answer: the charts'
+   * frequency of that move there (pfGrade.ts asOptions), null where they have no such move. A move they play MIX or more
+   * the solve can't condemn (CHART_PARTS) */
+  chart?: readonly (number | null)[];
+  /** whose those frequencies are (provenance.ts source: "charts" or "push-fold"); unset: the charts' */
+  chartSource?: string;
 }
 
 /** Why the heads-up preflop solve can't condemn a line. Where the published solves play a hand one way, the heads-up
@@ -257,6 +263,23 @@ export interface AnswerBasis {
  * shoves; KQs shoving, where it calls: 0.42-0.45bb), so the cap holds at every depth. 30,000 hands of chart play each,
  * scripts/pf_practice_coverage.py, 2026-11-18; docs/ACCURACY.md section 18.10. */
 export const HEADS_UP_PF = "The heads-up preflop solve often parts from the published solves' charts, by more than its noise";
+
+/** Why the preflop solve can't condemn a move the charts play MIX or more at the same spot (their Correct line). Where the
+ * two part past the solve's noise, nothing at hand says which is right, and each is right some of the time: at the big
+ * blind facing a 6-max 100bb button open, the solve's call of AJo and A5o over the charts' 3-bet (60%) comes of its
+ * flop model counting the river twice in 3-bet pots, and the published A5o 3-bets 40-90% (solver/tests/preflop_refs.py);
+ * in the small blind first in, its A2o raise and 87o fold come of a hand-shape river term. Measured on the stored games'
+ * first-in nodes and the blinds facing one open (6-max 20 to 200bb, 3- to 5-max 100bb, raked and not: 20,280 class-
+ * spots), the solve graded the charts' main move a Mistake or Blunder at 133 of them; 119 once a short-stack jam's flat
+ * alternative weighed only the charts' calls (engine/pf_charts.py flat_ev: the 20bb small blind had flatted 99 and AQo
+ * where both class-level solves shove), and 3 with this cap, all clear blunders (the raked 20bb small blind flatting 99
+ * and 77). docs/ACCURACY.md section 18.11. The charts' advice is still shown as the charts' (not a solve), and a loss of
+ * CLEAR_PCT of the pot or more past the noise is still a Blunder. */
+export const CHART_PARTS = "they part here by more than the solve's noise, and nothing here settles which is right";
+
+/** Whose frequencies can stand beside the preflop solve's (provenance.ts sources): the charts', and the push/fold
+ * model's where it made a chart's raise an all-in. A rules or equity fallback's are no chart's. */
+export const CHART_SOURCES: ReadonlySet<string> = new Set(["charts", "push-fold"]);
 
 /** Sources whose numbers come from no solve. */
 const UNSOLVED = new Set(["rules", "equity", "unknown"]);
@@ -278,9 +301,10 @@ export function answerNoise(b: AnswerBasis, pot: number): number {
 /** Why an answer can't condemn action `a`, short (the verdict then stops at Inaccuracy, short of a clear blunder); null
  * where it can. Only what's measured condemns: a fallback's numbers, a solve cut short before it measured itself, ranges
  * from the betting rules, a rough or approximate band and a read of another solution are not, nor is the heads-up preflop
- * solve, measured to part from the published solves past its noise (HEADS_UP_PF). (A rough EV isn't here: its error is
+ * solve, measured to part from the published solves past its noise (HEADS_UP_PF), nor the preflop solve on a move the
+ * charts play MIX or more (CHART_PARTS; `f`: the solve's own frequency of it). (A rough EV isn't here: its error is
  * measured, and added to its noise: roughErrPct.) */
-function capGist(b: AnswerBasis, byEv: boolean): string | null {
+function capGist(b: AnswerBasis, byEv: boolean, a = -1, f = 0): string | null {
   const src = b.source;
   if (src && UNSOLVED.has(src)) return `${whoOf(src)} is no solve`;
   if (b.partial && !finite(b.exploitabilityPct)) return "The solve was cut short before it measured how close it got";
@@ -291,15 +315,25 @@ function capGist(b: AnswerBasis, byEv: boolean): string | null {
     return `The solve stopped ${finite(b.exploitabilityPct) ? `${b.exploitabilityPct.toFixed(2)}% of the pot from equilibrium, ` : ""}${b.band === "rough" ? "too far to trust" : "short of its target"}`;
   if (!byEv) return null;
   if (src === "preflop-solve" && b.players === 2) return HEADS_UP_PF;
+  const c = src === "preflop-solve" && CHART_SOURCES.has(b.chartSource ?? "charts") ? chartOf(b, a) : null;
+  if (c !== null && freq1(c) >= MIX) return `${whoOf(b.chartSource ?? "charts")} (not a solve) plays this ${pc(c)} of the time here and the preflop solve ${pc(finite(f) && f > 0 ? f : 0)}: ${CHART_PARTS}`;
   if (b.approximate && src !== "preflop-solve" && !finite(b.exploitabilityPct)) return "This answer is read from another solution, its error unmeasured";
   return null;
 }
 
+/** The charts' frequency of action `a` at the spot (AnswerBasis.chart), null where it isn't known. */
+const chartOf = (b: AnswerBasis, a: number): number | null => {
+  const c = Number.isInteger(a) && a >= 0 ? b.chart?.[a] : null;
+  return finite(c) && c >= 0 && c <= 1 ? c : null;
+};
+
 /** Why an answer can't condemn action `a` (the verdict then stops at Inaccuracy), in words; null where it can (capGist).
- * A loss of CLEAR_PCT of the pot or more past the noise still goes to Blunder (gradeAnswer). */
-export function capReason(b: AnswerBasis, _a: number, byEv: boolean): string | null {
-  const gist = capGist(b, byEv);
-  return gist ? `${gist}, so it can't condemn a line: this grade stops at Inaccuracy, short of a clear blunder (${CLEAR_PCT}% of the pot past the noise).` : null;
+ * A loss of CLEAR_PCT of the pot or more past the noise still goes to Blunder (gradeAnswer). `f`: the answer's own
+ * frequency of `a`, which the charts' is set beside. */
+export function capReason(b: AnswerBasis, a: number, byEv: boolean, f = 0): string | null {
+  const gist = capGist(b, byEv, a, f);
+  const who = gist?.endsWith(CHART_PARTS) ? "the solve can't condemn it" : "it can't condemn a line";
+  return gist ? `${gist}, so ${who}: this grade stops at Inaccuracy, short of a clear blunder (${CLEAR_PCT}% of the pot past the noise).` : null;
 }
 
 /** The EV noise a verdict allows action `a`, bb: the answer's (answerNoise), and where the engine marks the action's EV
@@ -317,12 +351,13 @@ export function gradeAnswer(spot: Pick<DecisionSpot, "freqs" | "evs" | "pot">, a
   const { noise, extra } = actionNoise(b, spot.pot, a);
   const g = grade({ freqs: spot.freqs, evs: spot.evs, pot: spot.pot, source: b.source, noise, extra }, a);
   if (g.verdict !== "Mistake" && g.verdict !== "Blunder") return g;
-  const gist = capGist(b, g.byEv);
+  const f = spot.freqs[a] ?? 0;
+  const gist = capGist(b, g.byEv, a, f);
   if (!gist) return g;
   const pastPct = pct1(g.pastPct ?? 0);
   if (g.verdict === "Blunder" && pastPct >= CLEAR_PCT)
     return { ...g, clearWhy: `${gist}, but this gives up ${pastPct.toFixed(1)}% of the pot past its noise, ${CLEAR_PCT}% or more: a clear blunder, graded as measured.` };
-  return { ...g, verdict: "Inaccuracy", capped: true, capWhy: capReason(b, a, g.byEv)! };
+  return { ...g, verdict: "Inaccuracy", capped: true, capWhy: capReason(b, a, g.byEv, f)! };
 }
 
 /** A rough or cut-short solve can't condemn a line (the classic gradeClass): under such a band the verdict stops at an
@@ -342,7 +377,7 @@ export const GRADE_RULES: readonly { verdict: Verdict; rule: string }[] = [
     verdict: "Correct",
     rule: `an action the hand plays ${MIX * 100}% of the time or more, or one within the answer's noise of the best: ${NOISE_FLOOR_PCT}% of the pot at least, ${NOISE_K} times a solve's distance from equilibrium, two stored EV steps (2% of the flop's pot) for the flop library, and for the preflop solve about 5% of the pot first in, 8% facing an open, 11% facing a 3-bet; a move the range almost never takes, whose EV is rough, has that EV's measured error on top (6% of the pot at 100 iterations, 2.4% at 300, 0.6% at 1,000); past the noise only the excess is graded`,
   },
-  { verdict: "Inaccuracy", rule: `gives up under ${INACCURACY_PCT}% of the pot past the noise; without EVs, played ${RARE * 100}–${MIX * 100}% of the time; the most an answer whose error can't be measured gives, or the heads-up preflop solve, short of a clear blunder` },
+  { verdict: "Inaccuracy", rule: `gives up under ${INACCURACY_PCT}% of the pot past the noise; without EVs, played ${RARE * 100}–${MIX * 100}% of the time; the most an answer whose error can't be measured gives, or the heads-up preflop solve, or the preflop solve to a move the charts play ${MIX * 100}% of the time or more, short of a clear blunder` },
   { verdict: "Mistake", rule: `gives up ${INACCURACY_PCT}–${MISTAKE_PCT}% of the pot past the noise; without EVs, played under ${RARE * 100}% of the time` },
   { verdict: "Blunder", rule: `gives up ${MISTAKE_PCT}% of the pot or more past the noise (graded by EV only); ${CLEAR_PCT}% or more is a clear blunder, a Blunder even where the answer's error can't be measured` },
 ];

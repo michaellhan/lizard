@@ -12,6 +12,9 @@
   which is equity against the jam range), and a hand that only reaches a node through an earlier repair plays the
   chart's answer there, not upstream's re-draw for a hand it never weighed.
 - The advice's open- and 3bet-jams are the jam range the later streets and the calls of it read.
+- A short-stack jam's flat alternative is the flat's EV times how often the chart calls, not how often it continues: the
+  small blind at 20bb jams the 99 and AJs the chart 3-bets over a HJ open (it had flatted them 98.5% and 93.8%), and
+  upstream() and the nodes that feed a published spot keep upstream's.
 - Every published heads-up spot's ranges are the same with the repairs as without, also with a folded seat at another
   stack and a deeper player in the pot, so no fingerprint changes. The list is the spots the repo builds
   (flop_library's SPOTS and FORMAT_SPOTS, scripts/library/build_breadth.py's SPOTS: 57, the library's 53 and four
@@ -398,6 +401,69 @@ class Jams(unittest.TestCase):
         j = names.index("all-in")
         return max((abs(after[i] / before[i] - res["grid"]["cells"][c]["f"][j]), c, after[i] / before[i])
                    for i, c in enumerate(CLASSES) if before[i] >= 0.01 and c in res["grid"]["cells"])
+
+
+class FlatAlternative(unittest.TestCase):
+    def test_the_raising_share_weighs_nothing_against_the_jam(self):
+        n = len(A.ALL_COMBOS)
+        rng, raiser = np.ones(n), np.ones(n)
+        mixed = {"call": np.full(n, 0.3), "raise": np.full(n, 0.7), "fold": np.zeros(n)}
+        called = {"call": np.full(n, 0.3), "fold": np.full(n, 0.7)}
+        served = PC.flat_ev(mixed, rng, raiser, 6.5, 1.5, 30.0)
+        np.testing.assert_array_equal(served, PC._flat_ev(called, rng, raiser, 6.5, 1.5, 30.0))
+        whole = PC._flat_ev(mixed, rng, raiser, 6.5, 1.5, 30.0)
+        on = whole > 0
+        self.assertTrue(on.any())
+        np.testing.assert_allclose(served[on], 0.3 * whole[on], rtol=1e-6)
+        # (a hand the chart only raises has no flat to weigh: the jam against folding)
+        self.assertFalse(PC.flat_ev({"call": np.zeros(n), "raise": np.ones(n)}, rng, raiser, 6.5, 1.5, 30.0).any())
+
+    def test_the_small_blind_jams_what_the_chart_3bets_at_20bb(self):
+        pre = FOLDS("UTG") + [{"pos": "HJ", "action": "raise", "to": 2.5}] + FOLDS("CO", "BTN")
+        res = advise(6, 20, "SB", pre)
+        g = res["grid"]
+        jam, call = g["actions"].index("all-in"), g["actions"].index("call")
+        for c in ("99", "AJs"):
+            self.assertGreater(g["cells"][c]["f"][jam], 0.9, c)
+        with unrepaired():
+            g0 = advise(6, 20, "SB", pre)["grid"]
+        self.assertGreater(g0["cells"]["99"]["f"][call], 0.9)                  # (98.5%)
+        self.assertGreater(g0["cells"]["AJs"]["f"][call], 0.9)                 # (93.8%)
+
+    def test_what_the_jam_doesnt_take_still_calls(self):
+        """Upstream's _push: the chart's continuing share that doesn't shove calls. So a hand the chart only 3-bets, whose
+        jam loses to folding, is served as a flat. (Folding that share was measured and not kept: ACCURACY 18.11.)"""
+        from gto.pf_classes import CLASS_OF
+        pre = FOLDS("UTG") + [{"pos": "HJ", "action": "raise", "to": 2.5}] + FOLDS("CO", "BTN")
+        handed, orig = {}, PC._push
+
+        def seen(hero, preflop, positions, stack, st, jam, full, *a, **k):
+            if hero == "SB":
+                handed.update(full)
+            return orig(hero, preflop, positions, stack, st, jam, full, *a, **k)
+        PC._push = seen
+        A._PF_CACHE.clear()
+        try:
+            g = advise(6, 20, "SB", pre)["grid"]
+        finally:
+            PC._push = orig
+        call, fold = g["actions"].index("call"), g["actions"].index("fold")
+        for c in ("A2s", "76s", "AJo"):
+            m = CLASS_OF == CLASS_INDEX[c]
+            chart = {a: np.broadcast_to(np.asarray(v, float), CLASS_OF.shape)[m] for a, v in handed.items()}
+            self.assertLess(float(chart["call"].max()), 1e-9, c)                # the chart only 3-bets it
+            self.assertGreater(float(chart["raise"].min()), 1 - 1e-9, c)
+            self.assertLess(g["cells"][c]["f"][fold], 0.01, c)                  # none of it folds
+        self.assertGreater(g["cells"]["A2s"]["f"][call], 0.99)                  # its jam loses to folding: all flat
+        self.assertGreater(g["cells"]["AJo"]["f"][call], 0.5)                   # (93%; the rest jams)
+
+    def test_upstream_keeps_upstreams(self):
+        self.assertIs(A._flat_ev, PC.flat_ev)
+        with PC.upstream():
+            self.assertIs(A._flat_ev, PC._flat_ev)
+        with PC._upstream_flat():
+            self.assertIs(A._flat_ev, PC._flat_ev)
+        self.assertIs(A._flat_ev, PC.flat_ev)
 
 
 class LibrarySpots(unittest.TestCase):

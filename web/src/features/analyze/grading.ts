@@ -373,7 +373,7 @@ export async function gradeDecision(
     const practice = hand.site === PRACTICE_SITE;
     const spot: PfSpot = { hero: r.hand.hero, hole: r.hand.hole.join(""), sim: simulate(r.setup, linesBefore(r, street, i), 0), table: r.setup, ownSizes: !!hand.setup?.pfSizes, ownOptions: !!hand.setup?.pfOptions };
     const asked = await askPf(state, ask);
-    const by = practice ? pfReadAt(spot, ans.data, asked) : pfPlayed(spot, m, asked);
+    const by = practice ? pfReadAt(spot, ans.data, asked) : pfPlayed(spot, m, asked, ans.data);
     if ("why" in by) pf = { pfWhy: by.why };
     else {
       ans = by;

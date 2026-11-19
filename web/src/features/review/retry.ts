@@ -17,6 +17,7 @@ import type { SolverClient } from "@/solver/client";
 import type { SolveMode } from "@/solver/types";
 import { useSettings } from "@/state/settings";
 import { basisOf } from "@/grading/basis";
+import type { AnswerBasis } from "@/grading/grade";
 import { betAmount, type RetryAnswer } from "./mistakes";
 
 /** As Practice's tables play it: a Fast setting plays Quick's budgets (room.ts). */
@@ -25,8 +26,10 @@ export const retryMode = (): SolveMode => (useSettings.getState().mode === "accu
 export type GetClient = () => Promise<Pick<SolverClient, "solve">>;
 
 /** The spot's answer of the solver, for the request Practice sent. `pot`: the pot kept, where the answer gives none.
- * `kept`: the options you had, which a decision graded by the preflop solve is read against again (pfGrade.ts). */
-export async function askSolver(ask: Extract<MistakeAsk, { via: "solver" }>, pot: number, getClient: GetClient, mode: SolveMode, signal?: AbortSignal, kept?: MistakeRecord["mix"]): Promise<RetryAnswer> {
+ * `kept`: the options you had, which a decision graded by the preflop solve is read against again (pfGrade.ts), with the
+ * charts' play kept in its basis (`keptBasis.chart`) set beside the solve's again, so the retry grades on the same terms.
+ * (A decision kept before the charts' play was has none, and is graded again as it was.) */
+export async function askSolver(ask: Extract<MistakeAsk, { via: "solver" }>, pot: number, getClient: GetClient, mode: SolveMode, signal?: AbortSignal, kept?: MistakeRecord["mix"], keptBasis?: AnswerBasis): Promise<RetryAnswer> {
   const client = await getClient();
   if (ask.live) {
     const read = readLive(await client.solve({ state: ask.state, mode: liveMode(mode), signal }), { pot, bet: 0 });
@@ -36,7 +39,7 @@ export async function askSolver(ask: Extract<MistakeAsk, { via: "solver" }>, pot
   }
   if (ask.state.preflop_solve) {
     const asked = await client.solve({ state: ask.state, mode, signal, untimed: true });
-    const read = pfAgain(asked, ask.state, kept, pot);
+    const read = pfAgain(asked, ask.state, kept, pot, keptBasis?.chart ? { freqs: keptBasis.chart, ...(keptBasis.chartSource ? { source: keptBasis.chartSource } : {}) } : null);
     if ("why" in read) throw new Error(read.why);
     // (its basis from the answer, as Practice's: the table's size it gives, heads-up the grade's cap, grade.ts HEADS_UP_PF)
     return { mix: mixOf(read.data), pot: read.data.pot_bb ?? pot, provenance: read.provenance, basis: basisOf(read.provenance, { res: read.data }) };
@@ -127,4 +130,4 @@ export const askedAt = (ask: Extract<MistakeAsk, { via: "solver" }>, mode: Solve
 
 /** The current answer at a kept mistake's spot. */
 export const askAgain = async (m: Pick<MistakeRecord, "ask" | "pot"> & Partial<Pick<MistakeRecord, "mix" | "provenance" | "basis">>, getClient: GetClient, signal?: AbortSignal): Promise<RetryAnswer> =>
-  m.ask.via === "kept" ? keptAnswer(m) : m.ask.via === "solver" ? askSolver(m.ask, m.pot, getClient, askedAt(m.ask), signal, m.mix) : askLibrary(m.ask, retryMode());
+  m.ask.via === "kept" ? keptAnswer(m) : m.ask.via === "solver" ? askSolver(m.ask, m.pot, getClient, askedAt(m.ask), signal, m.mix, m.basis) : askLibrary(m.ask, retryMode());

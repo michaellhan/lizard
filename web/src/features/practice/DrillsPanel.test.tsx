@@ -128,7 +128,11 @@ describe("DrillsPanel", () => {
     expect(screen.queryByRole("group", { name: "Board" })).toBeNull();
     expect(told()).toEqual(["Prefloppot 1.5bb · UTG to act · 100bb behind"]);
     expect(within(options).getAllByRole("button").map((b) => b.textContent)).toEqual(["1raise to 2.5bb", "2fold"]);
-    expect(stub.asked.at(-1)!.state).toMatchObject({ hero: "UTG", preflop: [], study: true, preflop_solve: true });
+    expect(stub.asked.filter((r) => r.state.preflop_solve).at(-1)!.state).toMatchObject({ hero: "UTG", preflop: [], study: true, preflop_solve: true });
+    // (and the charts' answer for the hand dealt, which the grade reads beside the solve's: grade.ts CHART_PARTS)
+    const charts = stub.asked.at(-1)!.state;
+    expect(charts).toMatchObject({ hero: "UTG", preflop: [] });
+    expect([charts.study, charts.preflop_solve, /^([2-9TJQKA][shdc]){2}$/.test(charts.hole ?? "")]).toEqual([undefined, undefined, true]);
     fireEvent.click(within(options).getAllByRole("button")[1]!);
     const answer = await screen.findByRole("region", { name: "Answer" });
     expect(within(answer).getByText(/simplified class-level preflop game, not a full solve/)).toBeInTheDocument();

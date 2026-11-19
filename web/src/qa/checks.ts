@@ -8,13 +8,13 @@ import { gradeMix, chipsAfter, setupOf, simOf, type Decision, type PracticeHand 
 import { practiceHistory } from "@/features/practice/history";
 import { handTier } from "@/features/practice/live";
 import { untrainedMoves } from "@/features/practice/pfGrade";
-import { lossWords, MIX, TOL, whyText, whoOf, type AnswerBasis, type Grade, type Verdict } from "@/grading/grade";
+import { CHART_PARTS, CHART_SOURCES, lossWords, MIX, TOL, whyText, whoOf, type AnswerBasis, type Grade, type Verdict } from "@/grading/grade";
 import { importHand } from "@/hh/replay";
 import { resultOf } from "@/hh/results";
 import { cmp, rank7 } from "@/poker/evaluate";
 import { seatsOf } from "@/poker/seats";
 import { DECK, minRaiseTo, noLines, simulate, behind, canRaise, toCallOf, withMove, NEED, STREETS, type Lines, type Move, type Sim, type Street, type TableSetup } from "@/poker/table";
-import { LEAN_TRUST } from "@/solver/provenance";
+import { LEAN_TRUST, sourceOf } from "@/solver/provenance";
 import type { AdvisorResponse, OffSolution } from "@/solver/protocol";
 import type { Provenance } from "@/solver/types";
 
@@ -401,8 +401,9 @@ export function checkGrades(mix: Decision["mix"], pot: number, basis: AnswerBasi
   if (unplayedBest) out.push(v("grade.best", `the best named is never played: ${unplayedBest}`));
   if (evs) {
     // (the EV given up past each action's own allowance, for the actions the mix rule leaves to EV: never a better verdict
-    // for more of it)
-    const pool = grades.map((g, a) => ({ a, g, over: Math.max(0, topEv - evs[a]! - (g.noise ?? 0)) })).filter((x) => freq1(freqs[x.a] ?? 0) < MIX);
+    // for more of it; except a move the charts play MIX or more, capped beside the preflop solve by design and counted
+    // as pf.parts, which can grade milder than a smaller loss at a move they don't play)
+    const pool = grades.map((g, a) => ({ a, g, over: Math.max(0, topEv - evs[a]! - (g.noise ?? 0)) })).filter((x) => freq1(freqs[x.a] ?? 0) < MIX && !(x.g.capped && x.g.capWhy?.includes(CHART_PARTS)));
     for (const x of pool)
       for (const y of pool)
         if (x.over + 0.005 < y.over && RANK[x.g.verdict] > RANK[y.g.verdict])
@@ -445,6 +446,8 @@ export function checkPreflop(a: {
   graded: { mix: Decision["mix"]; pot: number; basis: AnswerBasis; source: string };
   pf?: AdvisorResponse | null;
   ownOptions?: boolean;
+  /** the graded answer is a tournament's prize equity, beside which no chart stands (pfGrade.ts asOptions) */
+  prize?: boolean;
 }): Violation[] {
   const out: Violation[] = [];
   const { mix, pot, basis, source } = a.graded;
@@ -460,6 +463,9 @@ export function checkPreflop(a: {
     if (!gs.ok) out.push(v("pf.follow", `the solve's own most played move, ${mix[s]!.action} (${(mix[s]!.freq * 100).toFixed(1)}%), graded ${gs.verdict}`));
     if (!a.ownOptions) {
       const chartActs = (Array.isArray(a.chart.actions) ? a.chart.actions : []).filter((x) => finite(x.freq));
+      // (the charts' play rides in the grade's basis wherever the solve grades a spot they answer: grade.ts CHART_PARTS)
+      // (not beside a tournament's prize equity, nor where the table's answer is a rules or equity fallback's, not a chart's)
+      if (chartActs.length && !a.prize && CHART_SOURCES.has(sourceOf(a.chart)) && !basis.chart) out.push(v("pf.chart", "graded by the solve with no chart frequencies in its basis, where the chart answered the spot"));
       const c = topFreq(chartActs.map((x) => x.freq!));
       // (the chart's most played move; where two or more tie for it (a 50/50 chart), whichever the chart lists first was
       // held hard and the other soft, so the verdict hung on the list's order: a tie is hard only where the solve condemns
@@ -474,9 +480,17 @@ export function checkPreflop(a: {
         if (!top && freq1(ca.freq!) < MIX) return;
         if (at[k]! < 0) return;
         const g = gradeOf(at[k]!);
+        const role = top ? (tied.length > 1 ? `most played (tied with ${tied.length - 1} other${tied.length > 2 ? "s" : ""})` : "most played") : "mixed";
+        // (with the chart's play in the basis, a move it plays MIX or more the solve can't condemn short of a clear blunder)
+        if (basis.chart && BAD(g.verdict) && !g.clearWhy) out.push(v("pf.chart", `the chart's ${role} move ${ca.action} (${(ca.freq! * 100).toFixed(1)}%) graded ${g.verdict} by the solve, short of a clear blunder`));
+        // (capped there: the two models part, counted)
+        if (g.capped && g.capWhy?.includes(CHART_PARTS)) {
+          out.push(v("pf.parts", `the chart's ${role} move, ${ca.action} (${(ca.freq! * 100).toFixed(1)}%), which the solve plays ${(mix[at[k]!]!.freq * 100).toFixed(1)}%: capped at Inaccuracy (${g.loss.toFixed(2)}bb given up, ${(g.pastPct ?? 0).toFixed(1)}% of the pot past its noise)`, "soft"));
+          return;
+        }
         if (!g.ok) {
           const hard = top && allTiedDown;
-          const what = `the chart's ${top ? (tied.length > 1 ? `most played (tied with ${tied.length - 1} other${tied.length > 2 ? "s" : ""})` : "most played") : "mixed"} move, ${ca.action} (${(ca.freq! * 100).toFixed(1)}%), graded ${g.verdict} by the solve (${g.loss.toFixed(2)}bb given up, ${(g.pastPct ?? 0).toFixed(1)}% of the pot past its noise)`;
+          const what = `the chart's ${role} move, ${ca.action} (${(ca.freq! * 100).toFixed(1)}%), graded ${g.verdict} by the solve (${g.loss.toFixed(2)}bb given up, ${(g.pastPct ?? 0).toFixed(1)}% of the pot past its noise)`;
           out.push(v("pf.follow", what, hard ? "hard" : "soft"));
         }
       });

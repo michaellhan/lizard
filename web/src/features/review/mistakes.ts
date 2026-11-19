@@ -264,7 +264,12 @@ export function retried(m: RetrySpot, asked: RetryAnswer, i: number, now: number
   const asked0 = answer.basis ?? basisOf(provenance);
   const flopPot = asked0.source === "library" && asked0.flopPot === undefined ? m.basis?.flopPot : undefined;
   const players = asked0.source === "preflop-solve" && asked0.players === undefined && m.basis?.source === "preflop-solve" ? m.basis.players : undefined;
-  const basis = { ...asked0, ...(flopPot !== undefined ? { flopPot } : {}), ...(players !== undefined ? { players } : {}) };
+  // (and the charts' play beside it, each move's from the kept options by name: a move they play 10% or more the solve
+  // can't condemn, grade.ts CHART_PARTS)
+  const kept = asked0.source === "preflop-solve" && asked0.chart === undefined && m.basis?.source === "preflop-solve" && m.basis.chart?.length === m.mix.length ? m.basis : undefined;
+  const play = kept ? mix.map((a) => kept.chart![m.mix.findIndex((x) => x.action === a.action)] ?? null) : null;
+  const chart = kept && play!.some((c) => c !== null) ? { chart: play!, ...(kept.chartSource ? { chartSource: kept.chartSource } : {}) } : {};
+  const basis = { ...asked0, ...(flopPot !== undefined ? { flopPot } : {}), ...(players !== undefined ? { players } : {}), ...chart };
   const grading = (k: number) => gradeMix(mix, pot, k, basis);
   const g = grading(i);
   const was = mix.findIndex((a) => a.action === m.chose);

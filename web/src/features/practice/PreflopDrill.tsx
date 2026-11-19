@@ -11,7 +11,9 @@ import { basisOf } from "@/grading/basis";
 import { gameLabel, type LibrarySpotIndex } from "@/library/catalog";
 import type { LibraryFiles } from "@/library/files";
 import { evUnit } from "@/solver/provenance";
-import type { Provenance, SolveResult } from "@/solver/types";
+import type { SolverClient } from "@/solver/client";
+import type { AdvisorResponse, AdvisorState } from "@/solver/protocol";
+import type { Provenance, SolveMode, SolveResult } from "@/solver/types";
 import { useSolver } from "@/solver/useSolver";
 import { useSettings } from "@/state/settings";
 import { addGraded, type Shared } from "./anySession";
@@ -24,6 +26,20 @@ import { pfNodeRead } from "./pfGrade";
 import { mixOf, type Decision } from "./practice";
 
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
+
+/** The charts' answer for a hand at a drill's node (the node's state, not a study, not the solve's), or undefined where
+ * it can't be had: the drill then grades by the solve alone. */
+async function chartsFor(client: Pick<SolverClient, "solve">, st: AdvisorState, hole: string, mode: SolveMode): Promise<AdvisorResponse | undefined> {
+  const state: AdvisorState = { ...st, hole };
+  delete state.study;
+  delete state.preflop_solve;
+  try {
+    const { data } = await client.solve({ state, mode });
+    return data.error || data.cancelled ? undefined : data;
+  } catch {
+    return undefined;
+  }
+}
 
 /** the nodes asked so far, by spot and place on its line, and the ones the solve can't grade by */
 const NODES = new Map<string, Promise<SolveResult>>();
@@ -70,7 +86,11 @@ export function PreflopDrill({ files, spot, rng, shared }: { files: LibraryFiles
         const res = await asked;
         if (!alive) return;
         const dealt = pfDeal(res.data, rng);
-        const read = dealt ? pfNodeRead(res, at.hero, dealt.hole.join("")) : { why: "No hand reaches this spot in the solve." };
+        // (the charts' answer for the hand dealt, set beside the solve's: a move they play 10% or more the solve can't
+        // condemn, grade.ts CHART_PARTS; without it the solve grades alone)
+        const charts = dealt ? await chartsFor(await getSolver(), pfDrillState(report, at), dealt.hole.join(""), mode) : undefined;
+        if (!alive) return;
+        const read = dealt ? pfNodeRead(res, at.hero, dealt.hole.join(""), charts) : { why: "No hand reaches this spot in the solve." };
         if ("why" in read) {
           REFUSED.set(key, read.why);
           return skip();
