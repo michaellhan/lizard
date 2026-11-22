@@ -233,7 +233,7 @@ function Table({ result, seat, ask }: { result: RiverResult; seat: "random" | "0
             <p role="status" aria-label="How the hand ended">
               {play.end.how === "fold" ? `${play.end.winner === play.hero ? "They fold" : "You fold"}.` : `Showdown: you ${play.end.shown![play.hero]}, they ${play.end.shown![1 - play.hero]}.`}{" "}
               {play.end.winner === null ? "The pot is split" : play.end.winner === play.hero ? "You win the pot" : "They win the pot"} of {chips(play.end.pot)}bb; you {play.end.net >= 0 ? "+" : "−"}
-              {chips(Math.abs(play.end.net))}bb from the start of the {result.street}.
+              {chips(Math.abs(play.end.net))}bb from the start of the {result.street}{play.end.rake ? `, after ${chips(play.end.rake)}bb rake` : ""}.
             </p>
           )}
         </div>

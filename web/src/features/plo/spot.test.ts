@@ -38,4 +38,31 @@ describe("a PLO spot in a link", () => {
     expect(readSizes("50%, 75")).toEqual([50, 75]);
     expect(readSizes("")).toEqual([]);
   });
+
+  it("carries rake and a sample of the next cards, in the request and the link", () => {
+    const flop = { ...DEFAULT_SPOT, board: "Js9s4d", rake: { pct: "5", cap: "3" }, sample: { turns: "12", rivers: "9" } };
+    const r = requestOf(flop, { targetPct: 0.1, seconds: 30 });
+    if (typeof r === "string") throw new Error(r);
+    expect(r.rake).toEqual({ pct: 5, cap: 3 });
+    expect(r.turnSample).toBe(12);
+    expect(r.riverSample).toBe(9);
+    // no cap typed: none; no rake typed: none in the request
+    const uncapped = requestOf({ ...flop, rake: { pct: "5", cap: "" } }, { targetPct: 0.1, seconds: 30 });
+    expect(typeof uncapped === "object" && uncapped.rake).toEqual({ pct: 5, cap: Infinity });
+    const plain = requestOf(DEFAULT_SPOT, { targetPct: 0.1, seconds: 30 });
+    expect(typeof plain === "object" && "rake" in plain).toBe(false);
+    expect(requestOf({ ...flop, rake: { pct: "five", cap: "" } }, { targetPct: 0.1, seconds: 30 })).toMatch(/Rake is a percent/);
+    // a river has no next cards to sample; a turn samples only its rivers
+    const river = requestOf({ ...flop, board: "Js9s4d2h7c" }, { targetPct: 0.1, seconds: 30 });
+    expect(typeof river === "object" && [river.turnSample, river.riverSample]).toEqual([undefined, undefined]);
+    const turn = requestOf({ ...flop, board: "Js9s4d2h" }, { targetPct: 0.1, seconds: 30 });
+    expect(typeof turn === "object" && [turn.turnSample, turn.riverSample]).toEqual([undefined, 9]);
+
+    const q = spotToParams(flop);
+    expect([q.get("rake"), q.get("rakecap"), q.get("turns"), q.get("rivers")]).toEqual(["5", "3", "12", "9"]);
+    const back = spotFromParams(q)!;
+    expect(back.rake).toEqual(flop.rake);
+    expect(back.sample).toEqual(flop.sample);
+    expect(spotToParams(DEFAULT_SPOT).has("rake")).toBe(false);
+  });
 });

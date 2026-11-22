@@ -6577,3 +6577,37 @@ into, and fixed where it can be (ACCURACY 18.11):
   no ranked arena (out of scope), the page is off on the live site until `LIZARD_ARENA` is set, so no one has clicked
   through it live, and it hasn't been tried in Safari or on a phone.
 - Nothing under `solver/` changed; the gtosolver builds were left alone; the long commands ran through `slot.sh`.
+
+## 2026-11-22 — PLO4 (W5): rake, more sizes, a flop reference, and flops on a card sample
+
+- Rake in the PLO betting vectors: a percent of the final pot up to a cap, paid by the winner, split in a tie, at every
+  fold, showdown and all-in closing on every street (`engine/plo/river/tree.ts` `Rake`, `rakeOn`; `river/game.ts`,
+  `river/solver.ts`, `turn/street.ts`, `turn/game.ts`, `flop/game.ts`). The two values no longer add to zero, so
+  exploitability is the mean of each seat's best-response gain over its own value, each measured apart
+  (`exploitabilityOf`). The page has Rake and Rake cap (in the link too), the EV footnote says the rake, the badge
+  says it, and Practice nets it out of the winner's result. Up to 4 bet sizes and 3 raise sizes a street.
+- An independent flop reference, `scripts/engine/plo_flop_reference.py` (NumPy CFR+, no shared code, its own 7
+  tests), with rake and samples: 3 spots to 0.001% in `web/src/engine/plo/vectors/flop.json`, held by
+  `flop/reference.test.ts` (12 tests: same trees, hands, matchups and samples; its strategy measured by the
+  TypeScript to 5 places; the TypeScript's own solve inside its bracket).
+- Flop and turn solves on a sample of the next street's cards (`engine/plo/sample.ts`; Turn cards and River cards on
+  the page: 24, 16, 12 or 9). A smaller game solved exactly as such: split chance weights whose error is measured and
+  shown, the provenance approximate and saying the exploitability is the sampled game's, Practice dealing from the
+  sample. The pick was first suit by suit, which left out whole ranks a wrap needs; it now spreads over ranks, then
+  suits (equity of the range within 5.6 points at 9 cards against 11.4 before; ACCURACY 15).
+- Measured (ACCURACY 15, `flop/sample.measure.test.ts`, Node under slot.sh): on three spots that fit every card, a
+  sample's flop strategy gives away 0.04% to 0.11% of the pot in the full game where one range is far ahead and 0.8%
+  to 4.2% where it's close, not falling steadily with the sample's size; on a wider spot two 12-card samples put the
+  value 31% of the pot apart, two 16-card samples 12.5%. So sampling is shipped as a labelled sketch, and the page's note gives these
+  numbers. Solve times on this Mac: 23 to 25 ns a unit; AAKK v JT98 on every card 94 s to 0.05%, its samples 3 to
+  24 s. A phone isn't measured.
+- The registry entry, Study, Practice, Analyze, the condensed range views and the Omaha parser were already in (since
+  2026-11-13); nothing to add there. Preflop PLO stays NOT IMPLEMENTED. PLO4 stays PARTIAL (FEATURE_MATRIX row).
+- Tests: typecheck and lint clean; vitest on `src/engine/plo`, `features/plo`, `features/practice`, PloStudy,
+  PloAnalyze, omaha, registry, routes, provenance and crossSurface: 1748 passed, 10 skipped (the measurement files);
+  the four Python PLO references' own tests (31) pass; `npm run build`; `e2e/plo.e2e.ts` desktop 5 of 5 against the
+  built preview, the new one a sampled, raked flop (KKxx ds v QJT9 on Kh8d3c, refused on every card with a sample
+  size to try, then solved on 12 and 12 cards in 6.4 s, its badge naming the sample and the rake).
+- Not done: a flop both wide and sound; rake in the river reference (the flop reference's covers river showdowns);
+  merging this branch.
+  The other project's builds were left alone; everything over a minute went through slot.sh.

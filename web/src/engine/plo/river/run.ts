@@ -5,7 +5,9 @@
 // A solve stops at the first of: the exploitability target, the time budget, the iteration limit, a cancel. Whichever it
 // is, the numbers handed back are the average strategy at that point with its exploitability measured then.
 //
-// The limits are refusals, not quiet cuts: nothing here samples or buckets a range to fit. Both are set from what
+// The limits are refusals, not quiet cuts: nothing here samples or buckets a range to fit on its own. A flop or turn can
+// be asked to solve on a sample of the next cards (../sample.ts, `turnSample`, `riverSample`), which the result says and
+// the provenance labels approximate. Both limits are set from what
 // measure.test.ts measured (docs/FEATURE_MATRIX.md row PLO4). MAX_WORK holds an iteration to about a second on the machine
 // measured, so a cancel is read soon: a spot's work is its combos times its terminal nodes, as that's what an iteration
 // costs, at 32 to 43 ns a unit. Every hand there is on a river, 178,365 a side, fits under it on a small tree, and 126,005
@@ -19,7 +21,8 @@ import { compileTurn, type TurnGame, type TurnSpec } from "../turn/game";
 import { TurnSolver, turnMemoryBytes, turnWork } from "../turn/solver";
 import { compileGame, RiverError, type RiverGame, type RiverSpec } from "./game";
 import { memoryBytes, RiverSolver, type Exploitability, type NodeReport } from "./solver";
-import type { RiverAction, RiverNode, RiverSizes } from "./tree";
+import { MAX_RAKE_PCT, type Rake, type RiverAction, type RiverNode, type RiverSizes } from "./tree";
+import { MIN_SAMPLE, type CardSample } from "../sample";
 
 export const MAX_WORK = 25e6;
 /** a turn's limit in the same units: a unit there cost 85 to 100 ns (the rivers are many small games, each mapped to the
@@ -57,6 +60,12 @@ export interface RiverRequest {
   turnSizes?: RiverSizes;
   /** a turn's or a flop's river sizes */
   riverSizes?: RiverSizes;
+  /** rake on every pot as the hand ends (tree.ts Rake); none if left out */
+  rake?: Rake;
+  /** a flop's: solve on this many turn cards (../sample.ts), not all of them */
+  turnSample?: number;
+  /** a turn's or a flop's: solve on this many river cards after each turn, not all of them */
+  riverSample?: number;
   /** exploitability to stop at, % of the pot */
   targetPct?: number;
   /** seconds to stop at */
@@ -85,6 +94,10 @@ export function specOf(req: RiverRequest): RiverJobSpec | string {
     if (typeof r === "string") return `${SEAT_NAMES[i]}: ${r}`;
     ranges.push(r);
   }
+  if (req.rake && !(req.rake.pct >= 0 && req.rake.pct <= MAX_RAKE_PCT)) return `Rake is a percent of the pot from 0 to ${MAX_RAKE_PCT}.`;
+  const rake = req.rake && req.rake.pct > 0 ? { rake: req.rake } : {};
+  const turnSample = flop && req.turnSample !== undefined ? { turnSample: req.turnSample } : {};
+  const riverSample = (flop || turn) && req.riverSample !== undefined ? { riverSample: req.riverSample } : {};
   const targetPct = req.targetPct ?? DEFAULT_TARGET_PCT;
   if (!(targetPct >= MIN_TARGET_PCT)) return `The target is at least ${MIN_TARGET_PCT}% of the pot.`;
   const seconds = req.seconds ?? DEFAULT_SECONDS;
@@ -92,10 +105,10 @@ export function specOf(req: RiverRequest): RiverJobSpec | string {
   const both: [PloRange, PloRange] = [ranges[0]!, ranges[1]!];
   return {
     spec: flop
-      ? { flop: true, board, ranges: both, pot: req.pot, stacks: req.stacks, flopSizes: req.sizes, turnSizes: req.turnSizes!, riverSizes: req.riverSizes! }
+      ? { flop: true, board, ranges: both, pot: req.pot, stacks: req.stacks, flopSizes: req.sizes, turnSizes: req.turnSizes!, riverSizes: req.riverSizes!, ...rake, ...turnSample, ...riverSample }
       : turn
-        ? { turn: true, board, ranges: both, pot: req.pot, stacks: req.stacks, turnSizes: req.sizes, riverSizes: req.riverSizes! }
-        : { board, ranges: both, pot: req.pot, stacks: req.stacks, sizes: req.sizes },
+        ? { turn: true, board, ranges: both, pot: req.pot, stacks: req.stacks, turnSizes: req.sizes, riverSizes: req.riverSizes!, ...rake, ...riverSample }
+        : { board, ranges: both, pot: req.pot, stacks: req.stacks, sizes: req.sizes, ...rake },
     targetPct,
     seconds,
     maxIterations: req.maxIterations ?? DEFAULT_MAX_ITERATIONS,
@@ -119,6 +132,35 @@ export interface ResultNode extends NodeReport {
   bets: [number, number];
 }
 
+/** A card sample as a result says it: how many of how many, and how far its chance weights are from exact (the worst
+ * matchup's, and the average over matchups as they're dealt, as fractions; a flop's rivers: the worst over its turns). */
+export interface SampleInfo {
+  cards: number;
+  of: number;
+  maxError: number;
+  meanError: number;
+}
+
+const infoOf = (s: CardSample): SampleInfo => ({ cards: s.cards.length, of: s.of, maxError: s.error.max, meanError: s.error.mean });
+
+/** A flop's river samples, one a turn, as one: the size, and the worst errors over the turns. */
+function riversInfo(samples: (CardSample | undefined)[]): SampleInfo | undefined {
+  const got = samples.filter((s): s is CardSample => s !== undefined);
+  if (!got.length) return undefined;
+  return { cards: got[0]!.cards.length, of: got[0]!.of, maxError: Math.max(...got.map((s) => s.error.max)), meanError: Math.max(...got.map((s) => s.error.mean)) };
+}
+
+/** A game's samples, as a result says them. */
+function sampleInfo(game: Game): RiverResult["sample"] | undefined {
+  if (isFlop(game)) {
+    const rivers = riversInfo(game.turns.map((t) => t.cards.sample));
+    if (!game.sample && !rivers) return undefined;
+    return { ...(game.sample ? { turns: infoOf(game.sample) } : {}), ...(rivers ? { rivers } : {}) };
+  }
+  if (isTurn(game) && game.sample) return { rivers: infoOf(game.sample) };
+  return undefined;
+}
+
 export interface RiverResult {
   /** what was solved: a river, a turn with every river after it, or a flop with every turn and river after it */
   street: "river" | "turn" | "flop";
@@ -135,6 +177,11 @@ export interface RiverResult {
   board: string;
   /** the first street's sizes */
   sizes: RiverSizes;
+  /** the rake the solve took, if any */
+  rake?: Rake;
+  /** where the solve is on a sample of the cards (../sample.ts): the turn's (a flop's), and the rivers' (a turn's, or each
+   * turn of a flop's) */
+  sample?: { turns?: SampleInfo; rivers?: SampleInfo };
   /** a flop's: the turn's sizes, and the turn cards with a game */
   turnSizes?: RiverSizes;
   turns?: number;
@@ -204,15 +251,19 @@ function inWords(reports: NodeReport[], tree: { nodes: RiverNode[] }, words = ne
 /** Why a game is over the limits, in numbers, or null. */
 export function refusal(game: Game): string | null {
   const combos = game.sides[0].n + game.sides[1].n;
-  const fit = "Nothing is sampled or grouped to fit: narrow a range or take out a size.";
+  const fit = isFlop(game)
+    ? "Narrow a range, take out a size, or solve on a sample of the turn and river cards (fewer cards, labelled approximate)."
+    : isTurn(game)
+      ? "Narrow a range, take out a size, or solve on a sample of the river cards (fewer cards, labelled approximate)."
+      : "Nothing is sampled or grouped to fit a river: narrow a range or take out a size.";
   if (isFlop(game)) {
     const work = flopWork(game);
     if (work > MAX_FLOP_WORK)
-      return `This flop and its ${game.turns.length} turns, every river after each, come to ${Math.round(work).toLocaleString("en-US")} units of work an iteration (combos times the ways a hand can end, card by card), over the limit of ${MAX_FLOP_WORK.toLocaleString("en-US")}. ${fit}`;
+      return `This flop and its ${game.turns.length} turns, every river after each, come to ${Math.round(work).toLocaleString("en-US")} units of work an iteration (combos times the ways a hand can end, card by card), over the limit of ${MAX_FLOP_WORK.toLocaleString("en-US")}. ${fit}${hint(game, work / MAX_FLOP_WORK)}`;
   } else if (isTurn(game)) {
     const work = turnWork(game);
     if (work > MAX_TURN_WORK)
-      return `This turn and its ${game.rivers.length} rivers come to ${Math.round(work).toLocaleString("en-US")} units of work an iteration (combos times the ways a hand can end, river by river), over the limit of ${MAX_TURN_WORK.toLocaleString("en-US")}. ${fit}`;
+      return `This turn and its ${game.rivers.length} rivers come to ${Math.round(work).toLocaleString("en-US")} units of work an iteration (combos times the ways a hand can end, river by river), over the limit of ${MAX_TURN_WORK.toLocaleString("en-US")}. ${fit}${hint(game, work / MAX_TURN_WORK)}`;
   } else {
     const terminals = game.tree.nodes.length - game.tree.actionNodes;
     const most = Math.floor(MAX_WORK / terminals);
@@ -222,6 +273,18 @@ export function refusal(game: Game): string | null {
   const bytes = bytesOf(game);
   if (bytes > MAX_MEMORY_BYTES) return `This spot needs about ${Math.ceil(bytes / 1e6)} MB, over the limit of ${MAX_MEMORY_BYTES / 1e6} MB. ${fit}`;
   return null;
+}
+
+/** A rough sample size that might fit, from how far over the limit a flop or turn is (work falls about as the cards
+ * solved do: a flop's as turns times rivers): said as a guess, as the solve's own check decides. */
+function hint(game: TurnGame | FlopGame, over: number): string {
+  const ratio = 1 / Math.max(over, bytesOf(game) / MAX_MEMORY_BYTES);
+  if (isFlop(game)) {
+    const k = Math.floor(Math.min(game.turns.length, game.turns[0]?.cards.rivers.length ?? 48) * Math.sqrt(ratio));
+    return k >= MIN_SAMPLE ? ` About ${k} turn cards and ${k} river cards might fit.` : " Even the smallest sample is likely over the limit.";
+  }
+  const k = Math.floor(game.rivers.length * ratio);
+  return k >= MIN_SAMPLE ? ` About ${k} river cards might fit.` : " Even the smallest sample is likely over the limit.";
 }
 
 const bytesOf = (game: Game) => (isFlop(game) ? flopMemoryBytes(game) : isTurn(game) ? turnMemoryBytes(game) : memoryBytes(game));
@@ -376,6 +439,8 @@ export class RiverJob {
       stack: tree.stack,
       board: cardsText(this.job.spec.board),
       sizes: tree.sizes,
+      ...(tree.rake.pct > 0 ? { rake: tree.rake } : {}),
+      ...(sampleInfo(game) ? { sample: sampleInfo(game)! } : {}),
       hands: [sides[0].hands, sides[1].hands],
       weights: [Float32Array.from(sides[0].weights), Float32Array.from(sides[1].weights)],
       unmatched: game.unmatched,
@@ -430,7 +495,7 @@ export type RiverOutbound =
 /** What a failure says to a person: a refusal as it stands, the browser running out of room plainly. */
 export function failureText(e: unknown): string {
   if (e instanceof RiverError) return e.message;
-  if (e instanceof RangeError) return "The browser couldn't find the memory for this spot. Nothing is sampled to fit: narrow a range or take out a size.";
+  if (e instanceof RangeError) return "The browser couldn't find the memory for this spot: narrow a range, take out a size, or (a flop or turn) solve on fewer cards.";
   return `The river solve failed: ${String(e)}`;
 }
 

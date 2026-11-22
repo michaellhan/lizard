@@ -2,7 +2,8 @@ import { fireEvent, render as renderPage, screen, waitFor, within } from "@testi
 import type { ReactElement } from "react";
 import { MemoryRouter } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { PLO_SPOT_KEY, PloRiverPage } from "./PloRiverPage";
+import type { RiverResult } from "@/engine/plo/river/run";
+import { PLO_SPOT_KEY, PloRiverPage, sampleNote } from "./PloRiverPage";
 
 // (the page keeps its spot in the address and this browser: each test opens at the default)
 const render = (ui: ReactElement) => renderPage(<MemoryRouter>{ui}</MemoryRouter>);
@@ -30,7 +31,7 @@ describe("PloRiverPage", () => {
   it("says what it covers and what it doesn't, before anything is run", () => {
     render(<PloRiverPage />);
     expect(screen.getByRole("heading", { level: 1, name: "Heads-up PLO4 flop, turn and river solve" })).toBeTruthy();
-    expect(screen.getByText(/^No rake; earlier streets aren.t solved\.$/)).toBeTruthy();
+    expect(screen.getByText(/^Rake only if you type it; earlier streets aren.t solved\.$/)).toBeTruthy();
   });
 
   it("solves a polarised river, with its provenance, frequencies and combos", async () => {
@@ -64,6 +65,18 @@ describe("PloRiverPage", () => {
     const combos = within(section).getByRole("table", { name: "Combos at this decision" });
     expect(within(combos).getAllByRole("row")).toHaveLength(3);
     expect(combos.textContent).toContain("Qh");
+  });
+
+  it("takes rake off each pot when one is typed, and says so with the numbers", async () => {
+    render(<PloRiverPage />);
+    small();
+    type("Rake", "5");
+    type("Rake cap", "1");
+    solve();
+    const section = await screen.findByRole("region", { name: "River solution" });
+    const badge = within(section).getByRole("button", { name: /Heads-up PLO4 solve of every combo/ });
+    expect(badge.textContent).toMatch(/rake 5% of the pot up to 1bb, paid by the winner/);
+    expect(section.textContent).toMatch(/Rake 5% up to 1bb off each pot, so the two EVs add to less than the pot/);
   });
 
   it("deals a hand from the solve and grades the action taken against that combo's mix and EVs", async () => {
@@ -243,5 +256,17 @@ describe("PloRiverPage", () => {
     solve();
     const section = await screen.findByRole("region", { name: "River solution" });
     expect(section.textContent).toMatch(/The time budget ran out short of the 0.001% target/);
+  });
+
+  it("says what a sample is and what's measured of one: a flop's, and that a turn's isn't", () => {
+    const sample = { turns: { cards: 12, of: 49, maxError: 0.031, meanError: 0.004 }, rivers: { cards: 12, of: 48, maxError: 0.02, meanError: 0.003 } };
+    const flop = sampleNote({ street: "flop", sample } as unknown as RiverResult);
+    expect(flop).toMatch(/^Solved on a sample: 12 of 49 turn cards and 12 of 48 river cards after each turn, spread over ranks and suits\./);
+    expect(flop).toContain("within 3.1% of exact");
+    expect(flop).toContain("gave away 0.8% to 4.2% of the pot in the full game");
+    expect(flop).toContain("Read it as a sketch.");
+    const turn = sampleNote({ street: "turn", sample: { rivers: sample.rivers } } as unknown as RiverResult);
+    expect(turn).toMatch(/^Solved on a sample: 12 of 48 river cards, spread/);
+    expect(turn).toContain("A turn's sample isn't measured against every card; on flops, measured on spots");
   });
 });

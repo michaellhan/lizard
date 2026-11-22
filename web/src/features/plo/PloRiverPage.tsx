@@ -1,6 +1,7 @@
 // One heads-up PLO4 river, or a turn and every river after it, solved exactly on the sizes listed, from ranges a person
-// types (engine/plo/river/, engine/plo/turn/). That's all it is: no street before the one typed is solved, the ranges aren't anyone's solution, there's no rake, and pot-limit poker's other
-// sizes aren't in the tree. The page says so, and every number under it sits under the solve's provenance. Loaded with its
+// types (engine/plo/river/, engine/plo/turn/). That's all it is: no street before the one typed is solved, the ranges aren't anyone's solution, rake is only what's typed, and pot-limit poker's other
+// sizes aren't in the tree. A flop or turn too wide for every card can be solved on a sample of the cards after it
+// (engine/plo/sample.ts), labelled approximate. The page says so, and every number under it sits under the solve's provenance. Loaded with its
 // route, so no PLO code is in the first download; the work is done in a worker.
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useSearchParams } from "react-router";
@@ -18,7 +19,8 @@ import { StructureGrid } from "./StructureGrid";
 import { spotsFromHistory, type HistoryRead, type HistorySpot } from "./fromHistory";
 import { deal, EMPTY_TALLY, gradeAt, mixAt, potAt, tallied, toCall, type DrillSpot, type DrillTally, type PloBasis } from "./drill";
 import { CAPPED_WORDS, lossBrief, SCORE_LOSS_WORDS, type Grade } from "@/grading/grade";
-import { DEFAULT_SPOT, requestOf, spotFromParams, spotToParams, type PloSpot } from "./spot";
+import { DEFAULT_SPOT, NO_RAKE_FORM, NO_SAMPLE, requestOf, spotFromParams, spotToParams, type PloSpot } from "./spot";
+import { MIN_SAMPLE } from "@/engine/plo/sample";
 
 const inputClass = "w-full min-w-0 rounded border border-border bg-surface px-2 py-1 font-mono text-sm";
 const buttonClass = "rounded border border-border px-3 py-1 text-sm hover:bg-surface-2 disabled:opacity-40";
@@ -142,7 +144,7 @@ export function PloRiverPage() {
       heading={
         <header className="space-y-1">
           <h1 className="text-2xl font-semibold">Heads-up PLO4 flop, turn and river solve</h1>
-          <p className="text-sm text-muted">No rake; earlier streets aren&apos;t solved.</p>
+          <p className="text-sm text-muted">Rake only if you type it; earlier streets aren&apos;t solved.</p>
         </header>
       }
     />
@@ -187,6 +189,10 @@ export function PloSolver({ heading, initial = DEFAULT_SPOT, initialStop = DEFAU
   const [riverRaises, setRiverRaises] = useState(initial.river.raises);
   const [riverCap, setRiverCap] = useState(initial.river.cap);
   const [riverAllIn, setRiverAllIn] = useState(initial.river.allIn);
+  const [rakePct, setRakePct] = useState((initial.rake ?? NO_RAKE_FORM).pct);
+  const [rakeCap, setRakeCap] = useState((initial.rake ?? NO_RAKE_FORM).cap);
+  const [sampleTurns, setSampleTurns] = useState((initial.sample ?? NO_SAMPLE).turns);
+  const [sampleRivers, setSampleRivers] = useState((initial.sample ?? NO_SAMPLE).rivers);
   const cardCount = parseIds(board)?.length;
   const isTurn = cardCount === 4;
   const isFlop = cardCount === 3;
@@ -218,6 +224,8 @@ export function PloSolver({ heading, initial = DEFAULT_SPOT, initialStop = DEFAU
     sizes: { bets, raises, cap: raiseCap, allIn },
     turn: { bets: turnBets, raises: turnRaises, cap: turnCap, allIn: turnAllIn },
     river: { bets: riverBets, raises: riverRaises, cap: riverCap, allIn: riverAllIn },
+    ...(rakePct.trim() || rakeCap.trim() ? { rake: { pct: rakePct, cap: rakeCap } } : {}),
+    ...(sampleTurns || sampleRivers ? { sample: { turns: sampleTurns, rivers: sampleRivers } } : {}),
   };
   // (on what's typed, not on each render's new objects)
   const typed = JSON.stringify([spot, target, seconds]);
@@ -372,6 +380,43 @@ export function PloSolver({ heading, initial = DEFAULT_SPOT, initialStop = DEFAU
         <p className="text-xs text-muted">
           Up to {MAX_BET_SIZES} bets and {MAX_RAISE_SIZES} raises; a raise&apos;s % is of the pot after the call.
         </p>
+        <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
+          <label className="min-w-0 space-y-1">
+            <span className="text-muted">Rake, % of pot</span>
+            <input aria-label="Rake" inputMode="decimal" placeholder="none" value={rakePct} onChange={(e) => setRakePct(e.target.value)} className={inputClass} />
+          </label>
+          <label className="min-w-0 space-y-1">
+            <span className="text-muted">Rake cap, bb</span>
+            <input aria-label="Rake cap" inputMode="decimal" placeholder="no cap" value={rakeCap} onChange={(e) => setRakeCap(e.target.value)} className={inputClass} />
+          </label>
+          {isFlop && (
+            <label className="min-w-0 space-y-1">
+              <span className="text-muted">Turn cards</span>
+              <select aria-label="Turn cards" value={sampleTurns} onChange={(e) => setSampleTurns(e.target.value)} className={inputClass}>
+                {SAMPLE_CHOICES.map((k) => (
+                  <option key={k} value={k}>
+                    {k ? `a sample of ${k}` : "every card"}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          {(isFlop || isTurn) && (
+            <label className="min-w-0 space-y-1">
+              <span className="text-muted">River cards{isFlop ? ", each turn" : ""}</span>
+              <select aria-label="River cards" value={sampleRivers} onChange={(e) => setSampleRivers(e.target.value)} className={inputClass}>
+                {SAMPLE_CHOICES.map((k) => (
+                  <option key={k} value={k}>
+                    {k ? `a sample of ${k}` : "every card"}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+        </div>
+        <p className="text-xs text-muted">
+          Rake comes off every pot as the hand ends, paid by the winner.{isFlop || isTurn ? " A sample solves fewer next cards, spread over ranks and suits, so a wider spot fits; it's a smaller game, labelled approximate, and can be far from the full one." : ""}
+        </p>
         {/* (the solver's stopping rules on the Solve button's row) */}
         <div className="flex flex-wrap items-end gap-3 text-sm">
           <label className="w-36 space-y-1" title={`At least ${MIN_TARGET_PCT}%`}>
@@ -410,6 +455,9 @@ export function PloSolver({ heading, initial = DEFAULT_SPOT, initialStop = DEFAU
 }
 
 type Pair<T> = readonly [T, (v: T) => void];
+
+/** the sample sizes offered ("" for every card) */
+const SAMPLE_CHOICES = ["", "24", "16", "12", String(MIN_SAMPLE)] as const;
 
 /** The sizes of a street after the first: its bets, raises, raise cap and all-in. */
 function StreetSizes({ street, legend, bets, raises, cap, allIn, note }: { street: "Turn" | "River"; legend: string; bets: Pair<string>; raises: Pair<string>; cap: Pair<number>; allIn: Pair<boolean>; note: string }) {
@@ -456,6 +504,8 @@ export function resultProvenance(result: RiverResult) {
     exploitabilityPct: result.exploitability.pct,
     targetPct: result.targetPct,
     sizes: result.sizes,
+    ...(result.rake ? { rake: result.rake } : {}),
+    ...(result.sample ? { sample: result.sample } : {}),
     ...(result.street === "turn" ? { turn: { riverSizes: result.riverSizes!, rivers: result.rivers! } } : {}),
     ...(result.street === "flop" ? { flop: { turnSizes: result.turnSizes!, riverSizes: result.riverSizes!, turns: result.turns! } } : {}),
   });
@@ -481,6 +531,7 @@ function Results({ result, onView, extra }: { result: RiverResult; onView: AskVi
         {flop ? ` and ${result.turns} turn cards` : ""}, pot {result.pot}, {result.stack} behind in play, {result.hands[0].length.toLocaleString("en-US")} OOP and {result.hands[1].length.toLocaleString("en-US")} IP combos, {result.iterations.toLocaleString("en-US")} iterations in{" "}
         {result.seconds.toFixed(1)} s, up to {Math.ceil(result.memoryBytes / 1e6)} MB. {dropped.join(" ")}
       </p>
+      {result.sample && <p className="text-xs text-muted">{sampleNote(result)}</p>}
 
       <label className="block space-y-1 text-sm">
         <span className="text-muted">Decision</span>
@@ -511,9 +562,19 @@ function Results({ result, onView, extra }: { result: RiverResult; onView: AskVi
           onView={onView}
         />
       )}
-      <p className="text-xs text-muted">EV in bb of the pot of {result.pot}. No rake.</p>
+      <p className="text-xs text-muted">
+        EV in bb of the pot of {result.pot}. {result.rake ? `Rake ${result.rake.pct}%${Number.isFinite(result.rake.cap) ? ` up to ${result.rake.cap}bb` : ""} off each pot, so the two EVs add to less than the pot.` : "No rake."}
+      </p>
     </section>
   );
+}
+
+/** What a sampled solve is, in words: its cards, and that its exploitability is the smaller game's. */
+export function sampleNote(r: RiverResult): string {
+  const s = r.sample!;
+  const parts = [s.turns ? `${s.turns.cards} of ${s.turns.of} turn cards` : "", s.rivers ? `${s.rivers.cards} of ${s.rivers.of} river cards${r.street === "flop" ? " after each turn" : ""}` : ""].filter(Boolean);
+  const worst = Math.max(s.turns?.maxError ?? 0, s.rivers?.maxError ?? 0);
+  return `Solved on a sample: ${parts.join(" and ")}, spread over ranks and suits. The exploitability above is the sampled game's; a card outside the sample isn't solved. Chance weights are within ${(100 * worst).toFixed(1)}% of exact for every matchup. ${r.street === "turn" ? "A turn's sample isn't measured against every card; on flops, m" : "M"}easured on spots small enough to solve both ways, a sampled flop's strategy gave away 0.8% to 4.2% of the pot in the full game where the ranges are close, and nothing measurable where one is far ahead; two 12-card samples of one wider spot put its value 31% of the pot apart (two of 16, 12.5%). Read it as a sketch.`;
 }
 
 const decisionWords = (n: ResultNode) => `${SEAT_NAMES[n.player]} ${n.line ? `after ${n.line}` : "to start"}`;

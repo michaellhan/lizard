@@ -128,3 +128,35 @@ test("A spot over the limits and a bad board are refused in words, with nothing 
   await expect(page.getByRole("alert")).toContainText("The board is five cards for a river, four for a turn");
   expect(problems.errors).toEqual([]);
 });
+
+test("A flop too wide for every card is refused with a sample size to try, then solved on that sample, raked and labelled", async ({ page, problems }) => {
+  await page.goto("/lizard/plo/");
+  await page.getByLabel("OOP range").fill("KKxxds");
+  await page.getByLabel("IP range").fill("QJT9");
+  await page.getByLabel("Board").fill("Kh8d3c");
+  await page.getByLabel("Bet sizes", { exact: true }).fill("75");
+  await page.getByLabel("Raise sizes", { exact: true }).fill("");
+  await page.getByLabel("Raise cap", { exact: true }).selectOption("0");
+  await page.getByLabel("Target exploitability").fill("0.5");
+  await page.getByRole("button", { name: "Solve this flop" }).click();
+  await expect(page.getByRole("alert")).toContainText(/over the limit of 18,000,000\..* About \d+ turn cards and \d+ river cards might fit\./, { timeout: 60_000 });
+
+  await page.getByLabel("Turn cards").selectOption("12");
+  await page.getByLabel("River cards", { exact: true }).selectOption("12");
+  await page.getByLabel("Rake", { exact: true }).fill("5");
+  await page.getByLabel("Rake cap").fill("3");
+  await page.getByRole("button", { name: "Solve this flop" }).click();
+  const answer = page.getByRole("region", { name: "Flop solution" });
+  await expect(answer).toBeVisible({ timeout: 180_000 });
+  const badge = answer.getByRole("button", { name: /Heads-up PLO4/ });
+  await expect(badge).toContainText("solved on a sample of 12 of the 49 turn cards");
+  await expect(badge).toContainText("rake 5% of the pot up to 3bb, paid by the winner");
+  await expect(answer).toContainText("Solved on a sample: 12 of 49 turn cards and 12 of 48 river cards after each turn");
+  await expect(answer).toContainText("Read it as a sketch.");
+  // raked, the two ranges' EVs add to less than the pot of 20
+  const evs = await page.getByRole("table", { name: "Ranges on this line" }).locator("tbody td:last-child").allTextContents();
+  const total = evs.reduce((t, x) => t + Number(x), 0);
+  expect(total).toBeLessThan(20);
+  expect(total).toBeGreaterThan(17);
+  expect(problems.errors).toEqual([]);
+});

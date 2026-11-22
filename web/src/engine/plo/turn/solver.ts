@@ -48,7 +48,7 @@ export function turnWork(game: TurnGame): number {
 export type TurnNodeReport = StreetNodeReport;
 
 /** A river card as the next card of a turn. */
-const nextOf = (r: River): NextCard => ({ back: r.back, showdown: (hero, reach, val, out) => r.terminals.showdown(hero, reach, val, out) });
+const nextOf = (r: River): NextCard => ({ back: r.back, showdown: (hero, reach, val, out, rake) => r.terminals.showdown(hero, reach, val, out, rake) });
 
 /** The widest river side, tree and depth of a turn's rivers: what their shared scratch must hold. */
 export function riverScratch(game: Pick<TurnGame, "rivers" | "closings">): { n: number; widest: number; depth: number } {
@@ -78,7 +78,7 @@ export class TurnSolver extends StreetSolver {
     const riverLevels = shared.riverLevels ?? levelsFor(n, widest, depth);
     const subs = new Map<number, RiverSolver[] | null>();
     for (const c of game.closings.values()) subs.set(c.id, c.tree ? game.rivers.map((r) => new RiverSolver(riverGame(r, c.tree!), { terminals: r.terminals, levels: riverLevels })) : null);
-    super(game, game.rivers.map(nextOf), RIVERS_PER_MATCHUP, subs, shared);
+    super(game, game.rivers.map(nextOf), RIVERS_PER_MATCHUP, subs, shared, game.sample?.scales);
   }
 
   private riverSubs(closing: number): RiverSolver[] | null {

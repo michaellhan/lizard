@@ -5,7 +5,8 @@
 // best response is taken to each side's average (`measure`), which costs about one pass.
 //
 // Exploitability here is the classic app's: the average of what each seat gains by best-responding, in chips per matchup
-// dealt, and as a percent of the river's pot (solver/gto/pf_solve.py exploitability).
+// dealt, and as a percent of the river's pot (solver/gto/pf_solve.py exploitability). With rake the game isn't zero-sum,
+// so each seat's value at the average is measured on its own.
 //
 // Memory is what's sized up front (`memoryBytes`): 8 bytes per combo and action of a seat's nodes, a Float32 of regret
 // and a Float32 of average strategy, and scratch vectors per level of the tree.
@@ -34,7 +35,7 @@ export function memoryBytes(game: RiverGame): number {
 }
 
 export interface Exploitability {
-  /** each seat's value in chips (zero-sum) when it best-responds */
+  /** each seat's value in chips when it best-responds */
   best: [number, number];
   /** what each seat gains on the average strategies by best-responding, chips per matchup */
   gain: [number, number];
@@ -42,8 +43,19 @@ export interface Exploitability {
   chips: number;
   /** of the pot, percent */
   pct: number;
-  /** OOP's value in chips (zero-sum) at the average strategies */
+  /** OOP's value in chips at the average strategies */
   value: number;
+  /** each seat's value at the average strategies: zero-sum without rake, (value, -value); with rake they add to minus the
+   * rake expected */
+  values: [number, number];
+}
+
+/** Exploitability from each seat's best-response value and each seat's value at the average strategies (rake makes the
+ * game not zero-sum, so IP's is measured, not taken as minus OOP's). */
+export function exploitabilityOf(best: [number, number], values: [number, number], pot: number): Exploitability {
+  const gain: [number, number] = [best[0] - values[0], best[1] - values[1]];
+  const chips = (gain[0] + gain[1]) / 2;
+  return { best, gain, chips, pct: (100 * chips) / pot, value: values[0], values };
 }
 
 export interface NodeReport {
@@ -130,8 +142,8 @@ export class RiverSolver {
   private terminal(node: Exclude<RiverNode, ActionNode>, hero: Seat, reach: Float64Array, out: Float64Array): void {
     if (node.kind === "fold") {
       const val = this.half + node.bets[node.folded];
-      this.terminals.fold(hero, reach, node.folded === hero ? -val : val, out);
-    } else this.terminals.showdown(hero, reach, this.half + node.bets[0], out);
+      this.terminals.fold(hero, reach, node.folded === hero ? -val : val - node.rake, out);
+    } else this.terminals.showdown(hero, reach, this.half + node.bets[0], out, node.rake);
   }
 
   /** The strategy regret matching gives each of `seat`'s combos at a node, into `to`. */
@@ -283,9 +295,7 @@ export class RiverSolver {
     };
     const best: [number, number] = [value(0, true), value(1, true)];
     const here = value(OOP, false);
-    const gain: [number, number] = [best[0] - here, best[1] + here];
-    const chips = (best[0] + best[1]) / 2;
-    return { best, gain, chips, pct: (100 * chips) / tree.pot, value: here };
+    return exploitabilityOf(best, [here, raked(tree) ? value(1, false) : -here], tree.pot);
   }
 
   /** The average strategies node by node, with reach and EV. Costs about a pass, and the result's memory. `roots`: each
@@ -403,6 +413,9 @@ export function bestScratch(tree: RiverTree, n: number): { top: Float64Array; le
   const widest = widestOf(tree);
   return { top: new Float64Array(n), levels: Array.from({ length: tree.depth + 1 }, () => Array.from({ length: widest }, () => new Float64Array(n))) };
 }
+
+/** Whether a tree takes rake anywhere. */
+export const raked = (tree: RiverTree): boolean => tree.rake.pct > 0;
 
 /** a reach this small is rounding, not a hand that can be met */
 const TINY = 1e-11;
