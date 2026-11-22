@@ -6721,3 +6721,34 @@ Every figure below is lz4's.
   `solver/gto/icm.py`'s finishing-order layers (`_subsets`, one-hot tables), which stay byte-identical here.
 - Not done: players left and other tables' stacks can't be read from the files; four rooms' tables only; bounty spots
   hold equal bounties only; no mystery-bounty spot stored; the Bubble stage's 1.1 GB game build (above).
+
+## 2026-11-22 — Postflop depth (W9): a flop model closer to the library's measured and not shipped, four-way rivers against an exact reference
+
+- Flop model (ACCURACY 34.1): the river dealt by card class inside a flop solve, over Fast's and Accurate's turn
+  buckets (`scripts/benchmarks/flop_model.py`, Lizard-side, patching `gto.solver` at import; `solver/` unchanged;
+  `scripts/engine/test_flop_model.py`, 6 tests: zero-sum, block-diagonal tables, class weights, a solve settling,
+  upstream's tree cell for cell without it, the 3bet-pot gate). Measured the way section 21 does (given up in the full
+  game, 3 narrow spots): Accurate dealt at 8 a card 1.44% of the pot on average and 5.79% at most, against Accurate's
+  1.91 and 5.41 and the library's 0.57 and 2.14; the dry flop fell from 2.2% to 0.4-0.7, the two-tone one didn't move,
+  4 a card was far worse (15.5% on JT8). Measured the way section 24 does (95 flops of 6-max 100bb BTN vs BB against the
+  library's report): in position's split after the check 23.5 points off against Accurate's 13.5 and Fast's 16.3, EV
+  0.40% pot off against 0.26 and 0.35, at 2,289 s against 184 and 157 (774 MB peak). 16 a card came closer on 10
+  rainbow flops (2.0 points against 2.9) at 25 s a flop and passed 900 MB on the first two-tone flop; stopped there.
+  An iteration costs 6-16 times Accurate's. Not shipped: Fast and Accurate keep their models and their figures.
+- Shipped: an Accurate custom report now gives its own measured gap to the library (`customReport.ts`
+  `ACCURATE_VS_LIBRARY`: 0.26% pot of EV, 13.5 points of split), as a Fast report has given its own since section 24.
+  Checked in the built preview: 6-max 60bb BTN vs BB, 9 flops at Accurate in 24 s (about 1.7 s a flop), the line on the
+  report; a Fast flop solve on JdTd8c in Study, 0.6 s measured by the engine, 300 iterations, 0.08% pot.
+- Multiway (ACCURACY 34.2): the independent reference (`refsolver/mw.py`) now solves four-player rivers exactly
+  (`test_reference.py` `FourWay`). Three four-way rivers: where no card is in two ranges the engine is 0.11% of the pot
+  from the reference's values and 0.24% from equilibrium; where small ranges share many cards (on purpose, an upper
+  bound) its pairwise card removal leaves it 0.9-2.3% of the pot off and 6-7% from equilibrium however long it runs.
+  Exact four-range removal would be a `solver/` patch that fixes only the river (flops and turns stay the reduced
+  game), so nothing was changed; the figures are in FEATURE_MATRIX's Multiway row.
+- FEATURE_MATRIX: Postflop solves, Custom aggregated reports and Multiway rows updated; grades unchanged.
+- Gates: typecheck and lint clean; full vitest through slot.sh (`--maxWorkers=3`): 263 files, 4243 passed, 26
+  skipped; root `npm run build` with postbuild, first script 357.06 kB; e2e desktop on the built preview through
+  slot.sh, 6 of 6 (`qa.e2e.ts` 4, 11, 11b, 14; `checks.e2e.ts`'s 3-way runout report and 4-way flop answer); Python
+  `scripts/engine/test_flop_model.py` (6) and `scripts/benchmarks/test_reference.py` (33, 21 s, 0.99 GB peak). The
+  Pyodide tests weren't run: nothing in the worker's import chain changed.
+- About 3 CPU hours, all through slot.sh.
