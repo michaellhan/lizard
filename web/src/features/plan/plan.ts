@@ -241,7 +241,10 @@ function readingOf(l: Leak, t: RowTally): string {
   const n = many(l.n, "decision");
   const who = onlyCharts(t) ? "the preflop charts, by frequency, not a solve" : "what graded each decision";
   if (l.kind === "freq") return `You ${pct(l.you)} (95% range ${pair(l.range)}) against ${who} at ${pct(l.gto)}, over ${n}.`;
-  if (l.kind === "pf") return `${pct(l.inMix)} in the mix (95% range ${pair(l.range)}) against ${who}, over ${n}.`;
+  if (l.kind === "pf")
+    return l.way === "solve"
+      ? `${bbs(l.avg ?? 0)} given up per decision past the preflop solve's noise (95% range ${bbs(l.range[0])} to ${bbs(l.range[1])}), over ${n}.`
+      : `${pct(l.inMix)} in the mix (95% range ${pair(l.range)}) against ${who}, where playing its own mix would be ${pct(l.expect ?? 1)}, over ${n}.`;
   return `${bbs(l.avg)} lost per decision (95% range ${bbs(l.range[0])} to ${bbs(l.range[1])}), over ${n} graded by EV.`;
 }
 
@@ -330,7 +333,7 @@ function thinStep(l: Leak, t: RowTally, game: PlanGame): ThinStep {
     says: [
       short > 0
         ? `${many(l.n, "graded decision")}, ${short.toLocaleString()} short of ${MIN_READ}.`
-        : `${many(l.n, "graded decision")}; its 95% interval still reaches the line.`,
+        : `${many(l.n, "graded decision")}; not yet past the bar a leak needs, so chance could still explain it.`,
       standsOn(l, t),
       `The link plays ${target.about}.`,
     ],

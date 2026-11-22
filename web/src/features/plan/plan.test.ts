@@ -142,7 +142,7 @@ describe("leaks", () => {
   it("says a preflop leak is against the charts by frequency, not a solve", () => {
     const leak = buildPlan(input({ decisions: times(40, () => open()) })).leaks.find((l) => l.leak.kind === "pf")!;
     const words = leak.says.join(" ");
-    expect(words).toMatch(/0% in the mix \(95% range 0% to \d+%\) against the preflop charts, by frequency, not a solve, over 40 decisions/);
+    expect(words).toMatch(/0% in the mix \(95% range 0% to \d+%\) against the preflop charts, by frequency, not a solve, where playing its own mix would be 100%, over 40 decisions/);
     expect(words).toMatch(/No EV: all/);
     expect(leak.lost).toBeNull();
   });

@@ -2,7 +2,7 @@
 // on decisions made up for it.
 import { describe, expect, it } from "vitest";
 import type { DecisionRecord, HandRecord } from "@/data/db";
-import { agreement, basisOf, BASES, COLS, COUNTED_WORDS, countedBb, freqs, groupBy, isPfSolve, leakIsRead, leaks, leakTest, lostByKind, meanRange, MIN_READ, mixByClass, PF_ROW, readLeaks, report, rowsOf, spotOf, tally, toCSV, toJSON, type Leak } from "./report";
+import { agreement, basisOf, BASES, COLS, COUNTED_WORDS, countedBb, freqs, groupBy, isPfSolve, leakIsRead, leaks, leakTest, lostByKind, meanRange, MIN_READ, mixByClass, PF_ROW, readLeaks, report, rowsOf, spotOf, tally, toCSV, toJSON } from "./report";
 import { wilson } from "./stats";
 
 let k = 0;
@@ -153,22 +153,25 @@ describe("report", () => {
     expect(rp.hands).toBe(1);
   });
 
-  it("compares your frequencies with the answer's, and finds leaks past their thresholds", () => {
+  it("compares your frequencies with the answer's, and finds leaks beyond chance, the ones that cost EV first", () => {
     expect(mixByClass(cbet())).toEqual({ fold: 0, passive: 0.6, aggr: 0.4 });
     // 30 opens all raised where the charts raise half: a frequency leak; 30 c-bets losing 0.6bb each: a spot leak
-    const ds = [...Array.from({ length: 30 }, () => open()), ...Array.from({ length: 30 }, () => cbet())];
+    const ds = [...Array.from({ length: 30 }, (_, i) => open({ handId: `o${i}` })), ...Array.from({ length: 30 }, (_, i) => cbet({ handId: `c${i}` }))];
     const f = freqs(ds);
     expect(f.map((x) => [x.label, x.n, x.you, Math.round(x.gto * 1e9) / 1e9])).toEqual([["Open (RFI)", 30, 1, 0.5], ["Flop c-bet", 30, 1, 0.4]]);
     const L = leaks(ds);
+    // (the spot costs 18bb over 60 hands, 30bb per 100, and the c-bet row's cost is the same decisions': the spot's test
+    // stands further from chance; the opens cost nothing measured, so they come last)
     expect(L.map((l) => [l.kind, l.key])).toEqual([
+      ["spot", "Flop · SRP · IP · checked to"],
       ["freq", "Flop c-bet"],
       ["freq", "Open (RFI)"],
-      ["spot", "Flop · SRP · IP · checked to"],
     ]);
-    expect(ds.filter(leakTest(L[2]!))).toHaveLength(30);
-    // under 80% in the mix over 30 preflop decisions: a preflop leak
+    expect(L.map((l) => l.bb100)).toEqual([30, 30, null]);
+    expect(ds.filter(leakTest(L[0]!))).toHaveLength(30);
+    // in the mix a third of the time where the charts' own mix would always be: a preflop leak
     const bad = Array.from({ length: 30 }, (_, j) => open({ verdict: j < 20 ? "Mistake" : "Best" }));
-    expect(leaks(bad).find((l) => l.kind === "pf")).toMatchObject({ key: "RFI", n: 30 });
+    expect(leaks(bad).find((l) => l.kind === "pf")).toMatchObject({ key: "RFI", n: 30, way: "freq", expect: 1 });
     // fewer decisions: none
     expect(leaks(ds.slice(0, 29))).toEqual([]);
   });
@@ -272,46 +275,39 @@ describe("report", () => {
     expect(basisOf(cbet())).toBe(BASES[1]);
   });
 
-  it("doesn't mark a leak from a sample too small to read: under 30, or with its interval across the line", () => {
+  it("doesn't mark a leak from a sample too small to read: under 30, or not past the bar", () => {
     expect(MIN_READ).toBe(30);
     // ten opens all raised against a 50% answer: 100% looks far off, the sample can't say so
     const ten = readLeaks(Array.from({ length: 10 }, () => open()));
     expect(ten.leaks).toEqual([]);
     expect(ten.thin.map((l) => [l.kind, l.key, l.n])).toEqual([["freq", "Open (RFI)", 10]]);
     // under ten: too few even to mention
-    expect(readLeaks(Array.from({ length: 9 }, () => open()))).toEqual({ leaks: [], thin: [] });
-    // over the count, but the answer's 50% is inside your 95% range: 19 raises of 30 is 63%, range 46% to 78%
+    expect(readLeaks(Array.from({ length: 9 }, () => open()))).toMatchObject({ leaks: [], thin: [], tests: 0 });
+    // over the count, but 19 raises of 30 against the answer's 50% is within chance (z 1.5)
     const near = readLeaks(Array.from({ length: 30 }, (_, j) => open(j < 19 ? {} : { action: "fold", matched: "fold" })));
-    const row = near.thin.find((l) => l.kind === "freq");
-    expect(row).toMatchObject({ key: "Open (RFI)", n: 30 });
-    expect(row!.range).toEqual(wilson(19, 30));
     expect(near.leaks.filter((l) => l.kind === "freq")).toEqual([]);
-    // 21 of 30 in the mix is 70%, under the 80% line, but its range reaches past it
-    const pf = readLeaks(Array.from({ length: 30 }, (_, j) => open({ situation: "vs open", verdict: j < 21 ? "Best" : "Mistake" })));
-    expect(pf.thin.find((l) => l.kind === "pf")).toMatchObject({ key: "vs open", n: 30, inMix: 0.7 });
-    expect(pf.leaks.filter((l) => l.kind === "pf")).toEqual([]);
-    // a spot that loses 0.5bb a decision on average from one big miss: its range crosses nothing lost
+    expect(near.thin.filter((l) => l.kind === "freq")).toEqual([]);
+    // 21 of 30: past 95% alone (z 2.2) but not past the bar its tests share (2.5 for 4): too few to read
+    const off = readLeaks(Array.from({ length: 30 }, (_, j) => open(j < 21 ? {} : { action: "fold", matched: "fold" })));
+    const row = off.thin.find((l) => l.kind === "freq")!;
+    expect(row).toMatchObject({ key: "Open (RFI)", n: 30 });
+    expect(row.range).toEqual(wilson(21, 30));
+    expect(row.z).toBeGreaterThan(1.96);
+    expect(row.z).toBeLessThan(off.bar);
+    // a spot that loses 0.5bb a decision on average from one big miss: one miss is no pattern (z 1)
     const spike = readLeaks(Array.from({ length: 30 }, (_, j) => cbet({ evLossBb: j ? 0 : 15, verdict: j ? "Best" : "Blunder" })));
-    expect(spike.thin.find((l) => l.kind === "spot")).toMatchObject({ n: 30, avg: 0.5 });
     expect(spike.leaks.filter((l) => l.kind === "spot")).toEqual([]);
+    expect(spike.thin.filter((l) => l.kind === "spot")).toEqual([]);
   });
 
-  it("reads each kind of leak by its own rule", () => {
-    const base = { key: "x", score: 1, low: 0, versions: null };
-    const freq: Leak = { ...base, kind: "freq", n: 30, you: 1, gto: 0.5, range: [0.8, 1] };
-    expect(leakIsRead(freq)).toBe(true);
-    expect(leakIsRead({ ...freq, n: 29 })).toBe(false);
-    expect(leakIsRead({ ...freq, gto: 0.85 })).toBe(false);
-    expect(leakIsRead({ ...freq, gto: 0.5, range: [0.1, 0.35] })).toBe(true);
-    // (past the answer, but not all of it 10 points past)
-    expect(leakIsRead({ ...freq, n: 400, you: 0.6025, gto: 0.5, range: [0.554, 0.649] })).toBe(false);
-    const pf: Leak = { ...base, kind: "pf", n: 40, inMix: 0.5, range: [0.4, 0.79] };
-    expect(leakIsRead(pf)).toBe(true);
-    expect(leakIsRead({ ...pf, range: [0.4, 0.8] })).toBe(false);
-    const spot: Leak = { ...base, kind: "spot", n: 40, avg: 1, lost: 40, range: [0.6, 1.4] };
-    expect(leakIsRead(spot)).toBe(true);
-    // (clear of nothing, but astride the half a big blind)
-    expect(leakIsRead({ ...spot, avg: 0.55, range: [0.15, 0.95] })).toBe(false);
+  it("reads a leak by its test against the report's bar, with no line in points or big blinds", () => {
+    const at = { n: 30, z: 4, bar: 3.2 };
+    expect(leakIsRead(at)).toBe(true);
+    expect(leakIsRead({ ...at, n: 29 })).toBe(false);
+    expect(leakIsRead({ ...at, z: 3.19 })).toBe(false);
+    // (a frequency 3 points off at a big enough sample is a leak: the bar is chance's)
+    const ds = Array.from({ length: 3000 }, (_, j) => open({ handId: `h${j}`, action: j % 100 < 53 ? "raise to 2.5" : "fold", matched: j % 100 < 53 ? "raise" : "fold" }));
+    expect(leaks(ds).find((l) => l.key === "Open (RFI)")).toMatchObject({ n: 3000, you: 0.53 });
   });
 
   it("doesn't call a raise of your own flop bet a c-bet", () => {

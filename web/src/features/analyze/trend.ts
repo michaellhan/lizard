@@ -7,7 +7,7 @@
 // would manufacture improvement from chance.
 import type { DecisionRecord, HandRecord } from "@/data/db";
 import { countVersions, versionSpan, type VersionSpan } from "@/grading/version";
-import { basisOf, freqs, FREQS, groupBy, isGraded, isOk, LEAK, leaks, leakTest, PF_ORDER, PF_ROW, pfKey, type FreqRow, type Group, spotOf } from "./report";
+import { basisOf, freqs, FREQS, groupBy, isGraded, isOk, leaks, leakTest, PF_ORDER, PF_ROW, pfKey, type FreqRow, type Group, spotOf } from "./report";
 import { byPlayed, type Sitting } from "./sessions";
 import { wilson } from "./stats";
 
@@ -22,8 +22,9 @@ export const MIN_SIDE = 100;
 export const MIN_ROW = 30;
 /** |z| from which a change is called (two-sided 1%: there are many rows). */
 export const BAR = 2.58;
-/** How far off the answer a side of a crossing has to be: half a leak, as a row's percents round to a point. */
-const CROSS = LEAK.freq[0] / 2;
+/** How far off the answer a side of a crossing has to be, 5 points, as a row's percents round to a point (half the fixed
+ * line a frequency leak needed until 2026-11-22). */
+const CROSS = 0.05;
 /** A session's share under this many decisions is written as a count. */
 export const MIN_SHARE = 30;
 

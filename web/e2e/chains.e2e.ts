@@ -88,6 +88,19 @@ test("Phase 6: a session imported, a measured leak opened in Study, drilled, sav
   const leaks = page.getByRole("list", { name: "Leaks" });
   await expect(leaks.getByRole("listitem").first()).toBeVisible({ timeout: 60_000 });
   await expect(leaks.getByRole("listitem").first()).toContainText(/\d+ decisions?|\d+%/);
+  await expect(page.getByRole("group", { name: "How leaks are read" })).toContainText(/each held to \|z\| ≥ \d\.\d\d/);
+
+  // your play at each node: the preflop grid by seat (this sample's flops aren't graded by EV, so no spot table), a cell
+  // opening its decisions
+  await page.getByText("Your play at each node, by seat and by spot").click();
+  const nodes = page.getByRole("group", { name: "Your play at each node" });
+  const grid = nodes.getByRole("table", { name: /^Preflop by seat, against the (charts|preflop solve)/ }).first();
+  await expect(grid).toBeVisible();
+  const cell = grid.getByRole("button", { name: /, every seat: you \d+%, the answer \d+% for the same hands, \d+ decisions/ }).first();
+  const cellName = ((await cell.getAttribute("aria-label")) ?? "").split(",")[0]!;
+  await cell.click();
+  await expect(nodes.getByRole("list", { name: new RegExp(`^${cellName.replace(/[()+]/g, "\\$&")}`) }).getByRole("listitem").first()).toBeVisible();
+  await page.getByText("Your play at each node, by seat and by spot").click();
 
   // the hands behind it, one opened in Study at that decision
   await leaks.getByRole("button", { name: "Show its decisions" }).first().click();

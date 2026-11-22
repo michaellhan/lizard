@@ -22,11 +22,12 @@ import { DecisionList, GroupTable, RangeCell } from "./DecisionTables";
 import { answeredIds, gradeHands, SCOPES, type Ask, type GradeScope } from "./grading";
 import { leakParam, withParams } from "./leakDrill";
 import { isEquilibriumHand } from "./sessions";
-import { basisOf, COUNTED_WORDS, isGraded, isPfSolve, leakTest, missesOf, PF_ROW, report, spotOf, toCSV, toJSON, VERDICTS, type Leak } from "./report";
+import { cellDecisions } from "./nodes";
+import { NodeTables } from "./NodeTables";
+import { basisOf, COUNTED_WORDS, isGraded, isPfSolve, leakBarWords, leakReading, leakTest, missesOf, report, spotOf, toCSV, toJSON, VERDICTS, type Leak } from "./report";
 import { deepenPlan, fmtDur, secondsLeft, toAsk, type Timing } from "./triage";
 
 const pct = (x: number | null | undefined) => (x == null ? "—" : `${Math.round(x * 100)}%`);
-const pair = ([a, b]: readonly [number, number]) => `${pct(a)} to ${pct(b)}`;
 const bbs = (x: number | null | undefined) => (x == null ? "—" : `${Math.round(x * 100) / 100}bb`);
 
 /** The solver's setting a scope's solves run at. */
@@ -235,6 +236,7 @@ export function GradeReport({ decisions, hands, of, exploits = NO_EXPLOITS }: { 
   const rp = useMemo(() => report(ds, 20, eq), [ds, eq]);
   const apart = useMemo(() => ds.length && ds.reduce((n, d) => n + Number(isGraded(d)), 0) - eq.reduce((n, d) => n + Number(isGraded(d)), 0), [ds, eq]);
   const [leak, setLeak] = useState<Leak | null>(null);
+  const [nodesOpen, setNodesOpen] = useState(false); // (the node tables are worked out only once asked for)
   const [freq, setFreq] = useState<string | null>(null);
   const [params] = useSearchParams();
   const streetOf = useCallback((d: DecisionRecord) => d.street, []);
@@ -347,24 +349,30 @@ export function GradeReport({ decisions, hands, of, exploits = NO_EXPLOITS }: { 
         <div className="space-y-1">
           <h3 className="font-semibold">Leaks</h3>
           <ul aria-label="Leaks" className="space-y-1">
-            {rp.leaks.map((l) => (
-              <li key={`${l.kind}|${l.key}`} className="flex flex-wrap items-center gap-2">
-                <span>
-                  {leakText(l)}
-                  {l.versions && <span className="text-xs text-muted"> {l.versions}</span>}
-                </span>
-                <button type="button" onClick={() => setLeak(leak?.key === l.key && leak.kind === l.kind ? null : l)} className="rounded border border-border px-2 py-0.5 text-xs hover:bg-surface-2">
-                  {leak?.key === l.key && leak.kind === l.kind ? "Hide" : "Show"} its decisions
-                </button>
-                <Link to={withParams(params, { drill: leakParam(l) })} className="rounded border border-border px-2 py-0.5 text-xs hover:bg-surface-2">
-                  Drill this leak
-                </Link>
-              </li>
+            {rp.leaks.slice(0, TOP_LEAKS).map((l) => (
+              <LeakItem key={`${l.kind}|${l.key}`} l={l} open={leak} onOpen={setLeak} drill={withParams(params, { drill: leakParam(l) })} />
             ))}
           </ul>
+          {rp.leaks.length > TOP_LEAKS && (
+            <details>
+              <summary className="cursor-pointer text-muted">
+                {(rp.leaks.length - TOP_LEAKS).toLocaleString()} more, each smaller
+              </summary>
+              <ul aria-label="More leaks" className="space-y-1">
+                {rp.leaks.slice(TOP_LEAKS).map((l) => (
+                  <LeakItem key={`${l.kind}|${l.key}`} l={l} open={leak} onOpen={setLeak} drill={withParams(params, { drill: leakParam(l) })} />
+                ))}
+              </ul>
+            </details>
+          )}
         </div>
       )}
       {rp.leaks.length === 0 && <p className="text-muted">No clear leak yet.</p>}
+      {rp.leakBar.tests > 0 && (
+        <p role="group" aria-label="How leaks are read" className="text-xs text-muted">
+          {leakBarWords(rp.leakBar)}
+        </p>
+      )}
       {apart > 0 && (
         <p role="group" aria-label="Left out of the leaks" className="text-xs text-muted">
           {nDecisions(apart)} in tournament hands left out of the leaks.
@@ -387,7 +395,12 @@ export function GradeReport({ decisions, hands, of, exploits = NO_EXPLOITS }: { 
           </ul>
         </details>
       )}
-      {leak && <DecisionList title={leak.key} ds={eq.filter(leakTest(leak))} byId={byId} />}
+      {leak && <DecisionList title={leak.key} ds={cellDecisions(eq, leakTest(leak))} byId={byId} />}
+
+      <details className="space-y-2" onToggle={(e) => setNodesOpen(e.currentTarget.open)}>
+        <summary className="cursor-pointer font-semibold">Your play at each node, by seat and by spot</summary>
+        {nodesOpen && <NodeTables ds={eq} byId={byId} />}
+      </details>
 
       <details className="space-y-4">
         <summary className="cursor-pointer font-semibold">Every breakdown</summary>
@@ -447,10 +460,27 @@ export function GradeReport({ decisions, hands, of, exploits = NO_EXPLOITS }: { 
   );
 }
 
+/** How many leaks are listed before the rest fold away. */
+const TOP_LEAKS = 10;
+
 function leakText(l: Leak): string {
-  const low = l.low ? `, ${l.low} on a low-confidence read` : "";
-  const n = `${l.n.toLocaleString()} decisions`;
-  if (l.kind === "freq") return `${l.key}: you ${pct(l.you)} (95% range ${pair(l.range)}), the answer ${pct(l.gto)} (${n}${low})`;
-  if (l.kind === "pf") return `${l.key}: ${pct(l.inMix)} in the mix against the ${l.key.endsWith(PF_ROW) ? "preflop solve" : "charts"} (95% range ${pair(l.range)}, ${n})`;
-  return `${l.key}: ${bbs(l.avg)} lost per decision (95% range ${bbs(l.range[0])} to ${bbs(l.range[1])}, ${n}${low})`;
+  return `${l.key}: ${leakReading(l)}${l.low ? `; ${l.low} on a low-confidence read` : ""}`;
+}
+
+function LeakItem({ l, open, onOpen, drill }: { l: Leak; open: Leak | null; onOpen: (l: Leak | null) => void; drill: string }) {
+  const on = open?.key === l.key && open.kind === l.kind;
+  return (
+    <li className="flex flex-wrap items-center gap-2">
+      <span>
+        {leakText(l)}
+        {l.versions && <span className="text-xs text-muted"> {l.versions}</span>}
+      </span>
+      <button type="button" onClick={() => onOpen(on ? null : l)} className="rounded border border-border px-2 py-0.5 text-xs hover:bg-surface-2">
+        {on ? "Hide" : "Show"} its decisions
+      </button>
+      <Link to={drill} className="rounded border border-border px-2 py-0.5 text-xs hover:bg-surface-2">
+        Drill this leak
+      </Link>
+    </li>
+  );
 }

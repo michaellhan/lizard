@@ -278,6 +278,30 @@ describe("the frequencies and leaks", () => {
     expect(leaks).toHaveTextContent("95% range");
     fireEvent.click(within(leaks).getAllByRole("button", { name: /Show its decisions/ })[0]!);
     expect(within(rep).getAllByRole("link").filter((l) => l.getAttribute("href")?.includes("hand=")).length).toBeGreaterThan(0);
+    // how a leak is read: chance's bar over the tests made, no fixed line
+    expect(within(rep).getByRole("group", { name: "How leaks are read" })).toHaveTextContent(/tests here, each held to \|z\| ≥ \d\.\d\d.*one report in twenty.*no fixed line/);
+  });
+
+  it("lays your play out by seat against the charts, each cell opening its decisions, misses first", async () => {
+    const hs = [...Array.from({ length: 12 }, (_, i) => hand(T0 + i, { hero: "CO" })), ...Array.from({ length: 12 }, (_, i) => hand(T0 + 100 + i))];
+    const ds = hs.map((h, i) => dec(h, i === 0 ? { verdict: "Mistake" } : {}));
+    await seed(hs, ds);
+    open();
+    await tab("Grades & leaks");
+    const rep = await screen.findByRole("region", { name: "Report" });
+    // (worked out only once the section opens)
+    expect(within(rep).queryByRole("group", { name: "Your play at each node", hidden: true })).toBeNull();
+    const details = within(rep).getByText("Your play at each node, by seat and by spot").closest("details")!;
+    details.open = true;
+    fireEvent(details, new Event("toggle"));
+    const nodes = await within(rep).findByRole("group", { name: "Your play at each node" });
+    const grid = within(nodes).getByRole("table", { name: /^Preflop by seat, against the charts \(by frequency, not a solve\)$/, hidden: true });
+    const cell = within(grid).getByRole("button", { name: /^Open \(RFI\), CO: you 100%, the answer 50% for the same hands, 12 decisions, over the answer beyond chance, few$/, hidden: true });
+    expect(cell).toHaveTextContent("▲");
+    fireEvent.click(cell);
+    const list = within(nodes).getByRole("list", { name: "Open (RFI) · CO (charts)", hidden: true });
+    expect(within(list).getAllByRole("listitem", { hidden: true })).toHaveLength(12);
+    expect(within(list).getAllByRole("listitem", { hidden: true })[0]).toHaveTextContent("Mistake");
   });
 });
 

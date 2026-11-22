@@ -10,6 +10,7 @@ import type { GradeWay } from "@/features/history/history";
 import { countVersions, versionNote, versionSpan, versionSummary } from "@/grading/version";
 import { STREETS } from "./analyze";
 import { handKind, type HandKind } from "./sessions";
+import { meanTest, okChance, pairTest, Z_ONE, zBar } from "./leakStats";
 import { wilson } from "./stats";
 
 const r2 = (x: number) => Math.round(x * 100) / 100;
@@ -119,11 +120,11 @@ export function groupBy(ds: readonly DecisionRecord[], key: (d: DecisionRecord) 
 export const PF_ORDER = ["RFI", "vs limp", "BB vs limp", "vs open", "vs open + call", "SB vs open", "BB defence", "limp vs raise", "vs 3bet", "cold vs 3bet", "vs 4bet+"];
 
 /** a kind of action: fold, check or call, bet or raise; and "vpip", money put in by choice (a call, bet or raise) */
-type Cls = "fold" | "passive" | "aggr" | "vpip";
+export type Cls = "fold" | "passive" | "aggr" | "vpip";
 const clsOf = (action: string): Exclude<Cls, "vpip"> => (/^fold/.test(action) ? "fold" : /^(check|call)/.test(action) ? "passive" : "aggr");
 const isVpip = (action: string) => !/^(fold|check)/.test(action);
 /** whether an action is of the kind */
-const took = (action: string, cls: Cls) => (cls === "vpip" ? isVpip(action) : clsOf(action) === cls);
+export const took = (action: string, cls: Cls) => (cls === "vpip" ? isVpip(action) : clsOf(action) === cls);
 /** the answer's mix for your hand by kind of action */
 export function mixByClass(d: DecisionRecord): Record<Exclude<Cls, "vpip">, number> {
   const m: Record<Exclude<Cls, "vpip">, number> = { fold: 0, passive: 0, aggr: 0 };
@@ -137,7 +138,7 @@ export function mixByClass(d: DecisionRecord): Record<Exclude<Cls, "vpip">, numb
 const THREE_BET = new Set(["vs open", "vs open + call", "SB vs open", "BB defence"]);
 
 /** the answer's share of a kind of action for your hand */
-const shareOf = (d: DecisionRecord, cls: Cls) => (Array.isArray(d.mix) ? d.mix : []).reduce((s, [a, f]) => s + (took(a, cls) ? f : 0), 0);
+export const shareOf = (d: DecisionRecord, cls: Cls) => (Array.isArray(d.mix) ? d.mix : []).reduce((s, [a, f]) => s + (took(a, cls) ? f : 0), 0);
 
 /** Your frequency of a kind of action against the answer's for the same hands at the same decisions (the classic
  * FREQS and the plan's list). VPIP and PFR are at your first preflop decision of each hand, where the answer's mix is
@@ -155,6 +156,7 @@ export const FREQS: readonly [string, Cls, (d: DecisionRecord) => boolean][] = [
   ["SB vs open: fold", "fold", (d) => d.situation === "SB vs open"],
   ["vs 3bet: fold", "fold", (d) => d.situation === "vs 3bet"],
   ["vs 3bet: 4bet", "aggr", (d) => d.situation === "vs 3bet"],
+  ["vs 4bet or more: fold", "fold", (d) => d.situation === "vs 4bet+"],
   ["Flop c-bet", "aggr", (d) => d.street === "flop" && d.role === "PFR" && !d.facing && !d.multi],
   // (not a raise of a bet you made: that's no c-bet. A grade kept before `ownBet` was can't tell)
   ["Flop vs c-bet: fold", "fold", (d) => d.street === "flop" && d.role === "caller" && !!d.facing && !d.multi && !d.ownBet],
@@ -250,63 +252,263 @@ export const MIN_READ = 30;
 /** Under this many a row isn't even listed as too few to read. */
 const MIN_THIN = 10;
 
-/** A leak's thresholds: a frequency this far off the answer's, a preflop situation under this share in the mix, a spot
- * after the flop losing this many bb a decision, each over MIN_READ decisions (the classic LEAK's sizes, over twice its
- * sample) and with its 95% interval clear of the line (leakIsRead). */
-export const LEAK = { freq: [0.1, MIN_READ], pf: [0.8, MIN_READ], spot: [0.5, MIN_READ] } as const;
+/** How a leak was read: by the EV a solve of the spot measured past its noise, by the preflop solve's EV (a class-level
+ * model), or by frequency alone (the charts, a read with no EVs, and every row of your frequencies). */
+export type LeakWay = "ev" | "solve" | "freq";
 
+/** The kind of action that stands out against the answer at a row: your share of it, the answer's for the same hands,
+ * and how far apart beyond chance (z). */
+export interface Gap {
+  cls: Cls;
+  you: number;
+  gto: number;
+  z: number;
+}
 
-/** (`low`: how many of its decisions stand on a low-confidence read, which the leak may not survive a check of;
- * `versions`: where its decisions don't stand on one known version, in words; `range`: your rate's 95% interval, a
- * spot's EV lost per decision) */
-export type Leak = { low: number; versions: string | null; range: [number, number] } & (
-  | { kind: "freq"; key: string; n: number; you: number; gto: number; score: number }
-  | { kind: "pf"; key: string; n: number; inMix: number; score: number }
-  | { kind: "spot"; key: string; n: number; avg: number; lost: number; score: number }
+/** A row read as a leak, or one that looks off but is too few to say (`thin`). `z`: how far its test stands from playing
+ * the answer (leakStats.ts), against `bar`, the report's (zBar of every test it made); `cost`: the EV its decisions gave
+ * up past their noise in the direction it's off (bb, as the verdicts count it, countedBb), and `bb100` that per 100 hands
+ * of the sample read; null where nothing in it has EVs. `low`: how many of its decisions stand on a low-confidence read,
+ * which the leak may not survive a check of; `versions`: where its decisions don't stand on one known version, in words;
+ * `range`: your rate's 95% interval, or the EV lost per decision's. */
+export type Leak = {
+  low: number;
+  versions: string | null;
+  range: [number, number];
+  way: LeakWay;
+  z: number;
+  bar: number;
+  cost: number | null;
+  bb100: number | null;
+  gap?: Gap;
+  score: number;
+} & (
+  | { kind: "freq"; key: string; n: number; you: number; gto: number }
+  /** a preflop situation, or a situation from one seat ("RFI · CO"): by frequency, your share in the mix against what
+   * playing the answer's own mix would score (`expect`); by the preflop solve, the EV lost per decision (`avg`) */
+  | { kind: "pf"; key: string; n: number; inMix: number; expect?: number; avg?: number; against?: string }
+  | { kind: "spot"; key: string; n: number; avg: number; lost: number }
 );
+
+/** A preflop frequency's row from one seat ("Open (RFI) · CO"), the preflop solve's beside the charts'. */
+export const seatKeyOf = (label: string, seat: string, solve: boolean) => `${label} · ${seat}${solve ? PF_ROW : ""}`;
+
+/** A preflop decision's node: its situation from your seat, a row beside the charts' where the preflop solve graded it. */
+export const pfSeatKey = (d: Pick<DecisionRecord, "situation" | "pos" | "source">) => `${d.situation} · ${d.pos}${isPfSolve(d) ? PF_ROW : ""}`;
+
+const CLASSES = ["fold", "passive", "aggr"] as const;
+const CLS_ALL: readonly Cls[] = ["vpip", "fold", "passive", "aggr"];
+const meanOf = (xs: readonly number[]) => (xs.length ? xs.reduce((s, x) => s + x, 0) / xs.length : 0);
+
+/** The gap furthest beyond chance, of a row's. */
+const widest = (gs: readonly Gap[]): Gap | undefined => gs.reduce<Gap | undefined>((b, g) => (!b || Math.abs(g.z) > Math.abs(b.z) ? g : b), undefined);
 
 /** A mean's 95% interval from its values' own spread (none under two). */
 export function meanRange(xs: readonly number[]): [number, number] | null {
-  const n = xs.length;
-  if (n < 2) return null;
-  let [sum, sq] = [0, 0];
-  for (const x of xs) {
-    sum += x;
-    sq += x * x;
-  }
-  const mean = sum / n;
-  const half = 1.96 * Math.sqrt(Math.max(0, (sq - n * mean * mean) / (n - 1)) / n);
-  return [mean - half, mean + half];
+  if (xs.length < 2) return null;
+  const t = meanTest(xs);
+  return [t.mean - Z_ONE * t.se, t.mean + Z_ONE * t.se];
 }
 
-/** Whether a row past a leak's line can be read: over MIN_READ decisions, and its whole interval past the line: yours
- * 10 points from the answer's frequency, under 80% in the mix, over 0.5bb lost per decision. */
-export const leakIsRead = (l: Leak): boolean =>
-  l.n >= MIN_READ && (l.kind === "freq" ? l.gto + LEAK.freq[0] < l.range[0] || l.gto - LEAK.freq[0] > l.range[1] : l.kind === "pf" ? l.range[1] < LEAK.pf[0] : l.range[0] > LEAK.spot[0]);
+/** Whether a row past its test can be read as a leak: over MIN_READ decisions, and past the report's bar. */
+export const leakIsRead = (l: Pick<Leak, "n" | "z" | "bar">): boolean => l.n >= MIN_READ && l.z >= l.bar;
 
-/** Every row past a leak's line: `leaks` can be read (leakIsRead), `thin` look off but are too few to say. */
-export function readLeaks(ds: readonly DecisionRecord[]): { leaks: Leak[]; thin: Leak[] } {
-  const none = { low: 0, versions: null };
-  const out: Leak[] = [];
-  for (const f of freqs(ds)) {
-    const d = f.you - f.gto;
-    if (f.n >= MIN_THIN && Math.abs(d) >= LEAK.freq[0]) out.push({ kind: "freq", key: f.label, n: f.n, you: f.you, gto: f.gto, range: f.range, score: Math.abs(d) * Math.sqrt(f.n), ...none });
-  }
-  for (const r of groupBy(ds.filter((d) => d.street === "preflop"), pfKey, PF_ORDER))
-    if (r.graded >= MIN_THIN && r.ok / r.graded < LEAK.pf[0]) out.push({ kind: "pf", key: r.key, n: r.graded, inMix: r.ok / r.graded, range: wilson(r.ok, r.graded), score: (1 - r.ok / r.graded) * Math.sqrt(r.graded), ...none });
-  for (const r of groupBy(ds, spotOf))
-    if (r.ev >= MIN_THIN && (r.avg ?? 0) >= LEAK.spot[0]) {
-      const range = meanRange(ds.filter((d) => spotOf(d) === r.key && hasEv(d)).map(countedBb))!;
-      out.push({ kind: "spot", key: r.key, n: r.ev, avg: r.avg!, lost: r.lost, range, score: (r.avg! / 2) * Math.sqrt(r.ev), ...none });
+/** How big a leak is, where it costs nothing measured: the widest gap between you and the answer. */
+const sizeOf = (l: Leak): number => (l.kind === "freq" ? Math.abs(l.you - l.gto) : l.kind === "pf" && l.expect !== undefined ? l.expect - l.inMix : 0);
+
+/** Leaks that cost EV first, the most per 100 hands first; then those by frequency alone, the widest gap first. */
+const leakOrder = (a: Leak, b: Leak) =>
+  Number((b.bb100 ?? 0) > 0) - Number((a.bb100 ?? 0) > 0) || b.score - a.score || b.z - a.z || (a.key < b.key ? -1 : a.key > b.key ? 1 : 0);
+
+/** Every row tested against the answer at each node: your frequencies (FREQS), the preflop ones from each seat too
+ * ("Open (RFI) · CO"); each preflop situation and each situation from each seat, by how often you're in the mix against how
+ * often the answer's own mix would be (or by the preflop solve's EV); each spot after the flop by the EV it lost. A row
+ * with MIN_READ decisions or more whose test passes the report's bar is a leak; one that would at 95% alone, or past the
+ * bar under MIN_READ, looks off but is too few to read (`thin`). No line in big blinds or points: the bar is chance's
+ * (leakStats.ts zBar over the `tests` made), and the leaks are ranked by the EV they cost per 100 hands where the answers
+ * have EVs, as GTO Wizard's reports rank them. A seat's row with all of its row's decisions is left for that row; a row
+ * with a seat that is a leak on fewer decisions is left for the seat, which says more. */
+export function readLeaks(ds: readonly DecisionRecord[]): { leaks: Leak[]; thin: Leak[]; bar: number; tests: number } {
+  const hands = new Set(ds.map((d) => d.handId)).size;
+  const per100 = (bb: number | null) => (bb === null ? null : hands ? (bb / hands) * 100 : 0);
+  const graded = ds.filter(isGraded);
+  const withMix = graded.filter((d) => Array.isArray(d.mix) && d.mix.length > 0);
+  type Row = { l: Leak; tests: number; parent?: string; its: DecisionRecord[] };
+  const rows: Row[] = [];
+  const blank = { low: 0, versions: null, bar: 0 };
+  const costOf = (rs: readonly DecisionRecord[]) => (rs.length ? r2(rs.reduce((t, d) => t + countedBb(d), 0)) : null);
+  const bySeat = (rs: readonly DecisionRecord[]) => {
+    const m = new Map<string, DecisionRecord[]>();
+    for (const d of rs) if (d.pos) (m.get(d.pos) ?? m.set(d.pos, []).get(d.pos)!).push(d);
+    return m;
+  };
+  // (each decision's action and the answer's share by kind, worked out once: every row and seat reads them again)
+  const memo = new Map<DecisionRecord, Float64Array>();
+  const vec = (d: DecisionRecord): Float64Array => {
+    let v = memo.get(d);
+    if (!v) {
+      const w = new Float64Array(8);
+      CLS_ALL.forEach((cls, i) => (w[i] = Number(took(d.action, cls))));
+      for (const [a, f] of Array.isArray(d.mix) ? d.mix : []) CLS_ALL.forEach((cls, i) => took(a, cls) && (w[4 + i]! += f));
+      memo.set(d, (v = w));
     }
-  const full = out.sort((a, b) => b.score - a.score).map((l) => {
-    const its = ds.filter((d) => leakTest(l)(d) && isGraded(d) && (l.kind !== "spot" || hasEv(d)));
-    return { ...l, low: its.filter(isLow).length, versions: versionNote(versionSpan(countVersions(its.map((d) => d.version)))) };
-  });
-  return { leaks: full.filter(leakIsRead), thin: full.filter((l) => !leakIsRead(l)) };
+    return v;
+  };
+  // (your action against the answer's at a row, kind by kind: each kind that either of you takes, with its test)
+  const gapsOf = (rs: readonly DecisionRecord[]): Gap[] => {
+    const out: Gap[] = [];
+    for (const cls of CLASSES) {
+      const i = CLS_ALL.indexOf(cls);
+      const ys = rs.map((d) => vec(d)[i]!);
+      const ms = rs.map((d) => vec(d)[4 + i]!);
+      if (ys.every((y, j) => y === ms[j])) continue;
+      out.push({ cls, you: meanOf(ys), gto: meanOf(ms), z: pairTest(ys, ms).z });
+    }
+    return out;
+  };
+
+  // your frequencies against the answer's, each answer its own row; the preflop ones from each seat as well
+  const freqRow = (key: string, cls: Cls, rs: readonly DecisionRecord[], parent?: string) => {
+    if (rs.length < MIN_THIN) return;
+    const i = CLS_ALL.indexOf(cls);
+    const ys = rs.map((d) => vec(d)[i]!);
+    const ms = rs.map((d) => vec(d)[4 + i]!);
+    const t = pairTest(ys, ms);
+    const [you, gto] = [meanOf(ys), meanOf(ms)];
+    // (what it costs: the EV lost where you took it, played over the answer, or where you didn't, played under it)
+    const cost = costOf(rs.filter((d) => hasEv(d) && (vec(d)[i] === 1) === you > gto));
+    const l: Leak = { ...blank, kind: "freq", key, n: rs.length, you, gto, range: wilson(ys.filter(Boolean).length, rs.length), way: "freq", z: Math.abs(t.z), cost, bb100: per100(cost), gap: { cls, you, gto, z: t.z }, score: 0 };
+    rows.push({ l, tests: 1, ...(parent ? { parent } : {}), its: [...rs] });
+  };
+  for (const [label, cls, test] of FREQS)
+    for (const solve of [false, true]) {
+      const rs = withMix.filter((d) => test(d) && isPfSolve(d) === solve);
+      const key = `${label}${solve ? PF_ROW : ""}`;
+      freqRow(key, cls, rs);
+      if (rs.length >= MIN_THIN && rs[0]!.street === "preflop") for (const [seat, its] of bySeat(rs)) freqRow(seatKeyOf(label, seat, solve), cls, its, key);
+    }
+
+  // preflop, by situation and by situation from each seat
+  const nodes = new Map<string, DecisionRecord[]>();
+  const add = (k: string, d: DecisionRecord) => (nodes.get(k) ?? nodes.set(k, []).get(k)!).push(d);
+  for (const d of graded) {
+    if (d.street !== "preflop" || !d.situation) continue;
+    add(pfKey(d), d);
+    if (d.pos) add(pfSeatKey(d), d);
+  }
+  for (const [key, rs] of nodes) {
+    const solve = key.endsWith(PF_ROW);
+    const parent = key.includes(" · ") ? `${key.slice(0, key.indexOf(" · "))}${solve ? PF_ROW : ""}` : undefined;
+    if (solve) {
+      const evs = rs.filter(hasEv);
+      if (evs.length < MIN_THIN) continue;
+      const xs = evs.map(countedBb);
+      const t = meanTest(xs);
+      const cost = costOf(evs);
+      const l: Leak = { ...blank, kind: "pf", key, n: evs.length, inMix: rs.filter(isOk).length / rs.length, avg: Math.round(t.mean * 1000) / 1000, range: meanRange(xs) ?? [t.mean, t.mean], way: "solve", z: t.z, cost, bb100: per100(cost), score: 0 };
+      rows.push({ l, tests: 1, ...(parent ? { parent } : {}), its: evs });
+      continue;
+    }
+    const its = rs.filter((d) => Array.isArray(d.mix) && d.mix.length > 0);
+    if (its.length < MIN_THIN) continue;
+    const os = its.map((d) => Number(isOk(d)));
+    const ps = its.map((d) => okChance(d.mix!.map(([, f]) => f)));
+    // (in the mix less often than the answer's own mix would be: one way only, as more often is no leak. The kind of action
+    // furthest off is said with it, and tested in the frequencies' rows)
+    const t = pairTest(os, ps);
+    const top = widest(gapsOf(its));
+    const ok = os.filter(Boolean).length;
+    // (what answered by frequency: the charts, or at a short stack the push/fold model)
+    const pushFold = its.filter((d) => d.source === "push-fold").length;
+    const against = pushFold === its.length ? "the push/fold model" : pushFold ? "the charts and the push/fold model" : "the charts";
+    const l: Leak = { ...blank, kind: "pf", key, n: its.length, against, inMix: ok / its.length, expect: meanOf(ps), range: wilson(ok, its.length), way: "freq", z: -t.z, cost: null, bb100: null, ...(top ? { gap: top } : {}), score: 0 };
+    rows.push({ l, tests: 1, ...(parent ? { parent } : {}), its });
+  }
+
+  // after the flop, each spot by the EV it lost
+  const spots = new Map<string, DecisionRecord[]>();
+  for (const d of graded) {
+    const k = spotOf(d);
+    if (k && hasEv(d)) (spots.get(k) ?? spots.set(k, []).get(k)!).push(d);
+  }
+  for (const [key, evs] of spots) {
+    if (evs.length < MIN_THIN) continue;
+    const xs = evs.map(countedBb);
+    const t = meanTest(xs);
+    const lost = r2(xs.reduce((s, x) => s + x, 0));
+    const l: Leak = { ...blank, kind: "spot", key, n: evs.length, avg: Math.round(t.mean * 1000) / 1000, lost, range: meanRange(xs) ?? [t.mean, t.mean], way: "ev", z: t.z, cost: lost, bb100: per100(lost), score: 0 };
+    rows.push({ l, tests: 1, its: evs });
+  }
+
+  const tests = rows.reduce((m, r) => m + (r.l.n >= MIN_READ ? r.tests : 0), 0);
+  const bar = zBar(tests);
+  for (const r of rows) {
+    r.l.bar = bar;
+    r.l.score = (r.l.bb100 ?? 0) > 0 ? r.l.bb100! : sizeOf(r.l);
+  }
+  const isRead = (r: Row) => leakIsRead(r.l);
+  const looksOff = (r: Row) => !isRead(r) && (r.l.n < MIN_READ ? r.l.z >= bar : r.l.z >= Z_ONE);
+  const id = (kind: string, key: string) => `${kind}|${key}`;
+  const byId = new Map(rows.map((r) => [id(r.l.kind, r.l.key), r]));
+  const parentOf = (r: Row) => (r.parent ? byId.get(id(r.l.kind, r.parent)) : undefined);
+  // (a seat that is all of its row says nothing more than the row; a row with a seat that is a leak on fewer decisions, nothing
+  // more than the seat)
+  const sameAsParent = (r: Row) => parentOf(r)?.l.n === r.l.n;
+  const narrower = rows.filter((r) => r.parent && isRead(r) && !sameAsParent(r));
+  const seatSaysMore = (r: Row) => !r.parent && narrower.some((c) => c.l.kind === r.l.kind && c.parent === r.l.key);
+  const finish = (r: Row): Leak => ({ ...r.l, low: r.its.filter(isLow).length, versions: versionNote(versionSpan(countVersions(r.its.map((d) => d.version)))) });
+  // (rows of one kind on the very same decisions say one thing: VPIP, PFR and the open, where every one was first in. The
+  // last in FREQS's order is the most particular, and stands)
+  // (only rows of one kind and size can be the same; those are compared decision by decision)
+  const same = (a: Row, b: Row) => {
+    const s = new Set(a.its);
+    return b.its.every((d) => s.has(d));
+  };
+  const once = (rs: Row[]) => {
+    const groups = new Map<string, Row[]>();
+    for (const r of rs) (groups.get(`${r.l.kind}|${r.its.length}`) ?? groups.set(`${r.l.kind}|${r.its.length}`, []).get(`${r.l.kind}|${r.its.length}`)!).push(r);
+    const drop = new Set<Row>();
+    for (const g of groups.values()) for (let i = 0; i < g.length; i++) for (let j = i + 1; j < g.length; j++) if (!drop.has(g[i]!) && same(g[i]!, g[j]!)) drop.add(g[i]!);
+    return rs.filter((r) => !drop.has(r));
+  };
+  const found = once(rows.filter((r) => isRead(r) && !sameAsParent(r) && !seatSaysMore(r))).map(finish).sort(leakOrder);
+  const thin = once(rows.filter((r) => looksOff(r) && !sameAsParent(r) && !seatSaysMore(r) && !(parentOf(r) && isRead(parentOf(r)!))))
+    .map(finish)
+    .sort(leakOrder);
+  return { leaks: found, thin, bar, tests };
 }
 
 export const leaks = (ds: readonly DecisionRecord[]): Leak[] => readLeaks(ds).leaks;
+
+/** A kind of action in words. */
+export const CLS_WORDS: Record<Cls, string> = { fold: "fold", passive: "check or call", aggr: "bet or raise", vpip: "put money in" };
+const pct0 = (x: number) => `${Math.round(x * 100)}%`;
+const bb2 = (x: number) => `${r2(x)}bb`;
+/** What a leak costs per 100 hands, in words, and by whose EV; "" where nothing in it has EVs or it cost nothing. */
+export function leakCost(l: Leak): string {
+  if (!(l.bb100 && l.bb100 > 0)) return "";
+  const per = `${Math.round(l.bb100 * 100) / 100}bb per 100 hands`;
+  return l.way === "solve" || l.key.endsWith(PF_ROW) ? `${per} by the preflop solve's EV (a class-level model, kept apart)` : `${per} of solver EV`;
+}
+
+/** A leak's reading in words: what's off, against what, over how many, and what it costs. */
+export function leakReading(l: Leak): string {
+  const n = `${l.n.toLocaleString()} ${l.n === 1 ? "decision" : "decisions"}`;
+  const range = l.kind === "spot" || l.way === "solve" ? `95% range ${bb2(l.range[0])} to ${bb2(l.range[1])}` : `95% range ${pct0(l.range[0])} to ${pct0(l.range[1])}`;
+  const cost = leakCost(l);
+  const tail = (s: string) => `${s}${cost ? `; ${cost}` : ""}`;
+  if (l.kind === "freq") return tail(`you ${pct0(l.you)} (${range}), the answer ${pct0(l.gto)} for the same hands, over ${n}`);
+  if (l.kind === "spot") return tail(`${bb2(l.avg)} given up per decision past the answer's noise (${range}), over ${n} graded by EV`);
+  if (l.way === "solve") return tail(`${bb2(l.avg ?? 0)} given up per decision past the preflop solve's noise (${range}), over ${n}; ${pct0(l.inMix)} in the mix`);
+  // (by frequency, preflop is the charts' or the push/fold model's: the preflop solve's rows are read by its EV)
+  const who = l.against ?? "the charts";
+  const gap = l.gap ? `; you ${CLS_WORDS[l.gap.cls]} ${pct0(l.gap.you)}, the answer ${pct0(l.gap.gto)} for the same hands` : "";
+  return tail(`${pct0(l.inMix)} in the mix against ${who}, by frequency, not a solve (${range}), where playing the answer's own mix would be ${pct0(l.expect ?? 1)}${gap}, over ${n}`);
+}
+
+/** How the leaks are read, in words, for the page that lists them. */
+export const leakBarWords = ({ bar, tests }: { bar: number; tests: number }) =>
+  `A leak is a row where your play differs from the answer for the same hands beyond chance: ${tests.toLocaleString()} ${tests === 1 ? "test" : "tests"} here, each held to |z| ≥ ${bar.toFixed(2)}, so someone who plays the answer's own mix exactly would see a false leak in about one report in twenty. There's no fixed line in points or big blinds. Leaks that cost EV come first, the most per 100 hands first; those read by frequency alone (the charts, reads with no EVs) after, the widest gap first.`;
 
 /** Rows renamed, by their old names, which links and saved drills may still carry. */
 const RENAMED: Record<string, string> = { "Squeeze (not from the blinds)": "Squeeze (any seat)" };
@@ -315,11 +517,18 @@ const RENAMED: Record<string, string> = { "Squeeze (not from the blinds)": "Sque
 export function leakTest(l: Pick<Leak, "kind" | "key">): (d: DecisionRecord) => boolean {
   if (l.kind === "freq") {
     const solve = l.key.endsWith(PF_ROW);
-    const name = solve ? l.key.slice(0, -PF_ROW.length) : l.key;
+    const bare = solve ? l.key.slice(0, -PF_ROW.length) : l.key;
+    // (a row from one seat names it after " · ": no row's own name has one)
+    const at = bare.lastIndexOf(" · ");
+    const [name, seat] = at < 0 ? [bare, undefined] : [bare.slice(0, at), bare.slice(at + 3)];
     const f = FREQS.find((x) => x[0] === (RENAMED[name] ?? name));
-    return f ? (d) => isGraded(d) && !!d.mix && f[2](d) && isPfSolve(d) === solve : () => false;
+    return f ? (d) => isGraded(d) && !!d.mix && f[2](d) && isPfSolve(d) === solve && (seat === undefined || d.pos === seat) : () => false;
   }
-  if (l.kind === "pf") return (d) => d.street === "preflop" && pfKey(d) === l.key;
+  if (l.kind === "pf") {
+    // (a situation from one seat, "RFI · CO", or the situation from every seat)
+    if (!l.key.includes(" · ")) return (d) => d.street === "preflop" && pfKey(d) === l.key;
+    return (d) => d.street === "preflop" && !!d.situation && pfSeatKey(d) === l.key;
+  }
   // (a link kept from when only flops were graded names the spot without its street)
   const key = /^(Flop|Turn|River) · /.test(l.key) ? l.key : `Flop · ${l.key}`;
   return (d) => spotOf(d) === key;
@@ -396,8 +605,10 @@ export interface Report {
   agree: ReturnType<typeof agreement>;
   freqs: FreqRow[];
   leaks: Leak[];
-  /** rows past a leak's line that are too few to read: not leaks */
+  /** rows that look off but are too few to read: not leaks */
   thin: Leak[];
+  /** the bar the leaks passed (|z|), and how many tests it is shared among (readLeaks) */
+  leakBar: { bar: number; tests: number };
   /** graded by EV and losing some: the most first */
   mistakes: DecisionRecord[];
   /** graded by frequency and played under 3% of the time by the charts: the chart's surest action first */
@@ -415,7 +626,7 @@ export function report(ds: readonly DecisionRecord[], top = 20, leakFrom: readon
   const low = ds.filter(isLow);
   const pfEv = ds.filter((d) => hasEv(d) && isPfSolve(d));
   const spotEv = tally(ds.filter((d) => hasEv(d) && !isPfSolve(d)));
-  const { leaks: found, thin } = readLeaks(leakFrom);
+  const { leaks: found, thin, bar, tests } = readLeaks(leakFrom);
   return {
     all: tally(ds),
     hands: new Set(ds.map((d) => d.handId)).size,
@@ -433,6 +644,7 @@ export function report(ds: readonly DecisionRecord[], top = 20, leakFrom: readon
     freqs: freqs(ds),
     leaks: found,
     thin,
+    leakBar: { bar, tests },
     mistakes: ds.filter((d) => hasEv(d) && countedBb(d) > 0.005).sort((a, b) => countedBb(b) - countedBb(a)).slice(0, top),
     offChart: unweighed.filter((d) => d.source === "charts").slice(0, top),
     offRead: unweighed.filter((d) => d.source !== "charts").slice(0, top),
