@@ -4,11 +4,12 @@ by engine/pf_engine.py's game (pot layers, each heads-up flop valued at its own 
 engine/pf_model.py's calibrated flop values, every outcome paid by the tournament's prize model (icm.Model:
 Malmuth-Harville, field stand-ins, bounties by the proportional model) through pf_engine's pluggable payoff.
 
-engine/pf_icm.py's own game (ICMGame) is upstream's class-level game with upstream's library flop model; this one keeps
-its tree and its prize model and changes the flop values to the calibrated ones the cash solve uses (engine/pf_solve.py,
-docs/ACCURACY.md 18.4: 2.85 -> 2.01 points mean error against 26 published cash spots) and the heads-up flop's depth to
-the pot's own effective stack (pf_icm values every flop at the table's second-deepest stack). docs/ACCURACY.md 20.7
-measures the two side by side.
+A cross-check, not the game Study and the stored spots solve on. It was written (2026-11-17) when engine/pf_icm.py's own
+game (ICMGame) valued flops with upstream's library flop model; since 2026-11-18 ICMGame takes engine/pf_model.py's
+calibrated flop values itself ("cal1", then "cal2" on the exact equity table), and the two then read the same on the
+published chip-EV references and within 1.5 points of first-in raising in prize equity, this one at about twice the time
+(docs/ACCURACY.md 20.7). So ICMGame stays the solved game, and this one checks it from the cash grid's engine
+(scripts/engine/test_pf_icm.py Calibrated, scripts/pf_icm/compare_models.py).
 
 Nothing here edits pf_engine, pf_model or pf_calib (workstream W2's): PrizePayoff is a pf_engine payoff (its
 `utility(delta, node)` and `linear`), and Game subclasses pf_engine.Game only to price the folded seats of a heads-up pot
@@ -16,8 +17,8 @@ in one pass (pf_engine loops over them in Python, which is slow on a 9-handed tr
 
 How each outcome is priced (pf_engine's nonlinear path): a fold pays the pot to the one left; a heads-up pot each of its
 two winners, a folded seat paid its prize equity by the chance the pot goes each way over the two ranges; a three-way pot
-each of its main-pot winners (a two-player side pot to the main pot's winner where eligible, else to the deeper of the
-two others). A bust pays its bounty to the seat that won the busted player's last chips: of the seats still holding chips
+each of its main-pot winners (a two-player side pot to the main pot's winner where eligible, else half the time to each
+of the two others: pf_engine gives it to the deeper, _even_side_pots below). A bust pays its bounty to the seat that won the busted player's last chips: of the seats still holding chips
 and in as deep as the busted one, the one that gained most.
 """
 from __future__ import annotations
@@ -33,20 +34,7 @@ from engine import pf_engine as E
 from engine import pf_icm as I
 from engine import pf_model as M
 
-MODEL_TAG = "lzicm1"        # in the stored key: a change to this game or the calibration bumps it
 BUST_EPS = 1e-6
-_EQUITY_TAG = None
-
-
-def equity_tag() -> str:
-    """The class equity table's own id (sha1 of gto/pf_equity.py's data, 12 hex): in the stored key too, so a solve
-    stored on another table (pf_classes.equity_matrix: the flops' and all-ins' equities) is never loaded on this one."""
-    global _EQUITY_TAG
-    if _EQUITY_TAG is None:
-        import hashlib
-        from gto.pf_equity import DATA
-        _EQUITY_TAG = "eq" + hashlib.sha1("".join(DATA).encode()).hexdigest()[:12]
-    return _EQUITY_TAG
 
 
 class PrizePayoff:

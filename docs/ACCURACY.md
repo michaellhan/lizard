@@ -2438,21 +2438,16 @@ further than the 5 and 6 handed ones because their trees end sooner. Each number
 equilibrium of its own simplified game, not from a full-tree solve (20.3). The 1.62 mbb spot is 3 left at 10bb with a
 short big blind, where most hands are jams.
 
-### 20.7 The tournament preflop on Lizard's calibrated solver, and the 767-spot set (2026-11-17)
+### 20.7 The tournament preflop on the cash grid's engine, and the 767-spot set (2026-11-17, rebuilt 2026-11-22)
 
-Until now the tournament preflop ran on upstream's class-level game (`engine/pf_icm.py` ICMGame: upstream's library
-flop model). `engine/pf_icm_calib.py` plays the same tree (same sizes, jam beside the open at 25bb or less, three in a
-pot at most, the 7-to-9-handed limits) on Lizard's calibrated cash solver instead: `engine/pf_engine.py`'s game with
-`engine/pf_model.py`'s calibrated flop values, every terminal paid in prize equity (a nonlinear payoff over the
-players' final stacks, folded seats priced in one vectorised pass, bounties paid to the seat that won the busted
-player's chips). `pf_engine.py`, `pf_solve.py`, `pf_calib.py` and `pf_model.py` are imported, not edited. Checks
-(`scripts/engine/test_pf_icm.py` `Calibrated`): winner-take-all is chips; the one-pass pricing of folded seats equals
-pf_engine's own per-seat loop on a push/fold tree; heads-up push/fold matches; KO bounties go to the covering seat.
+**Two engines, one game.** `engine/pf_icm_calib.py` (2026-11-17) plays `engine/pf_icm.py`'s tournament tree on the cash
+grid's engine instead: `engine/pf_engine.py`'s game, `engine/pf_model.py`'s calibrated flop values, and every outcome paid
+by the prize model through pf_engine's pluggable payoff. It prices folded seats in one vectorised pass, and pays a bust's
+bounty to the seat that won the busted player's chips. Neither `pf_engine.py` nor `pf_model.py` is edited. At the time,
+pf_icm's own game (`ICMGame`) valued flops with upstream's library flop model, and the new engine was closer on all four
+published chip-EV references:
 
-**Chip EV against published references** (`scripts/pf_icm/compare_models.py`, `compare_models_refs.json`, 1,000
-iterations each; mean absolute error over the node's fold / call / raise shares, percentage points):
-
-| Reference (source) | Old game | Calibrated |
+| Reference (source) | Upstream flop model (11-17) | pf_engine + calibrated (11-17) |
 |---|---|---|
 | 40bb MTT, SB vs CO open (Poker Academy, 9-handed, 1bb BB ante) | 10.57 | 7.57 |
 | 40bb MTT, SB vs BTN open (same) | 19.07 | 12.17 |
@@ -2460,48 +2455,63 @@ iterations each; mean absolute error over the node's fold / call / raise shares,
 | Heads-up 50bb, BB vs SB limp (same) | 17.10 | 11.90 |
 | Mean | 13.95 | 9.03 |
 
-The calibrated game is closer on all four, by a third on average; it still calls too much from the small blind at 40bb
-(the class-level model's known lean, see Preflop solves). There is no published prize-equity reference this tree plays,
-so the ICM side is measured as distance between the two models, not error.
+The numbers are mean absolute errors over the node's fold / call / raise shares, in percentage points
+(`scripts/pf_icm/compare_models.py`, 1,000 iterations each).
 
-**Prize equity, old against calibrated** (`compare_models_icm.json`, 18 spots: 16 of the final-table set at 3, 5, 6 and
-9 left, 15 and 30bb, chip leader on the button or a short big blind, plus the Final-table bubble and Sit & go bubble):
-first-in raise-or-jam shares by seat differ by 0.83 to 7.45 points on average per spot (mean 4.2), 15.1 at most (9 left,
-15bb, chip leader on the button). Both converge alike (mbb/hand a seat 0.03-1.53 against 0.03-1.28). The calibrated game
-is slower: 1.3 to 3.1 times a spot (median 2.0), 596 s against 350 s for the 18 at 1,000 iterations; the slowest, 6 left
-at 30bb with a short big blind, took 135 s against 66 s.
+From 2026-11-18, `ICMGame` takes `pf_model.py`'s calibrated flop values itself (section 18.9, tag `cal1`). From
+2026-11-22 it runs on the exact equity table (tag `cal2`, section 31). The comparison was then
+run again on that base (`compare_models_refs.json`, `compare_models_icm.json`,
+`library-build/runs/w1_check2.log`):
+
+- **Chip EV:** the two engines read the same on all four references to 0.1 point: 6.77, 10.53, 5.10 and 12.40, a mean of
+  8.70.
+- **Prize equity:** over 22 spots (16 final-table spots at 3, 5, 6 and 9 left, 15 and 30bb, in the new shapes and the
+  top-heavy structure, plus the Final-table bubble and the Sit & go bubble), first-in raise-or-jam shares by seat differ
+  by 0.0 to 1.43 points on average per spot (mean 0.29), 3.7 at most.
+- **Class by class:** at 300 iterations the two differ by about 0.02 of a class's frequency on average. Each prices a
+  three-way pot and a folded seat its own way (`test_pf_icm.py` `Calibrated.test_close_to_pf_icms_game`).
+- **Speed:** pf_engine's version takes 1.1 to 3.6 times as long (median 1.8): 654 s against 365 s for the 22 spots.
+
+So `ICMGame` stays the game that Study and the stored spots solve. `pf_icm_calib.py` is a cross-check from the cash
+grid's engine, and its tests run with the engine tests.
+
+One fault was found and fixed while writing the cross-check. pf_engine's nonlinear payoff (prize equity) gives a
+three-way all-in's side pot to the deeper of its two contenders whenever the main pot's winner can't take it, which
+favours the deeper stack. `pf_icm_calib.Game` splits it evenly between the two, the same even weighting pf_engine gives
+the losers of the main pot. Chip EV, being linear, splits it by heads-up equity per class. `ICMGame` orders the hands by
+their range-level shares, which is finer than either.
 
 **The stored set** (`engine/pf_icm_stored.py` `ALL`, written out as `engine/pf_icm/sets.json`, which the web's
-`PF_ICM_PRESETS` is tested equal to): 767 spots where there were 115.
+`PF_ICM_PRESETS` is tested equal to) grows from 115 spots to 767:
 
 | Set | Spots | What varies |
 |---|---|---|
 | Stages and formats | 10 | as before (the spin is the cash grid's) |
-| Final table | 490 | 3 to 9 left; 10, 15, 20, 30, 40bb average; the 105 as before (equal, chip leader on the button, short big blind; Lizard's 9-paid prizes), the same 105 on each of three posted structures (flat, standard, top-heavy: the first nine places of WSOP Online's top 20%, 15% and 10% paid tables), and 70 more with the chip leader in the big blind or the short stack on the button |
-| Bounty | 36 | KO and PKO on Early, Bubble, Final-table bubble and Final table (3 levels each), and PKO 2.5 or 5 a head on the final-table set at 6 and 9 left, 15 and 30bb, its three shapes; every seat the same bounty, the field's the same |
+| Final table | 490 | 3 to 9 left at 10, 15, 20, 30 or 40bb average. The 105 as before (equal, chip leader on the button, short big blind; Lizard's 9-paid prizes); the same 105 on each of three posted structures (flat, standard, top-heavy: the first nine places of WSOP Online's top 20%, 15% and 10% paid tables); and 70 more with the chip leader in the big blind or the short stack on the button |
+| Bounty | 36 | KO and PKO on Early, Bubble, Final-table bubble and Final table (3 levels each), and PKO 2.5 or 5 a head on the final-table set at 6 and 9 left, 15 and 30bb, in its three shapes. Every seat has the same bounty, and the field's is the same |
 | Satellite | 117 | 3 to 9 left with one or two fewer seats than players (2 seats at least), 10, 15 or 25bb average, the three shapes |
-| Chip EV | 114 | every stage but Double or nothing (the cash grid holds it) and 105 final-table shapes in chips |
+| Chip EV | 114 | every stage but Double or nothing (the cash grid holds it), and the final-table set's 105 stacks in chips |
 
-Each stored key now hashes the game too: `C.MODEL_TAG` ("lzicm1") and `C.equity_tag()` (a hash of
-`solver/gto/pf_equity.py`'s table), so a file solved on another game or equity table is never read. The 115 files
-built on the old game therefore no longer load; the web reads `web/src/features/practice/pfIcmBuilt.json` (written by
-`build_stored.py index`) and grades only the spots built on the current tags, so until the rebuild Practice grades
-tournament preflop by push/fold and the chart, as it says ("none at the moment"). The rebuild was held for a new exact
-169x169 equity table in `solver/gto/pf_equity.py`; at 1,500 iterations and the 1.4-2.5x slowdown above the estimate is
-9 to 10 CPU hours (about 5 hours on 2 workers) and about 6 MB of files.
+**Keys.** A stored key is the game's key as the worker computes it, with `pf_icm.FLOP_MODEL_TAG` in it. `cal2` means the
+exact equity table and the calibration whose digest is `MODEL_DIGEST`; any other table or calibration keys as
+`cal2-<digest>`. A file solved on another table is therefore never read.
 
-A slice of one spot from each new set, built natively at 1,500 iterations on the current table through `slot.sh`
-(`library-build/runs/w1_slice.log`; the files were not kept, as they will be stale on the new table):
+- `build_stored.py` counts an entry as current only when its file is there under the key its request's game has now.
+- `index` writes `web/src/features/practice/pfIcmBuilt.json`: the tag, and the spots built under it. The page matches
+  only those spots.
+- The 115 presets re-solved on main under `cal2` keep their keys, so only the 652 new spots were built.
 
-| Spot | Nodes | mbb/hand a seat | Build | File | Peak memory |
-|---|---|---|---|---|---|
-| Final table, 3 left, 10bb, equal stacks, chip EV | 54 | 1.33 | 1.8 s | 1.2 KB | 96 MB |
-| Satellite, 2 seats for 3 left, 10bb, chip leader on the button | 42 | 0.000 | 3.1 s | 0.5 KB | 94 MB |
-| Final table, 3 left, 15bb, short big blind, top-heavy payouts | 54 | 2.10 | 4.9 s | 0.8 KB | 97 MB |
-| Final table, 6 left, 15bb, chip leader on the button, PKO 2.5 a head | 1,407 | 0.49 | 72.9 s | 6.2 KB | 202 MB |
+**The build** (`library-build/runs/w1_pf_icm_build.log`): BUILD_RESULTS
 
-The 2.10 mbb spot is above the old set's worst (1.62, also 3 left with a short big blind); the rebuild's numbers go
-here when it runs.
+A slice on pf_engine's version before the switch, at 1,500 iterations (files not kept):
+
+| Spot | Nodes | mbb/hand a seat | Build | Peak memory |
+|---|---|---|---|---|
+| 3 left, 10bb, equal stacks, chip EV | 54 | 1.23 | 1.0 s | 95 MB |
+| Satellite, 2 seats for 3 left, 10bb, chip leader on the button | 42 | 0.000 | 1.9 s | 94 MB |
+| 3 left, 15bb, short big blind, top-heavy payouts | 54 | 0.31 | 2.9 s | 98 MB |
+| 6 left, 15bb, chip leader on the button, PKO 2.5 a head | 1,407 | 0.45 | 43.6 s | 198 MB |
+| 9 left, 30bb, chip leader on the button | 1,713 | 0.04 | 49.4 s | 285 MB |
 
 ## 21. Flop abstraction error (2026-11-11)
 

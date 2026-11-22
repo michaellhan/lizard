@@ -16,7 +16,7 @@ import { PF_ICM_PRESETS, PF_ICM_STAGES, PF_ICM_STORED, pfIcmStage } from "./pfIc
 import { decide, newHand, pfBlocked, pfState, stateFor, withVillain, type PracticeHand, type TournamentOptions } from "./practice";
 import { ALL_PRESETS, readDraft, stageDraft } from "./TournamentFields";
 
-vi.mock("./pfIcmBuilt.json", () => ({ default: { model: "test", equity: "test", built: Array.from({ length: 5000 }, (_, i) => i) } }));
+vi.mock("./pfIcmBuilt.json", () => ({ default: { model: "test", built: Array.from({ length: 5000 }, (_, i) => i) } }));
 
 const ROOT = resolve(__dirname, "../../../..");
 const sets = JSON.parse(readFileSync(resolve(ROOT, "engine/pf_icm/sets.json"), "utf8")) as { name: string; set: string; request: Record<string, unknown> }[];

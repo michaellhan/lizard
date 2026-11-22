@@ -1,5 +1,5 @@
 """Builds the stored tournament preflop solves (engine/pf_icm_stored.py ALL: the stage and format presets, the
-final-table set, the bounty set, the satellite set and the chip EV set; on the calibrated game, engine/pf_icm_calib.py)
+final-table set, the bounty set, the satellite set and the chip EV set; engine/pf_icm.py's game on the calibrated flop model)
 into engine/pf_icm/<key>.bin, the manifest engine/pf_icm/stages.json and pf_icm_stored.KEYS, as scripts/pf/build_stored.py
 builds the cash grid: STORED_ITERS iterations of the same DCFR, one file a game, a line a game in the log
 (engine/pf_icm/built.jsonl: name, key, nodes, iterations, seconds, mbb/hand a seat, bytes).
@@ -10,9 +10,10 @@ builds the cash grid: STORED_ITERS iterations of the same DCFR, one file a game,
     .venv/bin/python scripts/pf_icm/build_stored.py index    # KEYS, the page's list of built spots, old files deleted
     .venv/bin/python scripts/pf_icm/build_stored.py sets     # engine/pf_icm/sets.json: every spot's name, set, request
 
-`index` also writes web/src/features/practice/pfIcmBuilt.json: the game tag, the class equity table's tag and the spots
-(indexes into ALL) whose files are built on both, the only ones the page matches; and `sets` the list the page's tests
-hold its presets to (pfIcmStored.test.ts), every spot whether built or not.
+`index` also writes web/src/features/practice/pfIcmBuilt.json: the flop model's tag (pf_icm.FLOP_MODEL_TAG, which names
+the class equity table and the calibration) and the spots (indexes into ALL) whose files are under the key their game has
+now, the only ones the page matches; and `sets` the list the page's tests hold its presets to (pfIcmStored.test.ts),
+every spot whether built or not.
 
 Checkpointed by game: each file is written whole (to a temporary name, then moved), then its manifest entry and log line,
 so `all --missing` after a stop builds only the games with no file yet (a game takes seconds to about 3 minutes; none is
@@ -21,9 +22,9 @@ at 75bb, 7,542 nodes; 9 at 75bb, 3,318) hold under 1 GB. Over a minute of CPU in
 
     /Users/mhan/Desktop/projects/gtosolver/.work/bin/slot.sh .venv/bin/python scripts/pf_icm/build_stored.py all --missing
 
-A game whose manifest entry names another game (pf_icm_calib.MODEL_TAG) or class equity table (equity_tag) rebuilds
-under --missing; `index` deletes the
-files no manifest entry names (a changed game's old key). A game that fails is said and skipped; the rest go on.
+A game whose manifest key isn't the key it has now (another flop model, equity table or calibration: pf_icm.FLOP_MODEL_TAG
+is in the key) rebuilds under --missing; `index` deletes the files no manifest entry names (a changed game's old key). A
+game that fails is said and skipped; the rest go on.
 """
 import fcntl
 import json
@@ -74,7 +75,7 @@ def write_manifest(m: list) -> None:
 
 def build(name: str) -> dict:
     import gto.native  # noqa: F401  (BLAS held to one thread, as scripts/pf/build_stored.py)
-    from engine import pf_icm_calib as C
+    from engine import pf_icm as I
     from engine import pf_icm_study as IS
     from gto import pf_study as PS
     from gto.advisor import Advisor
@@ -98,7 +99,7 @@ def build(name: str) -> dict:
     entry = {"name": name, "set": ST.set_of(name), "key": spec.key, "request": req, "players": spec.players,
              "nodes": g.N, "iterations": PS.STORED_ITERS, "mbb": round(mbb, 3),
              "mbb_seats": [round(1000 * x, 3) for x in expl], "seconds": round(time.time() - t0, 1), "bytes": len(blob),
-             "label": spec.label(), "model": C.MODEL_TAG, "equity": C.equity_tag()}
+             "label": spec.label(), "model": I.FLOP_MODEL_TAG}
     if len(stage) > 6 and stage[6]:
         entry["bounty"] = dict(stage[6])
     with _Locked():
@@ -127,11 +128,20 @@ def index() -> None:
     for f in gone:
         os.remove(Path(ST.DIR, f))
     size = sum(Path(ST.DIR, f).stat().st_size for f in keep if Path(ST.DIR, f).exists())
-    from engine import pf_icm_calib as C
-    cur = [names.index(e["name"]) for e in m if current(e)]
-    out = {"model": C.MODEL_TAG, "equity": C.equity_tag(), "built": sorted(cur)}
+    from engine import pf_icm as I
+    cur = []
+    with _Locked():
+        m = manifest()
+        for e in m:
+            if current(e):
+                e["model"] = I.FLOP_MODEL_TAG          # (an entry built before the tag was written down)
+                cur.append(names.index(e["name"]))
+            else:
+                e.pop("model", None)
+        write_manifest(m)
+    out = {"model": I.FLOP_MODEL_TAG, "built": sorted(cur)}
     WEB_BUILT.write_text(json.dumps(out) + "\n")
-    print(f"KEYS: {len(m)} stored games, {len(cur)} on the current game and equity table, {size / 1e6:.2f} MB; "
+    print(f"KEYS: {len(m)} stored games, {len(cur)} under their games' keys now, {size / 1e6:.2f} MB; "
           f"{len(gone)} files no entry names deleted", flush=True)
 
 
@@ -143,16 +153,21 @@ def sets() -> None:
 
 
 def current(e: dict) -> bool:
-    """A manifest entry built on this game and class equity table, with its file."""
-    from engine import pf_icm_calib as C
-    return e.get("model") == C.MODEL_TAG and e.get("equity") == C.equity_tag() and Path(ST.DIR, e["key"] + ".bin").exists()
+    """A manifest entry whose file is there under the key its request's game has now (so on this flop model, equity
+    table and calibration)."""
+    return Path(ST.DIR, e["key"] + ".bin").exists() and e["key"] == key_of(e["request"])
+
+
+_ADVISOR = []
 
 
 def key_of(req: dict) -> str:
     """The game's key as the worker computes it now (its flop model's tag included, pf_icm.FLOP_MODEL_TAG)."""
     from engine import pf_icm_study as IS
     from gto.advisor import Advisor
-    spec, why = IS.spec_of(Advisor(), {**req, "bb": 1.0, "street": "preflop", "board": ""})
+    if not _ADVISOR:
+        _ADVISOR.append(Advisor())
+    spec, why = IS.spec_of(_ADVISOR[0], {**req, "bb": 1.0, "street": "preflop", "board": ""})
     return spec.key if spec is not None else ""
 
 
@@ -180,7 +195,12 @@ if __name__ == "__main__":
         which = args[args.index("--set") + 1] if "--set" in args else None
         games = [s for s in ST.ALL if which is None or ST.set_of(s[0]).startswith(which)]
         jobs = max(1, min(2, int(args[args.index("--jobs") + 1]))) if "--jobs" in args else 1   # (at most 2: the budget)
-        games.sort(key=lambda s: s[1])          # fewest players first: the quick games land first
+        # what Practice graded by before first (the stages and the 105 final-table spots), then the bounty set, the
+        # final table's other structures and shapes, the satellites and chip EV; fewest players first within each, so
+        # the quick games land first and a build stopped early leaves the most used spots done
+        core = {s[0] for s in ST.FINAL_TABLE_SET[:len(ST.FT_PLAYERS) * len(ST.FT_DEPTHS) * len(ST.FT_SHAPES)]}
+        tier = {"stage": 0, "bounty": 2, "final table": 3, "satellite": 4, "chips": 5}
+        games.sort(key=lambda s: (1 if s[0] in core else tier.get(ST.set_of(s[0]), 6), s[1]))
         todo = [s[0] for s in games if not ("--missing" in args and have(s[0]))]
         print(f"{len(todo)} of {len(games)} games to build, {jobs} at once", flush=True)
         running, failed = [], []

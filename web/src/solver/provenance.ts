@@ -360,8 +360,7 @@ export function tournamentModelOf(r: AdvisorResponse, source: ResultSource): str
     : said.includes("winner-take-all")
       ? "prize-equity solve (winner takes all: chips are prizes)"
       : "prize-equity solve (ICM)";
-  // the tournament preflop solve (engine/pf_icm_study.py on engine/pf_icm_calib.py): every outcome of the calibrated
-  // class-level game paid in prize equity
+  // the tournament preflop solve (engine/pf_icm_study.py): every outcome of the class-level game paid in prize equity
   const pfSolve = said.startsWith("tournament: no payouts")
     ? "every outcome paid in chips plus the bounties won (no payouts given)"
     : said.includes("winner-take-all")

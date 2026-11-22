@@ -1,12 +1,13 @@
 // The tournament spots the worker answers from a stored preflop solve (engine/pf_icm_stored.py, built by
-// scripts/pf_icm/build_stored.py into engine/pf_icm/ on the calibrated game, engine/pf_icm_calib.py): the stage and format
+// scripts/pf_icm/build_stored.py into engine/pf_icm/, engine/pf_icm.py's game on the calibrated flop model): the stage and format
 // presets, the final-table set (its payout structures and shapes), the bounty set (KO and PKO), the satellite set and the
 // chip EV set. A Practice session set to one of these, as it sets the table and not played out, has its preflop graded by
 // the solve as a cash session's is by the stored grid, and so does Analyze for a hand kept from one (in prize equity).
 //
 // PF_ICM_PRESETS is every spot the build makes, in engine/pf_icm_stored.py ALL's order; pfIcmBuilt.json (written by the
-// build's `index`) the ones whose files are built on the current game and class equity table. Only those are matched:
-// a spot whose file is missing or stale (another game or equity table: its key is another) is said to need a solve.
+// build's `index`) the ones whose files are under their games' keys now (the flop model's tag, which names the class
+// equity table and the calibration, is in the key). Only those are matched: a spot whose file is missing or stale (another
+// model, equity table or calibration: its key is another) is said to need a solve.
 // pfIcmStored.test.ts holds the lists to engine/pf_icm/sets.json and the manifest, each one's request as Practice sends it.
 //
 // Left out: the spin and the double or nothing in chip EV, whose games the cash grid holds (equal stacks, no ante). The 7-
@@ -28,8 +29,8 @@ export const PF_ICM_PRESETS: readonly StagePreset[] = [
   ...CHIP_SET,
 ];
 
-/** The game tag and class equity table the stored files are built on, and which spots are built (PF_ICM_PRESETS indexes). */
-export const PF_ICM_BUILD: { model: string; equity: string; built: readonly number[] } = built;
+/** The flop model's tag the stored files are built on (pf_icm.FLOP_MODEL_TAG), and which spots are built (PF_ICM_PRESETS indexes). */
+export const PF_ICM_BUILD: { model: string; built: readonly number[] } = built;
 
 /** The spots whose stored solve is built on the current game: the only ones matched. */
 export const PF_ICM_STORED: readonly StagePreset[] = PF_ICM_BUILD.built.map((i) => PF_ICM_PRESETS[i]!).filter(Boolean);

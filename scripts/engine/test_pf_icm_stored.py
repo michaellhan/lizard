@@ -1,9 +1,9 @@
 """engine/pf_icm_stored.py: the stored tournament presets, answered by the worker's own path (Advisor.advise with study and
 preflop_solve, as Practice asks, never with "run") from their files: a node with pf_solve stored and done. Each file is
 its game's tree, the manifest, KEYS and ALL (the presets, the final-table set, the bounty, satellite and chip EV sets)
-agree, and the request each was stored for still reads as its key. Only the entries built on the current game and class
-equity table (pf_icm_calib.MODEL_TAG, equity_tag) are answered from their files; one built on another is refused (its key
-isn't the game's), so a stale file never loads.
+agree, and the request each was stored for still reads as its key. Only the entries whose key is their game's key now
+(pf_icm.FLOP_MODEL_TAG in it: the flop model, class equity table and calibration) are answered from their files; one
+built on another is refused (its key isn't the game's), so a stale file never loads.
 
 Run: .venv/bin/python -m unittest scripts/engine/test_pf_icm_stored.py   (seconds)
 """
@@ -18,7 +18,8 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "solver"))
 sys.path.insert(0, str(ROOT))
 
-from engine import pf_icm_calib as C  # noqa: E402
+sys.path.insert(0, str(ROOT / "scripts" / "pf_icm"))
+import build_stored as B  # noqa: E402
 from engine import pf_icm_stored as ST  # noqa: E402
 from engine import pf_icm_study as IS  # noqa: E402
 from gto import pf_study as PS  # noqa: E402
@@ -26,14 +27,14 @@ from gto.advisor import Advisor  # noqa: E402
 from gto.preflop import SEATS  # noqa: E402
 
 MANIFEST = json.loads(Path(ST.MANIFEST).read_text())
-CURRENT = [e for e in MANIFEST if e.get("model") == C.MODEL_TAG and e.get("equity") == C.equity_tag()]
+CURRENT = [e for e in MANIFEST if B.current(e)]
 STALE = [e for e in MANIFEST if e not in CURRENT]
 
 
 def current(name):
     e = next((x for x in CURRENT if x["name"] == name), None)
     if e is None:
-        raise unittest.SkipTest(f"{name} isn't built on the current game and equity table yet")
+        raise unittest.SkipTest(f"{name} isn't built under its game's key now yet")
     return e
 
 
@@ -102,12 +103,13 @@ class Stored(unittest.TestCase):
         spec, why = IS.spec_of(Advisor(), {**ST.request(ST.ALL[0]), "bb": 1.0})
         self.assertIsNone(why)
         k = spec.key
-        old = C._EQUITY_TAG
+        from engine import pf_icm as I
+        old = I.FLOP_MODEL_TAG
         try:
-            C._EQUITY_TAG = "eq-another-table"
+            I.FLOP_MODEL_TAG = "cal2-anothertable"       # (what another equity table or calibration's digest gives)
             self.assertNotEqual(spec.key, k)
         finally:
-            C._EQUITY_TAG = old
+            I.FLOP_MODEL_TAG = old
         self.assertEqual(spec.key, k)
         for e in STALE:
             with self.subTest(e["name"]):

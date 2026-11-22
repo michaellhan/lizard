@@ -5,412 +5,688 @@
    "old": {
     "first_in": {
      "BTN": {
-      "fold": 0.22,
-      "raise": 0.78
+      "fold": 0.227,
+      "raise": 0.773
      },
      "SB": {
-      "fold": 0.183,
-      "call": 0.089,
-      "raise": 0.728
+      "fold": 0.235,
+      "call": 0.0,
+      "raise": 0.765
      }
     },
-    "mbb": 0.227,
-    "seconds": 0.7,
+    "mbb": 0.21,
+    "seconds": 0.6,
     "nodes": 42
    },
    "new": {
     "first_in": {
      "BTN": {
-      "fold": 0.24,
-      "raise": 0.76
+      "fold": 0.231,
+      "raise": 0.769
      },
      "SB": {
-      "fold": 0.214,
+      "fold": 0.235,
       "call": 0.0,
-      "raise": 0.786
+      "raise": 0.765
      }
     },
-    "mbb": 0.217,
-    "seconds": 1.4,
+    "mbb": 0.279,
+    "seconds": 1.3,
     "nodes": 42
    },
    "name": "Final table, 3 left, 15bb average, chip leader on the button",
    "first_in_raise_diff_points": {
-    "mean": 3.9,
-    "max": 5.8
+    "mean": 0.2,
+    "max": 0.4
    }
   },
   {
    "old": {
     "first_in": {
      "BTN": {
-      "fold": 0.67,
-      "raise": 0.33
+      "fold": 0.683,
+      "raise": 0.317
      },
      "SB": {
-      "fold": 0.115,
-      "call": 0.048,
-      "raise": 0.837
-     }
-    },
-    "mbb": 0.356,
-    "seconds": 0.9,
-    "nodes": 54
-   },
-   "new": {
-    "first_in": {
-     "BTN": {
-      "fold": 0.557,
-      "raise": 0.443
-     },
-     "SB": {
-      "fold": 0.127,
+      "fold": 0.129,
       "call": 0.0,
-      "raise": 0.873
+      "raise": 0.871
      }
     },
-    "mbb": 1.534,
-    "seconds": 2.1,
-    "nodes": 54
-   },
-   "name": "Final table, 3 left, 15bb average, short stack in the big blind",
-   "first_in_raise_diff_points": {
-    "mean": 7.45,
-    "max": 11.3
-   }
-  },
-  {
-   "old": {
-    "first_in": {
-     "BTN": {
-      "fold": 0.295,
-      "raise": 0.705
-     },
-     "SB": {
-      "fold": 0.027,
-      "call": 0.621,
-      "raise": 0.352
-     }
-    },
-    "mbb": 0.191,
+    "mbb": 0.507,
     "seconds": 0.8,
     "nodes": 54
    },
    "new": {
     "first_in": {
      "BTN": {
-      "fold": 0.306,
-      "raise": 0.694
+      "fold": 0.688,
+      "raise": 0.312
      },
      "SB": {
-      "fold": 0.178,
-      "call": 0.332,
-      "raise": 0.49
+      "fold": 0.129,
+      "call": 0.0,
+      "raise": 0.871
      }
     },
-    "mbb": 0.237,
-    "seconds": 1.6,
+    "mbb": 0.142,
+    "seconds": 1.9,
+    "nodes": 54
+   },
+   "name": "Final table, 3 left, 15bb average, short stack in the big blind",
+   "first_in_raise_diff_points": {
+    "mean": 0.25,
+    "max": 0.5
+   }
+  },
+  {
+   "old": {
+    "first_in": {
+     "BTN": {
+      "fold": 0.324,
+      "raise": 0.676
+     },
+     "SB": {
+      "fold": 0.172,
+      "call": 0.35,
+      "raise": 0.478
+     }
+    },
+    "mbb": 0.209,
+    "seconds": 0.7,
+    "nodes": 54
+   },
+   "new": {
+    "first_in": {
+     "BTN": {
+      "fold": 0.326,
+      "raise": 0.674
+     },
+     "SB": {
+      "fold": 0.172,
+      "call": 0.35,
+      "raise": 0.478
+     }
+    },
+    "mbb": 0.217,
+    "seconds": 1.4,
     "nodes": 54
    },
    "name": "Final table, 3 left, 30bb average, chip leader on the button",
    "first_in_raise_diff_points": {
-    "mean": 7.45,
-    "max": 13.8
+    "mean": 0.1,
+    "max": 0.2
    }
   },
   {
    "old": {
     "first_in": {
      "BTN": {
-      "fold": 0.731,
-      "raise": 0.269
+      "fold": 0.697,
+      "raise": 0.303
      },
      "SB": {
-      "fold": 0.113,
-      "call": 0.237,
-      "raise": 0.65
+      "fold": 0.207,
+      "call": 0.026,
+      "raise": 0.767
      }
     },
-    "mbb": 0.172,
-    "seconds": 1.1,
+    "mbb": 0.182,
+    "seconds": 0.9,
     "nodes": 61
    },
    "new": {
     "first_in": {
      "BTN": {
-      "fold": 0.717,
-      "raise": 0.283
+      "fold": 0.701,
+      "raise": 0.299
      },
      "SB": {
-      "fold": 0.184,
-      "call": 0.071,
-      "raise": 0.745
+      "fold": 0.192,
+      "call": 0.061,
+      "raise": 0.747
      }
     },
-    "mbb": 0.191,
-    "seconds": 2.7,
+    "mbb": 0.207,
+    "seconds": 2.3,
     "nodes": 61
    },
    "name": "Final table, 3 left, 30bb average, short stack in the big blind",
    "first_in_raise_diff_points": {
-    "mean": 5.45,
-    "max": 9.5
+    "mean": 1.2,
+    "max": 2.0
    }
   },
   {
    "old": {
     "first_in": {
      "HJ": {
-      "fold": 0.806,
-      "raise": 0.194
+      "fold": 0.816,
+      "raise": 0.184
      },
      "CO": {
-      "fold": 0.759,
-      "raise": 0.241
+      "fold": 0.764,
+      "raise": 0.236
      },
      "BTN": {
-      "fold": 0.216,
-      "raise": 0.784
+      "fold": 0.247,
+      "raise": 0.753
      },
      "SB": {
-      "fold": 0.111,
-      "call": 0.215,
-      "raise": 0.674
+      "fold": 0.208,
+      "call": 0.025,
+      "raise": 0.768
      }
     },
-    "mbb": 0.187,
-    "seconds": 8.4,
+    "mbb": 0.125,
+    "seconds": 6.3,
     "nodes": 599
    },
    "new": {
     "first_in": {
      "HJ": {
-      "fold": 0.822,
-      "raise": 0.178
+      "fold": 0.816,
+      "raise": 0.184
      },
      "CO": {
-      "fold": 0.761,
-      "raise": 0.239
+      "fold": 0.764,
+      "raise": 0.236
      },
      "BTN": {
-      "fold": 0.224,
-      "raise": 0.776
+      "fold": 0.236,
+      "raise": 0.764
      },
      "SB": {
-      "fold": 0.191,
-      "call": 0.029,
-      "raise": 0.78
+      "fold": 0.207,
+      "call": 0.026,
+      "raise": 0.767
      }
     },
-    "mbb": 0.18,
-    "seconds": 14.7,
+    "mbb": 0.168,
+    "seconds": 12.0,
     "nodes": 599
    },
    "name": "Final table, 5 left, 15bb average, chip leader on the button",
    "first_in_raise_diff_points": {
-    "mean": 3.3,
-    "max": 10.6
+    "mean": 0.3,
+    "max": 1.1
    }
   },
   {
    "old": {
     "first_in": {
      "HJ": {
-      "fold": 0.75,
-      "raise": 0.25
+      "fold": 0.782,
+      "raise": 0.218
      },
      "CO": {
-      "fold": 0.713,
-      "raise": 0.287
+      "fold": 0.732,
+      "raise": 0.268
      },
      "BTN": {
-      "fold": 0.594,
-      "raise": 0.406
+      "fold": 0.593,
+      "raise": 0.407
      },
      "SB": {
-      "fold": 0.072,
-      "call": 0.082,
-      "raise": 0.847
+      "fold": 0.1,
+      "call": 0.0,
+      "raise": 0.9
      }
     },
-    "mbb": 0.579,
-    "seconds": 7.5,
+    "mbb": 0.511,
+    "seconds": 5.8,
     "nodes": 528
    },
    "new": {
     "first_in": {
      "HJ": {
-      "fold": 0.758,
-      "raise": 0.242
+      "fold": 0.784,
+      "raise": 0.216
      },
      "CO": {
-      "fold": 0.672,
-      "raise": 0.328
+      "fold": 0.724,
+      "raise": 0.276
      },
      "BTN": {
-      "fold": 0.542,
-      "raise": 0.458
+      "fold": 0.579,
+      "raise": 0.421
      },
      "SB": {
-      "fold": 0.088,
+      "fold": 0.1,
       "call": 0.0,
-      "raise": 0.912
+      "raise": 0.9
      }
     },
-    "mbb": 0.865,
-    "seconds": 16.7,
+    "mbb": 0.236,
+    "seconds": 14.0,
     "nodes": 528
    },
    "name": "Final table, 5 left, 15bb average, short stack in the big blind",
    "first_in_raise_diff_points": {
-    "mean": 4.15,
-    "max": 6.5
+    "mean": 0.6,
+    "max": 1.4
    }
   },
   {
    "old": {
     "first_in": {
      "HJ": {
-      "fold": 0.8,
-      "raise": 0.2
+      "fold": 0.79,
+      "raise": 0.21
      },
      "CO": {
-      "fold": 0.771,
-      "raise": 0.229
+      "fold": 0.757,
+      "raise": 0.243
      },
      "BTN": {
-      "fold": 0.395,
-      "raise": 0.605
+      "fold": 0.464,
+      "raise": 0.536
      },
      "SB": {
-      "fold": 0.0,
-      "call": 0.688,
-      "raise": 0.312
+      "fold": 0.109,
+      "call": 0.465,
+      "raise": 0.427
      }
     },
-    "mbb": 0.635,
-    "seconds": 11.9,
+    "mbb": 0.455,
+    "seconds": 9.0,
     "nodes": 825
    },
    "new": {
     "first_in": {
      "HJ": {
-      "fold": 0.789,
-      "raise": 0.211
+      "fold": 0.791,
+      "raise": 0.209
      },
      "CO": {
-      "fold": 0.749,
-      "raise": 0.251
+      "fold": 0.757,
+      "raise": 0.243
      },
      "BTN": {
-      "fold": 0.469,
-      "raise": 0.531
+      "fold": 0.456,
+      "raise": 0.544
      },
      "SB": {
-      "fold": 0.098,
-      "call": 0.467,
-      "raise": 0.435
+      "fold": 0.109,
+      "call": 0.465,
+      "raise": 0.426
      }
     },
-    "mbb": 0.518,
-    "seconds": 19.4,
+    "mbb": 0.444,
+    "seconds": 16.3,
     "nodes": 825
    },
    "name": "Final table, 5 left, 30bb average, chip leader on the button",
    "first_in_raise_diff_points": {
-    "mean": 5.75,
-    "max": 12.3
+    "mean": 0.25,
+    "max": 0.8
    }
   },
   {
    "old": {
     "first_in": {
      "HJ": {
-      "fold": 0.825,
-      "raise": 0.175
+      "fold": 0.77,
+      "raise": 0.23
      },
      "CO": {
-      "fold": 0.776,
-      "raise": 0.224
+      "fold": 0.726,
+      "raise": 0.274
      },
      "BTN": {
-      "fold": 0.693,
-      "raise": 0.307
+      "fold": 0.645,
+      "raise": 0.355
      },
      "SB": {
-      "fold": 0.059,
-      "call": 0.236,
-      "raise": 0.705
+      "fold": 0.177,
+      "call": 0.019,
+      "raise": 0.804
      }
     },
-    "mbb": 0.426,
-    "seconds": 15.5,
+    "mbb": 0.532,
+    "seconds": 12.0,
     "nodes": 1059
    },
    "new": {
     "first_in": {
      "HJ": {
-      "fold": 0.775,
-      "raise": 0.225
+      "fold": 0.771,
+      "raise": 0.229
      },
      "CO": {
-      "fold": 0.735,
-      "raise": 0.265
+      "fold": 0.731,
+      "raise": 0.269
      },
      "BTN": {
-      "fold": 0.649,
-      "raise": 0.351
+      "fold": 0.647,
+      "raise": 0.353
      },
      "SB": {
-      "fold": 0.15,
-      "call": 0.051,
-      "raise": 0.799
+      "fold": 0.161,
+      "call": 0.049,
+      "raise": 0.791
      }
     },
-    "mbb": 0.526,
-    "seconds": 32.4,
+    "mbb": 0.438,
+    "seconds": 28.5,
     "nodes": 1059
    },
    "name": "Final table, 5 left, 30bb average, short stack in the big blind",
    "first_in_raise_diff_points": {
-    "mean": 5.73,
-    "max": 9.4
+    "mean": 0.53,
+    "max": 1.3
    }
   },
   {
    "old": {
     "first_in": {
      "UTG": {
-      "fold": 0.825,
-      "raise": 0.175
+      "fold": 0.847,
+      "raise": 0.153
      },
      "HJ": {
-      "fold": 0.802,
-      "raise": 0.198
+      "fold": 0.805,
+      "raise": 0.195
      },
      "CO": {
-      "fold": 0.748,
-      "raise": 0.252
+      "fold": 0.741,
+      "raise": 0.259
      },
      "BTN": {
-      "fold": 0.268,
-      "raise": 0.732
+      "fold": 0.294,
+      "raise": 0.706
      },
      "SB": {
-      "fold": 0.088,
-      "call": 0.257,
-      "raise": 0.655
+      "fold": 0.184,
+      "call": 0.046,
+      "raise": 0.77
      }
     },
-    "mbb": 0.216,
-    "seconds": 23.7,
+    "mbb": 0.165,
+    "seconds": 17.1,
     "nodes": 1407
    },
    "new": {
     "first_in": {
      "UTG": {
-      "fold": 0.851,
-      "raise": 0.149
+      "fold": 0.846,
+      "raise": 0.154
+     },
+     "HJ": {
+      "fold": 0.805,
+      "raise": 0.195
+     },
+     "CO": {
+      "fold": 0.741,
+      "raise": 0.259
+     },
+     "BTN": {
+      "fold": 0.289,
+      "raise": 0.711
+     },
+     "SB": {
+      "fold": 0.183,
+      "call": 0.048,
+      "raise": 0.769
+     }
+    },
+    "mbb": 0.175,
+    "seconds": 28.9,
+    "nodes": 1407
+   },
+   "name": "Final table, 6 left, 15bb average, chip leader on the button",
+   "first_in_raise_diff_points": {
+    "mean": 0.14,
+    "max": 0.5
+   }
+  },
+  {
+   "old": {
+    "first_in": {
+     "UTG": {
+      "fold": 0.824,
+      "raise": 0.176
+     },
+     "HJ": {
+      "fold": 0.788,
+      "raise": 0.212
+     },
+     "CO": {
+      "fold": 0.701,
+      "raise": 0.299
+     },
+     "BTN": {
+      "fold": 0.554,
+      "raise": 0.446
+     },
+     "SB": {
+      "fold": 0.107,
+      "call": 0.0,
+      "raise": 0.893
+     }
+    },
+    "mbb": 0.456,
+    "seconds": 15.9,
+    "nodes": 1248
+   },
+   "new": {
+    "first_in": {
+     "UTG": {
+      "fold": 0.824,
+      "raise": 0.176
+     },
+     "HJ": {
+      "fold": 0.784,
+      "raise": 0.216
+     },
+     "CO": {
+      "fold": 0.686,
+      "raise": 0.314
+     },
+     "BTN": {
+      "fold": 0.555,
+      "raise": 0.445
+     },
+     "SB": {
+      "fold": 0.106,
+      "call": 0.0,
+      "raise": 0.894
+     }
+    },
+    "mbb": 0.213,
+    "seconds": 32.7,
+    "nodes": 1248
+   },
+   "name": "Final table, 6 left, 15bb average, short stack in the big blind",
+   "first_in_raise_diff_points": {
+    "mean": 0.42,
+    "max": 1.5
+   }
+  },
+  {
+   "old": {
+    "first_in": {
+     "UTG": {
+      "fold": 0.811,
+      "raise": 0.189
+     },
+     "HJ": {
+      "fold": 0.779,
+      "raise": 0.221
+     },
+     "CO": {
+      "fold": 0.732,
+      "raise": 0.268
+     },
+     "BTN": {
+      "fold": 0.534,
+      "raise": 0.466
+     },
+     "SB": {
+      "fold": 0.107,
+      "call": 0.44,
+      "raise": 0.454
+     }
+    },
+    "mbb": 0.584,
+    "seconds": 31.6,
+    "nodes": 2434
+   },
+   "new": {
+    "first_in": {
+     "UTG": {
+      "fold": 0.81,
+      "raise": 0.19
+     },
+     "HJ": {
+      "fold": 0.779,
+      "raise": 0.221
+     },
+     "CO": {
+      "fold": 0.733,
+      "raise": 0.267
+     },
+     "BTN": {
+      "fold": 0.533,
+      "raise": 0.467
+     },
+     "SB": {
+      "fold": 0.107,
+      "call": 0.44,
+      "raise": 0.453
+     }
+    },
+    "mbb": 0.588,
+    "seconds": 51.9,
+    "nodes": 2434
+   },
+   "name": "Final table, 6 left, 30bb average, chip leader on the button",
+   "first_in_raise_diff_points": {
+    "mean": 0.08,
+    "max": 0.1
+   }
+  },
+  {
+   "old": {
+    "first_in": {
+     "UTG": {
+      "fold": 0.796,
+      "raise": 0.204
+     },
+     "HJ": {
+      "fold": 0.771,
+      "raise": 0.229
+     },
+     "CO": {
+      "fold": 0.719,
+      "raise": 0.281
+     },
+     "BTN": {
+      "fold": 0.636,
+      "raise": 0.364
+     },
+     "SB": {
+      "fold": 0.175,
+      "call": 0.028,
+      "raise": 0.798
+     }
+    },
+    "mbb": 0.692,
+    "seconds": 45.4,
+    "nodes": 3338
+   },
+   "new": {
+    "first_in": {
+     "UTG": {
+      "fold": 0.797,
+      "raise": 0.203
+     },
+     "HJ": {
+      "fold": 0.773,
+      "raise": 0.227
+     },
+     "CO": {
+      "fold": 0.715,
+      "raise": 0.285
+     },
+     "BTN": {
+      "fold": 0.637,
+      "raise": 0.363
+     },
+     "SB": {
+      "fold": 0.165,
+      "call": 0.064,
+      "raise": 0.771
+     }
+    },
+    "mbb": 0.629,
+    "seconds": 91.6,
+    "nodes": 3338
+   },
+   "name": "Final table, 6 left, 30bb average, short stack in the big blind",
+   "first_in_raise_diff_points": {
+    "mean": 0.7,
+    "max": 2.7
+   }
+  },
+  {
+   "old": {
+    "first_in": {
+     "UTG": {
+      "fold": 0.909,
+      "raise": 0.091
+     },
+     "UTG1": {
+      "fold": 0.897,
+      "raise": 0.103
+     },
+     "UTG2": {
+      "fold": 0.881,
+      "raise": 0.119
+     },
+     "LJ": {
+      "fold": 0.856,
+      "raise": 0.144
+     },
+     "HJ": {
+      "fold": 0.811,
+      "raise": 0.189
+     },
+     "CO": {
+      "fold": 0.747,
+      "raise": 0.253
+     },
+     "BTN": {
+      "fold": 0.247,
+      "raise": 0.753
+     },
+     "SB": {
+      "fold": 0.135,
+      "call": 0.0,
+      "raise": 0.865
+     }
+    },
+    "mbb": 0.067,
+    "seconds": 26.1,
+    "nodes": 1722
+   },
+   "new": {
+    "first_in": {
+     "UTG": {
+      "fold": 0.909,
+      "raise": 0.091
+     },
+     "UTG1": {
+      "fold": 0.897,
+      "raise": 0.103
+     },
+     "UTG2": {
+      "fold": 0.881,
+      "raise": 0.119
+     },
+     "LJ": {
+      "fold": 0.856,
+      "raise": 0.144
      },
      "HJ": {
       "fold": 0.81,
@@ -421,454 +697,138 @@
       "raise": 0.253
      },
      "BTN": {
-      "fold": 0.287,
-      "raise": 0.713
+      "fold": 0.247,
+      "raise": 0.753
      },
      "SB": {
-      "fold": 0.184,
-      "call": 0.043,
-      "raise": 0.773
-     }
-    },
-    "mbb": 0.192,
-    "seconds": 38.8,
-    "nodes": 1407
-   },
-   "name": "Final table, 6 left, 15bb average, chip leader on the button",
-   "first_in_raise_diff_points": {
-    "mean": 3.44,
-    "max": 11.8
-   }
-  },
-  {
-   "old": {
-    "first_in": {
-     "UTG": {
-      "fold": 0.785,
-      "raise": 0.215
-     },
-     "HJ": {
-      "fold": 0.749,
-      "raise": 0.251
-     },
-     "CO": {
-      "fold": 0.706,
-      "raise": 0.294
-     },
-     "BTN": {
-      "fold": 0.563,
-      "raise": 0.437
-     },
-     "SB": {
-      "fold": 0.075,
-      "call": 0.082,
-      "raise": 0.843
-     }
-    },
-    "mbb": 0.582,
-    "seconds": 18.7,
-    "nodes": 1248
-   },
-   "new": {
-    "first_in": {
-     "UTG": {
-      "fold": 0.826,
-      "raise": 0.174
-     },
-     "HJ": {
-      "fold": 0.782,
-      "raise": 0.218
-     },
-     "CO": {
-      "fold": 0.676,
-      "raise": 0.324
-     },
-     "BTN": {
-      "fold": 0.543,
-      "raise": 0.457
-     },
-     "SB": {
-      "fold": 0.1,
+      "fold": 0.135,
       "call": 0.0,
-      "raise": 0.9
+      "raise": 0.865
      }
     },
-    "mbb": 0.222,
-    "seconds": 41.2,
-    "nodes": 1248
-   },
-   "name": "Final table, 6 left, 15bb average, short stack in the big blind",
-   "first_in_raise_diff_points": {
-    "mean": 3.62,
-    "max": 5.7
-   }
-  },
-  {
-   "old": {
-    "first_in": {
-     "UTG": {
-      "fold": 0.83,
-      "raise": 0.17
-     },
-     "HJ": {
-      "fold": 0.779,
-      "raise": 0.221
-     },
-     "CO": {
-      "fold": 0.748,
-      "raise": 0.252
-     },
-     "BTN": {
-      "fold": 0.481,
-      "raise": 0.519
-     },
-     "SB": {
-      "fold": 0.0,
-      "call": 0.704,
-      "raise": 0.296
-     }
-    },
-    "mbb": 0.665,
-    "seconds": 44.5,
-    "nodes": 2434
-   },
-   "new": {
-    "first_in": {
-     "UTG": {
-      "fold": 0.811,
-      "raise": 0.189
-     },
-     "HJ": {
-      "fold": 0.772,
-      "raise": 0.228
-     },
-     "CO": {
-      "fold": 0.726,
-      "raise": 0.274
-     },
-     "BTN": {
-      "fold": 0.539,
-      "raise": 0.461
-     },
-     "SB": {
-      "fold": 0.086,
-      "call": 0.506,
-      "raise": 0.409
-     }
-    },
-    "mbb": 0.609,
-    "seconds": 63.4,
-    "nodes": 2434
-   },
-   "name": "Final table, 6 left, 30bb average, chip leader on the button",
-   "first_in_raise_diff_points": {
-    "mean": 4.38,
-    "max": 11.3
-   }
-  },
-  {
-   "old": {
-    "first_in": {
-     "UTG": {
-      "fold": 0.846,
-      "raise": 0.154
-     },
-     "HJ": {
-      "fold": 0.809,
-      "raise": 0.191
-     },
-     "CO": {
-      "fold": 0.767,
-      "raise": 0.233
-     },
-     "BTN": {
-      "fold": 0.689,
-      "raise": 0.311
-     },
-     "SB": {
-      "fold": 0.06,
-      "call": 0.239,
-      "raise": 0.701
-     }
-    },
-    "mbb": 0.561,
-    "seconds": 65.7,
-    "nodes": 3338
-   },
-   "new": {
-    "first_in": {
-     "UTG": {
-      "fold": 0.799,
-      "raise": 0.201
-     },
-     "HJ": {
-      "fold": 0.775,
-      "raise": 0.225
-     },
-     "CO": {
-      "fold": 0.722,
-      "raise": 0.278
-     },
-     "BTN": {
-      "fold": 0.628,
-      "raise": 0.372
-     },
-     "SB": {
-      "fold": 0.152,
-      "call": 0.06,
-      "raise": 0.788
-     }
-    },
-    "mbb": 0.671,
-    "seconds": 134.6,
-    "nodes": 3338
-   },
-   "name": "Final table, 6 left, 30bb average, short stack in the big blind",
-   "first_in_raise_diff_points": {
-    "mean": 5.48,
-    "max": 8.7
-   }
-  },
-  {
-   "old": {
-    "first_in": {
-     "UTG": {
-      "fold": 0.892,
-      "raise": 0.108
-     },
-     "UTG1": {
-      "fold": 0.862,
-      "raise": 0.138
-     },
-     "UTG2": {
-      "fold": 0.862,
-      "raise": 0.138
-     },
-     "LJ": {
-      "fold": 0.82,
-      "raise": 0.18
-     },
-     "HJ": {
-      "fold": 0.807,
-      "raise": 0.193
-     },
-     "CO": {
-      "fold": 0.75,
-      "raise": 0.25
-     },
-     "BTN": {
-      "fold": 0.246,
-      "raise": 0.754
-     },
-     "SB": {
-      "fold": 0.027,
-      "call": 0.257,
-      "raise": 0.716
-     }
-    },
-    "mbb": 0.034,
-    "seconds": 40.6,
-    "nodes": 1722
-   },
-   "new": {
-    "first_in": {
-     "UTG": {
-      "fold": 0.91,
-      "raise": 0.09
-     },
-     "UTG1": {
-      "fold": 0.892,
-      "raise": 0.108
-     },
-     "UTG2": {
-      "fold": 0.882,
-      "raise": 0.118
-     },
-     "LJ": {
-      "fold": 0.856,
-      "raise": 0.144
-     },
-     "HJ": {
-      "fold": 0.816,
-      "raise": 0.184
-     },
-     "CO": {
-      "fold": 0.757,
-      "raise": 0.243
-     },
-     "BTN": {
-      "fold": 0.243,
-      "raise": 0.757
-     },
-     "SB": {
-      "fold": 0.131,
-      "call": 0.002,
-      "raise": 0.867
-     }
-    },
-    "mbb": 0.125,
-    "seconds": 53.3,
+    "mbb": 0.064,
+    "seconds": 41.1,
     "nodes": 1722
    },
    "name": "Final table, 9 left, 15bb average, chip leader on the button",
    "first_in_raise_diff_points": {
-    "mean": 3.43,
-    "max": 15.1
+    "mean": 0.01,
+    "max": 0.1
    }
   },
   {
    "old": {
-    "first_in": {
-     "UTG": {
-      "fold": 0.867,
-      "raise": 0.133
-     },
-     "UTG1": {
-      "fold": 0.849,
-      "raise": 0.151
-     },
-     "UTG2": {
-      "fold": 0.826,
-      "raise": 0.174
-     },
-     "LJ": {
-      "fold": 0.798,
-      "raise": 0.202
-     },
-     "HJ": {
-      "fold": 0.76,
-      "raise": 0.24
-     },
-     "CO": {
-      "fold": 0.678,
-      "raise": 0.322
-     },
-     "BTN": {
-      "fold": 0.549,
-      "raise": 0.451
-     },
-     "SB": {
-      "fold": 0.063,
-      "call": 0.054,
-      "raise": 0.882
-     }
-    },
-    "mbb": 0.058,
-    "seconds": 35.3,
-    "nodes": 1626
-   },
-   "new": {
     "first_in": {
      "UTG": {
       "fold": 0.902,
       "raise": 0.098
      },
      "UTG1": {
-      "fold": 0.884,
-      "raise": 0.116
+      "fold": 0.88,
+      "raise": 0.12
      },
      "UTG2": {
       "fold": 0.869,
       "raise": 0.131
      },
      "LJ": {
-      "fold": 0.827,
-      "raise": 0.173
+      "fold": 0.835,
+      "raise": 0.165
      },
      "HJ": {
-      "fold": 0.751,
-      "raise": 0.249
+      "fold": 0.782,
+      "raise": 0.218
      },
      "CO": {
-      "fold": 0.666,
-      "raise": 0.334
+      "fold": 0.68,
+      "raise": 0.32
      },
      "BTN": {
-      "fold": 0.51,
-      "raise": 0.49
+      "fold": 0.526,
+      "raise": 0.474
      },
      "SB": {
-      "fold": 0.075,
+      "fold": 0.081,
       "call": 0.0,
-      "raise": 0.925
+      "raise": 0.919
      }
     },
-    "mbb": 0.329,
-    "seconds": 50.9,
+    "mbb": 0.191,
+    "seconds": 24.7,
+    "nodes": 1626
+   },
+   "new": {
+    "first_in": {
+     "UTG": {
+      "fold": 0.901,
+      "raise": 0.099
+     },
+     "UTG1": {
+      "fold": 0.88,
+      "raise": 0.12
+     },
+     "UTG2": {
+      "fold": 0.871,
+      "raise": 0.129
+     },
+     "LJ": {
+      "fold": 0.829,
+      "raise": 0.171
+     },
+     "HJ": {
+      "fold": 0.777,
+      "raise": 0.223
+     },
+     "CO": {
+      "fold": 0.672,
+      "raise": 0.328
+     },
+     "BTN": {
+      "fold": 0.523,
+      "raise": 0.477
+     },
+     "SB": {
+      "fold": 0.081,
+      "call": 0.0,
+      "raise": 0.919
+     }
+    },
+    "mbb": 0.092,
+    "seconds": 41.5,
     "nodes": 1626
    },
    "name": "Final table, 9 left, 15bb average, short stack in the big blind",
    "first_in_raise_diff_points": {
-    "mean": 3.06,
-    "max": 4.3
+    "mean": 0.31,
+    "max": 0.8
    }
   },
   {
    "old": {
     "first_in": {
      "UTG": {
-      "fold": 0.863,
-      "raise": 0.137
-     },
-     "UTG1": {
-      "fold": 0.846,
-      "raise": 0.154
-     },
-     "UTG2": {
-      "fold": 0.822,
-      "raise": 0.178
-     },
-     "LJ": {
-      "fold": 0.799,
-      "raise": 0.201
-     },
-     "HJ": {
-      "fold": 0.767,
-      "raise": 0.233
-     },
-     "CO": {
-      "fold": 0.731,
-      "raise": 0.269
-     },
-     "BTN": {
-      "fold": 0.572,
-      "raise": 0.428
-     },
-     "SB": {
-      "fold": 0.0,
-      "call": 0.535,
-      "raise": 0.465
-     }
-    },
-    "mbb": 0.054,
-    "seconds": 25.1,
-    "nodes": 1713
-   },
-   "new": {
-    "first_in": {
-     "UTG": {
-      "fold": 0.88,
-      "raise": 0.12
+      "fold": 0.879,
+      "raise": 0.121
      },
      "UTG1": {
       "fold": 0.868,
       "raise": 0.132
      },
      "UTG2": {
-      "fold": 0.847,
-      "raise": 0.153
+      "fold": 0.848,
+      "raise": 0.152
      },
      "LJ": {
-      "fold": 0.824,
-      "raise": 0.176
+      "fold": 0.826,
+      "raise": 0.174
      },
      "HJ": {
-      "fold": 0.797,
-      "raise": 0.203
+      "fold": 0.798,
+      "raise": 0.202
      },
      "CO": {
-      "fold": 0.738,
-      "raise": 0.262
+      "fold": 0.733,
+      "raise": 0.267
      },
      "BTN": {
       "fold": 0.525,
@@ -876,66 +836,66 @@
      },
      "SB": {
       "fold": 0.059,
-      "call": 0.512,
-      "raise": 0.429
+      "call": 0.524,
+      "raise": 0.417
      }
     },
-    "mbb": 0.086,
-    "seconds": 36.8,
+    "mbb": 0.074,
+    "seconds": 23.7,
+    "nodes": 1713
+   },
+   "new": {
+    "first_in": {
+     "UTG": {
+      "fold": 0.879,
+      "raise": 0.121
+     },
+     "UTG1": {
+      "fold": 0.868,
+      "raise": 0.132
+     },
+     "UTG2": {
+      "fold": 0.848,
+      "raise": 0.152
+     },
+     "LJ": {
+      "fold": 0.826,
+      "raise": 0.174
+     },
+     "HJ": {
+      "fold": 0.798,
+      "raise": 0.202
+     },
+     "CO": {
+      "fold": 0.733,
+      "raise": 0.267
+     },
+     "BTN": {
+      "fold": 0.525,
+      "raise": 0.475
+     },
+     "SB": {
+      "fold": 0.059,
+      "call": 0.524,
+      "raise": 0.417
+     }
+    },
+    "mbb": 0.074,
+    "seconds": 38.6,
     "nodes": 1713
    },
    "name": "Final table, 9 left, 30bb average, chip leader on the button",
    "first_in_raise_diff_points": {
-    "mean": 2.61,
-    "max": 4.7
+    "mean": 0.0,
+    "max": 0.0
    }
   },
   {
    "old": {
     "first_in": {
      "UTG": {
-      "fold": 0.862,
-      "raise": 0.138
-     },
-     "UTG1": {
-      "fold": 0.86,
-      "raise": 0.14
-     },
-     "UTG2": {
-      "fold": 0.824,
-      "raise": 0.176
-     },
-     "LJ": {
-      "fold": 0.795,
-      "raise": 0.205
-     },
-     "HJ": {
-      "fold": 0.78,
-      "raise": 0.22
-     },
-     "CO": {
-      "fold": 0.74,
-      "raise": 0.26
-     },
-     "BTN": {
-      "fold": 0.677,
-      "raise": 0.323
-     },
-     "SB": {
-      "fold": 0.05,
-      "call": 0.26,
-      "raise": 0.69
-     }
-    },
-    "mbb": 0.072,
-    "seconds": 36.5,
-    "nodes": 1908
-   },
-   "new": {
-    "first_in": {
-     "UTG": {
-      "fold": 0.87,
-      "raise": 0.13
+      "fold": 0.871,
+      "raise": 0.129
      },
      "UTG1": {
       "fold": 0.854,
@@ -946,35 +906,1207 @@
       "raise": 0.167
      },
      "LJ": {
-      "fold": 0.817,
-      "raise": 0.183
+      "fold": 0.812,
+      "raise": 0.188
      },
      "HJ": {
-      "fold": 0.785,
-      "raise": 0.215
+      "fold": 0.781,
+      "raise": 0.219
      },
      "CO": {
-      "fold": 0.723,
-      "raise": 0.277
+      "fold": 0.716,
+      "raise": 0.284
      },
      "BTN": {
-      "fold": 0.628,
-      "raise": 0.372
+      "fold": 0.625,
+      "raise": 0.375
      },
      "SB": {
-      "fold": 0.144,
-      "call": 0.063,
-      "raise": 0.792
+      "fold": 0.173,
+      "call": 0.019,
+      "raise": 0.808
      }
     },
-    "mbb": 0.072,
-    "seconds": 50.3,
+    "mbb": 0.077,
+    "seconds": 29.8,
+    "nodes": 1908
+   },
+   "new": {
+    "first_in": {
+     "UTG": {
+      "fold": 0.871,
+      "raise": 0.129
+     },
+     "UTG1": {
+      "fold": 0.855,
+      "raise": 0.145
+     },
+     "UTG2": {
+      "fold": 0.834,
+      "raise": 0.166
+     },
+     "LJ": {
+      "fold": 0.813,
+      "raise": 0.187
+     },
+     "HJ": {
+      "fold": 0.783,
+      "raise": 0.217
+     },
+     "CO": {
+      "fold": 0.715,
+      "raise": 0.285
+     },
+     "BTN": {
+      "fold": 0.624,
+      "raise": 0.376
+     },
+     "SB": {
+      "fold": 0.164,
+      "call": 0.056,
+      "raise": 0.78
+     }
+    },
+    "mbb": 0.076,
+    "seconds": 56.4,
     "nodes": 1908
    },
    "name": "Final table, 9 left, 30bb average, short stack in the big blind",
    "first_in_raise_diff_points": {
-    "mean": 2.73,
-    "max": 10.2
+    "mean": 0.44,
+    "max": 2.8
+   }
+  },
+  {
+   "old": {
+    "first_in": {
+     "BTN": {
+      "fold": 0.199,
+      "raise": 0.801
+     },
+     "SB": {
+      "fold": 0.232,
+      "call": 0.0,
+      "raise": 0.768
+     }
+    },
+    "mbb": 0.133,
+    "seconds": 0.6,
+    "nodes": 42
+   },
+   "new": {
+    "first_in": {
+     "BTN": {
+      "fold": 0.22,
+      "raise": 0.78
+     },
+     "SB": {
+      "fold": 0.232,
+      "call": 0.0,
+      "raise": 0.768
+     }
+    },
+    "mbb": 0.202,
+    "seconds": 1.3,
+    "nodes": 42
+   },
+   "name": "Final table, 3 left, 15bb average, chip leader on the button, flat payouts",
+   "first_in_raise_diff_points": {
+    "mean": 1.05,
+    "max": 2.1
+   }
+  },
+  {
+   "old": {
+    "first_in": {
+     "BTN": {
+      "fold": 0.678,
+      "raise": 0.322
+     },
+     "SB": {
+      "fold": 0.118,
+      "call": 0.0,
+      "raise": 0.882
+     }
+    },
+    "mbb": 0.779,
+    "seconds": 0.8,
+    "nodes": 54
+   },
+   "new": {
+    "first_in": {
+     "BTN": {
+      "fold": 0.676,
+      "raise": 0.324
+     },
+     "SB": {
+      "fold": 0.118,
+      "call": 0.0,
+      "raise": 0.882
+     }
+    },
+    "mbb": 0.128,
+    "seconds": 1.9,
+    "nodes": 54
+   },
+   "name": "Final table, 3 left, 15bb average, short stack in the big blind, flat payouts",
+   "first_in_raise_diff_points": {
+    "mean": 0.1,
+    "max": 0.2
+   }
+  },
+  {
+   "old": {
+    "first_in": {
+     "BTN": {
+      "fold": 0.254,
+      "raise": 0.746
+     },
+     "SB": {
+      "fold": 0.172,
+      "call": 0.348,
+      "raise": 0.48
+     }
+    },
+    "mbb": 0.356,
+    "seconds": 0.7,
+    "nodes": 54
+   },
+   "new": {
+    "first_in": {
+     "BTN": {
+      "fold": 0.272,
+      "raise": 0.728
+     },
+     "SB": {
+      "fold": 0.172,
+      "call": 0.349,
+      "raise": 0.479
+     }
+    },
+    "mbb": 0.415,
+    "seconds": 1.4,
+    "nodes": 54
+   },
+   "name": "Final table, 3 left, 30bb average, chip leader on the button, flat payouts",
+   "first_in_raise_diff_points": {
+    "mean": 0.95,
+    "max": 1.8
+   }
+  },
+  {
+   "old": {
+    "first_in": {
+     "BTN": {
+      "fold": 0.717,
+      "raise": 0.283
+     },
+     "SB": {
+      "fold": 0.205,
+      "call": 0.024,
+      "raise": 0.771
+     }
+    },
+    "mbb": 0.218,
+    "seconds": 0.9,
+    "nodes": 61
+   },
+   "new": {
+    "first_in": {
+     "BTN": {
+      "fold": 0.724,
+      "raise": 0.276
+     },
+     "SB": {
+      "fold": 0.184,
+      "call": 0.058,
+      "raise": 0.757
+     }
+    },
+    "mbb": 0.307,
+    "seconds": 2.3,
+    "nodes": 61
+   },
+   "name": "Final table, 3 left, 30bb average, short stack in the big blind, flat payouts",
+   "first_in_raise_diff_points": {
+    "mean": 1.05,
+    "max": 1.4
+   }
+  },
+  {
+   "old": {
+    "first_in": {
+     "HJ": {
+      "fold": 0.794,
+      "raise": 0.206
+     },
+     "CO": {
+      "fold": 0.719,
+      "raise": 0.281
+     },
+     "BTN": {
+      "fold": 0.451,
+      "raise": 0.549
+     },
+     "SB": {
+      "fold": 0.201,
+      "call": 0.166,
+      "raise": 0.632
+     }
+    },
+    "mbb": 0.253,
+    "seconds": 6.9,
+    "nodes": 599
+   },
+   "new": {
+    "first_in": {
+     "HJ": {
+      "fold": 0.794,
+      "raise": 0.206
+     },
+     "CO": {
+      "fold": 0.72,
+      "raise": 0.28
+     },
+     "BTN": {
+      "fold": 0.452,
+      "raise": 0.548
+     },
+     "SB": {
+      "fold": 0.203,
+      "call": 0.165,
+      "raise": 0.632
+     }
+    },
+    "mbb": 0.242,
+    "seconds": 12.1,
+    "nodes": 599
+   },
+   "name": "Final table, 5 left, 15bb average, chip leader on the button, flat payouts",
+   "first_in_raise_diff_points": {
+    "mean": 0.05,
+    "max": 0.1
+   }
+  },
+  {
+   "old": {
+    "first_in": {
+     "HJ": {
+      "fold": 0.798,
+      "raise": 0.202
+     },
+     "CO": {
+      "fold": 0.735,
+      "raise": 0.265
+     },
+     "BTN": {
+      "fold": 0.591,
+      "raise": 0.409
+     },
+     "SB": {
+      "fold": 0.154,
+      "call": 0.0,
+      "raise": 0.846
+     }
+    },
+    "mbb": 0.791,
+    "seconds": 6.1,
+    "nodes": 528
+   },
+   "new": {
+    "first_in": {
+     "HJ": {
+      "fold": 0.802,
+      "raise": 0.198
+     },
+     "CO": {
+      "fold": 0.721,
+      "raise": 0.279
+     },
+     "BTN": {
+      "fold": 0.58,
+      "raise": 0.42
+     },
+     "SB": {
+      "fold": 0.154,
+      "call": 0.0,
+      "raise": 0.846
+     }
+    },
+    "mbb": 0.318,
+    "seconds": 14.2,
+    "nodes": 528
+   },
+   "name": "Final table, 5 left, 15bb average, short stack in the big blind, flat payouts",
+   "first_in_raise_diff_points": {
+    "mean": 0.73,
+    "max": 1.4
+   }
+  },
+  {
+   "old": {
+    "first_in": {
+     "HJ": {
+      "fold": 0.78,
+      "raise": 0.22
+     },
+     "CO": {
+      "fold": 0.731,
+      "raise": 0.269
+     },
+     "BTN": {
+      "fold": 0.544,
+      "raise": 0.456
+     },
+     "SB": {
+      "fold": 0.081,
+      "call": 0.563,
+      "raise": 0.356
+     }
+    },
+    "mbb": 0.571,
+    "seconds": 9.4,
+    "nodes": 825
+   },
+   "new": {
+    "first_in": {
+     "HJ": {
+      "fold": 0.78,
+      "raise": 0.22
+     },
+     "CO": {
+      "fold": 0.731,
+      "raise": 0.269
+     },
+     "BTN": {
+      "fold": 0.556,
+      "raise": 0.444
+     },
+     "SB": {
+      "fold": 0.081,
+      "call": 0.564,
+      "raise": 0.355
+     }
+    },
+    "mbb": 0.564,
+    "seconds": 16.3,
+    "nodes": 825
+   },
+   "name": "Final table, 5 left, 30bb average, chip leader on the button, flat payouts",
+   "first_in_raise_diff_points": {
+    "mean": 0.33,
+    "max": 1.2
+   }
+  },
+  {
+   "old": {
+    "first_in": {
+     "HJ": {
+      "fold": 0.77,
+      "raise": 0.23
+     },
+     "CO": {
+      "fold": 0.703,
+      "raise": 0.297
+     },
+     "BTN": {
+      "fold": 0.621,
+      "raise": 0.379
+     },
+     "SB": {
+      "fold": 0.214,
+      "call": 0.07,
+      "raise": 0.716
+     }
+    },
+    "mbb": 0.825,
+    "seconds": 11.8,
+    "nodes": 1059
+   },
+   "new": {
+    "first_in": {
+     "HJ": {
+      "fold": 0.774,
+      "raise": 0.226
+     },
+     "CO": {
+      "fold": 0.705,
+      "raise": 0.295
+     },
+     "BTN": {
+      "fold": 0.624,
+      "raise": 0.376
+     },
+     "SB": {
+      "fold": 0.205,
+      "call": 0.107,
+      "raise": 0.689
+     }
+    },
+    "mbb": 0.656,
+    "seconds": 28.2,
+    "nodes": 1059
+   },
+   "name": "Final table, 5 left, 30bb average, short stack in the big blind, flat payouts",
+   "first_in_raise_diff_points": {
+    "mean": 0.9,
+    "max": 2.7
+   }
+  },
+  {
+   "old": {
+    "first_in": {
+     "UTG": {
+      "fold": 0.834,
+      "raise": 0.166
+     },
+     "HJ": {
+      "fold": 0.794,
+      "raise": 0.206
+     },
+     "CO": {
+      "fold": 0.73,
+      "raise": 0.27
+     },
+     "BTN": {
+      "fold": 0.435,
+      "raise": 0.565
+     },
+     "SB": {
+      "fold": 0.201,
+      "call": 0.179,
+      "raise": 0.62
+     }
+    },
+    "mbb": 0.29,
+    "seconds": 18.0,
+    "nodes": 1407
+   },
+   "new": {
+    "first_in": {
+     "UTG": {
+      "fold": 0.835,
+      "raise": 0.165
+     },
+     "HJ": {
+      "fold": 0.794,
+      "raise": 0.206
+     },
+     "CO": {
+      "fold": 0.729,
+      "raise": 0.271
+     },
+     "BTN": {
+      "fold": 0.437,
+      "raise": 0.563
+     },
+     "SB": {
+      "fold": 0.199,
+      "call": 0.182,
+      "raise": 0.618
+     }
+    },
+    "mbb": 0.287,
+    "seconds": 28.9,
+    "nodes": 1407
+   },
+   "name": "Final table, 6 left, 15bb average, chip leader on the button, flat payouts",
+   "first_in_raise_diff_points": {
+    "mean": 0.12,
+    "max": 0.2
+   }
+  },
+  {
+   "old": {
+    "first_in": {
+     "UTG": {
+      "fold": 0.827,
+      "raise": 0.173
+     },
+     "HJ": {
+      "fold": 0.794,
+      "raise": 0.206
+     },
+     "CO": {
+      "fold": 0.721,
+      "raise": 0.279
+     },
+     "BTN": {
+      "fold": 0.577,
+      "raise": 0.423
+     },
+     "SB": {
+      "fold": 0.137,
+      "call": 0.0,
+      "raise": 0.863
+     }
+    },
+    "mbb": 0.729,
+    "seconds": 15.2,
+    "nodes": 1248
+   },
+   "new": {
+    "first_in": {
+     "UTG": {
+      "fold": 0.83,
+      "raise": 0.17
+     },
+     "HJ": {
+      "fold": 0.795,
+      "raise": 0.205
+     },
+     "CO": {
+      "fold": 0.711,
+      "raise": 0.289
+     },
+     "BTN": {
+      "fold": 0.571,
+      "raise": 0.429
+     },
+     "SB": {
+      "fold": 0.137,
+      "call": 0.0,
+      "raise": 0.863
+     }
+    },
+    "mbb": 0.323,
+    "seconds": 33.4,
+    "nodes": 1248
+   },
+   "name": "Final table, 6 left, 15bb average, short stack in the big blind, flat payouts",
+   "first_in_raise_diff_points": {
+    "mean": 0.4,
+    "max": 1.0
+   }
+  },
+  {
+   "old": {
+    "first_in": {
+     "UTG": {
+      "fold": 0.807,
+      "raise": 0.193
+     },
+     "HJ": {
+      "fold": 0.775,
+      "raise": 0.225
+     },
+     "CO": {
+      "fold": 0.728,
+      "raise": 0.272
+     },
+     "BTN": {
+      "fold": 0.557,
+      "raise": 0.443
+     },
+     "SB": {
+      "fold": 0.071,
+      "call": 0.582,
+      "raise": 0.347
+     }
+    },
+    "mbb": 0.717,
+    "seconds": 31.9,
+    "nodes": 2434
+   },
+   "new": {
+    "first_in": {
+     "UTG": {
+      "fold": 0.807,
+      "raise": 0.193
+     },
+     "HJ": {
+      "fold": 0.776,
+      "raise": 0.224
+     },
+     "CO": {
+      "fold": 0.729,
+      "raise": 0.271
+     },
+     "BTN": {
+      "fold": 0.551,
+      "raise": 0.449
+     },
+     "SB": {
+      "fold": 0.071,
+      "call": 0.582,
+      "raise": 0.347
+     }
+    },
+    "mbb": 0.71,
+    "seconds": 51.6,
+    "nodes": 2434
+   },
+   "name": "Final table, 6 left, 30bb average, chip leader on the button, flat payouts",
+   "first_in_raise_diff_points": {
+    "mean": 0.16,
+    "max": 0.6
+   }
+  },
+  {
+   "old": {
+    "first_in": {
+     "UTG": {
+      "fold": 0.809,
+      "raise": 0.191
+     },
+     "HJ": {
+      "fold": 0.768,
+      "raise": 0.232
+     },
+     "CO": {
+      "fold": 0.701,
+      "raise": 0.299
+     },
+     "BTN": {
+      "fold": 0.62,
+      "raise": 0.38
+     },
+     "SB": {
+      "fold": 0.197,
+      "call": 0.063,
+      "raise": 0.74
+     }
+    },
+    "mbb": 0.864,
+    "seconds": 45.6,
+    "nodes": 3338
+   },
+   "new": {
+    "first_in": {
+     "UTG": {
+      "fold": 0.808,
+      "raise": 0.192
+     },
+     "HJ": {
+      "fold": 0.773,
+      "raise": 0.227
+     },
+     "CO": {
+      "fold": 0.702,
+      "raise": 0.298
+     },
+     "BTN": {
+      "fold": 0.618,
+      "raise": 0.382
+     },
+     "SB": {
+      "fold": 0.183,
+      "call": 0.095,
+      "raise": 0.722
+     }
+    },
+    "mbb": 0.803,
+    "seconds": 91.9,
+    "nodes": 3338
+   },
+   "name": "Final table, 6 left, 30bb average, short stack in the big blind, flat payouts",
+   "first_in_raise_diff_points": {
+    "mean": 0.54,
+    "max": 1.8
+   }
+  },
+  {
+   "old": {
+    "first_in": {
+     "UTG": {
+      "fold": 0.904,
+      "raise": 0.096
+     },
+     "UTG1": {
+      "fold": 0.893,
+      "raise": 0.107
+     },
+     "UTG2": {
+      "fold": 0.883,
+      "raise": 0.117
+     },
+     "LJ": {
+      "fold": 0.852,
+      "raise": 0.148
+     },
+     "HJ": {
+      "fold": 0.809,
+      "raise": 0.191
+     },
+     "CO": {
+      "fold": 0.751,
+      "raise": 0.249
+     },
+     "BTN": {
+      "fold": 0.337,
+      "raise": 0.663
+     },
+     "SB": {
+      "fold": 0.183,
+      "call": 0.076,
+      "raise": 0.741
+     }
+    },
+    "mbb": 0.075,
+    "seconds": 27.8,
+    "nodes": 1722
+   },
+   "new": {
+    "first_in": {
+     "UTG": {
+      "fold": 0.904,
+      "raise": 0.096
+     },
+     "UTG1": {
+      "fold": 0.893,
+      "raise": 0.107
+     },
+     "UTG2": {
+      "fold": 0.883,
+      "raise": 0.117
+     },
+     "LJ": {
+      "fold": 0.852,
+      "raise": 0.148
+     },
+     "HJ": {
+      "fold": 0.81,
+      "raise": 0.19
+     },
+     "CO": {
+      "fold": 0.751,
+      "raise": 0.249
+     },
+     "BTN": {
+      "fold": 0.337,
+      "raise": 0.663
+     },
+     "SB": {
+      "fold": 0.183,
+      "call": 0.077,
+      "raise": 0.74
+     }
+    },
+    "mbb": 0.073,
+    "seconds": 42.8,
+    "nodes": 1722
+   },
+   "name": "Final table, 9 left, 15bb average, chip leader on the button, flat payouts",
+   "first_in_raise_diff_points": {
+    "mean": 0.03,
+    "max": 0.1
+   }
+  },
+  {
+   "old": {
+    "first_in": {
+     "UTG": {
+      "fold": 0.894,
+      "raise": 0.106
+     },
+     "UTG1": {
+      "fold": 0.883,
+      "raise": 0.117
+     },
+     "UTG2": {
+      "fold": 0.872,
+      "raise": 0.128
+     },
+     "LJ": {
+      "fold": 0.838,
+      "raise": 0.162
+     },
+     "HJ": {
+      "fold": 0.797,
+      "raise": 0.203
+     },
+     "CO": {
+      "fold": 0.691,
+      "raise": 0.309
+     },
+     "BTN": {
+      "fold": 0.548,
+      "raise": 0.452
+     },
+     "SB": {
+      "fold": 0.104,
+      "call": 0.0,
+      "raise": 0.896
+     }
+    },
+    "mbb": 0.091,
+    "seconds": 27.0,
+    "nodes": 1626
+   },
+   "new": {
+    "first_in": {
+     "UTG": {
+      "fold": 0.893,
+      "raise": 0.107
+     },
+     "UTG1": {
+      "fold": 0.883,
+      "raise": 0.117
+     },
+     "UTG2": {
+      "fold": 0.874,
+      "raise": 0.126
+     },
+     "LJ": {
+      "fold": 0.835,
+      "raise": 0.165
+     },
+     "HJ": {
+      "fold": 0.783,
+      "raise": 0.217
+     },
+     "CO": {
+      "fold": 0.683,
+      "raise": 0.317
+     },
+     "BTN": {
+      "fold": 0.546,
+      "raise": 0.454
+     },
+     "SB": {
+      "fold": 0.104,
+      "call": 0.0,
+      "raise": 0.896
+     }
+    },
+    "mbb": 0.08,
+    "seconds": 41.4,
+    "nodes": 1626
+   },
+   "name": "Final table, 9 left, 15bb average, short stack in the big blind, flat payouts",
+   "first_in_raise_diff_points": {
+    "mean": 0.38,
+    "max": 1.4
+   }
+  },
+  {
+   "old": {
+    "first_in": {
+     "UTG": {
+      "fold": 0.886,
+      "raise": 0.114
+     },
+     "UTG1": {
+      "fold": 0.871,
+      "raise": 0.129
+     },
+     "UTG2": {
+      "fold": 0.845,
+      "raise": 0.155
+     },
+     "LJ": {
+      "fold": 0.821,
+      "raise": 0.179
+     },
+     "HJ": {
+      "fold": 0.796,
+      "raise": 0.204
+     },
+     "CO": {
+      "fold": 0.734,
+      "raise": 0.266
+     },
+     "BTN": {
+      "fold": 0.549,
+      "raise": 0.451
+     },
+     "SB": {
+      "fold": 0.048,
+      "call": 0.556,
+      "raise": 0.396
+     }
+    },
+    "mbb": 0.091,
+    "seconds": 24.8,
+    "nodes": 1713
+   },
+   "new": {
+    "first_in": {
+     "UTG": {
+      "fold": 0.886,
+      "raise": 0.114
+     },
+     "UTG1": {
+      "fold": 0.871,
+      "raise": 0.129
+     },
+     "UTG2": {
+      "fold": 0.845,
+      "raise": 0.155
+     },
+     "LJ": {
+      "fold": 0.821,
+      "raise": 0.179
+     },
+     "HJ": {
+      "fold": 0.797,
+      "raise": 0.203
+     },
+     "CO": {
+      "fold": 0.734,
+      "raise": 0.266
+     },
+     "BTN": {
+      "fold": 0.549,
+      "raise": 0.451
+     },
+     "SB": {
+      "fold": 0.045,
+      "call": 0.56,
+      "raise": 0.395
+     }
+    },
+    "mbb": 0.091,
+    "seconds": 38.1,
+    "nodes": 1713
+   },
+   "name": "Final table, 9 left, 30bb average, chip leader on the button, flat payouts",
+   "first_in_raise_diff_points": {
+    "mean": 0.02,
+    "max": 0.1
+   }
+  },
+  {
+   "old": {
+    "first_in": {
+     "UTG": {
+      "fold": 0.872,
+      "raise": 0.128
+     },
+     "UTG1": {
+      "fold": 0.858,
+      "raise": 0.142
+     },
+     "UTG2": {
+      "fold": 0.843,
+      "raise": 0.157
+     },
+     "LJ": {
+      "fold": 0.815,
+      "raise": 0.185
+     },
+     "HJ": {
+      "fold": 0.783,
+      "raise": 0.217
+     },
+     "CO": {
+      "fold": 0.717,
+      "raise": 0.283
+     },
+     "BTN": {
+      "fold": 0.611,
+      "raise": 0.389
+     },
+     "SB": {
+      "fold": 0.173,
+      "call": 0.03,
+      "raise": 0.796
+     }
+    },
+    "mbb": 0.09,
+    "seconds": 29.3,
+    "nodes": 1908
+   },
+   "new": {
+    "first_in": {
+     "UTG": {
+      "fold": 0.873,
+      "raise": 0.127
+     },
+     "UTG1": {
+      "fold": 0.858,
+      "raise": 0.142
+     },
+     "UTG2": {
+      "fold": 0.842,
+      "raise": 0.158
+     },
+     "LJ": {
+      "fold": 0.815,
+      "raise": 0.185
+     },
+     "HJ": {
+      "fold": 0.783,
+      "raise": 0.217
+     },
+     "CO": {
+      "fold": 0.72,
+      "raise": 0.28
+     },
+     "BTN": {
+      "fold": 0.622,
+      "raise": 0.378
+     },
+     "SB": {
+      "fold": 0.162,
+      "call": 0.05,
+      "raise": 0.788
+     }
+    },
+    "mbb": 0.083,
+    "seconds": 46.4,
+    "nodes": 1908
+   },
+   "name": "Final table, 9 left, 30bb average, short stack in the big blind, flat payouts",
+   "first_in_raise_diff_points": {
+    "mean": 0.3,
+    "max": 1.1
+   }
+  },
+  {
+   "old": {
+    "first_in": {
+     "BTN": {
+      "fold": 0.227,
+      "raise": 0.773
+     },
+     "SB": {
+      "fold": 0.235,
+      "call": 0.0,
+      "raise": 0.765
+     }
+    },
+    "mbb": 0.292,
+    "seconds": 0.6,
+    "nodes": 42
+   },
+   "new": {
+    "first_in": {
+     "BTN": {
+      "fold": 0.231,
+      "raise": 0.769
+     },
+     "SB": {
+      "fold": 0.235,
+      "call": 0.0,
+      "raise": 0.765
+     }
+    },
+    "mbb": 0.388,
+    "seconds": 1.3,
+    "nodes": 42
+   },
+   "name": "Final table, 3 left, 15bb average, chip leader on the button, standard payouts",
+   "first_in_raise_diff_points": {
+    "mean": 0.2,
+    "max": 0.4
+   }
+  },
+  {
+   "old": {
+    "first_in": {
+     "BTN": {
+      "fold": 0.683,
+      "raise": 0.317
+     },
+     "SB": {
+      "fold": 0.129,
+      "call": 0.0,
+      "raise": 0.871
+     }
+    },
+    "mbb": 0.705,
+    "seconds": 0.8,
+    "nodes": 54
+   },
+   "new": {
+    "first_in": {
+     "BTN": {
+      "fold": 0.688,
+      "raise": 0.312
+     },
+     "SB": {
+      "fold": 0.129,
+      "call": 0.0,
+      "raise": 0.871
+     }
+    },
+    "mbb": 0.197,
+    "seconds": 1.9,
+    "nodes": 54
+   },
+   "name": "Final table, 3 left, 15bb average, short stack in the big blind, standard payouts",
+   "first_in_raise_diff_points": {
+    "mean": 0.25,
+    "max": 0.5
+   }
+  },
+  {
+   "old": {
+    "first_in": {
+     "BTN": {
+      "fold": 0.324,
+      "raise": 0.676
+     },
+     "SB": {
+      "fold": 0.172,
+      "call": 0.35,
+      "raise": 0.478
+     }
+    },
+    "mbb": 0.29,
+    "seconds": 0.7,
+    "nodes": 54
+   },
+   "new": {
+    "first_in": {
+     "BTN": {
+      "fold": 0.326,
+      "raise": 0.674
+     },
+     "SB": {
+      "fold": 0.172,
+      "call": 0.35,
+      "raise": 0.478
+     }
+    },
+    "mbb": 0.302,
+    "seconds": 1.4,
+    "nodes": 54
+   },
+   "name": "Final table, 3 left, 30bb average, chip leader on the button, standard payouts",
+   "first_in_raise_diff_points": {
+    "mean": 0.1,
+    "max": 0.2
+   }
+  },
+  {
+   "old": {
+    "first_in": {
+     "BTN": {
+      "fold": 0.697,
+      "raise": 0.303
+     },
+     "SB": {
+      "fold": 0.207,
+      "call": 0.026,
+      "raise": 0.767
+     }
+    },
+    "mbb": 0.254,
+    "seconds": 0.8,
+    "nodes": 61
+   },
+   "new": {
+    "first_in": {
+     "BTN": {
+      "fold": 0.701,
+      "raise": 0.299
+     },
+     "SB": {
+      "fold": 0.192,
+      "call": 0.061,
+      "raise": 0.747
+     }
+    },
+    "mbb": 0.288,
+    "seconds": 2.2,
+    "nodes": 61
+   },
+   "name": "Final table, 3 left, 30bb average, short stack in the big blind, standard payouts",
+   "first_in_raise_diff_points": {
+    "mean": 1.2,
+    "max": 2.0
    }
   },
   {
@@ -985,36 +2117,2784 @@
       "raise": 0.203
      },
      "CO": {
-      "fold": 0.6,
-      "raise": 0.4
+      "fold": 0.738,
+      "raise": 0.262
      },
      "BTN": {
-      "fold": 0.654,
-      "raise": 0.346
+      "fold": 0.407,
+      "raise": 0.593
      },
      "SB": {
-      "fold": 0.0,
-      "call": 0.011,
-      "raise": 0.989
+      "fold": 0.204,
+      "call": 0.149,
+      "raise": 0.647
      }
     },
-    "mbb": 1.013,
-    "seconds": 11.1,
-    "nodes": 895
+    "mbb": 0.244,
+    "seconds": 6.5,
+    "nodes": 599
    },
    "new": {
     "first_in": {
      "HJ": {
-      "fold": 0.81,
-      "raise": 0.19
+      "fold": 0.798,
+      "raise": 0.202
      },
      "CO": {
-      "fold": 0.607,
-      "raise": 0.393
+      "fold": 0.739,
+      "raise": 0.261
+     },
+     "BTN": {
+      "fold": 0.411,
+      "raise": 0.589
+     },
+     "SB": {
+      "fold": 0.204,
+      "call": 0.149,
+      "raise": 0.647
+     }
+    },
+    "mbb": 0.273,
+    "seconds": 11.7,
+    "nodes": 599
+   },
+   "name": "Final table, 5 left, 15bb average, chip leader on the button, standard payouts",
+   "first_in_raise_diff_points": {
+    "mean": 0.15,
+    "max": 0.4
+   }
+  },
+  {
+   "old": {
+    "first_in": {
+     "HJ": {
+      "fold": 0.794,
+      "raise": 0.206
+     },
+     "CO": {
+      "fold": 0.725,
+      "raise": 0.275
+     },
+     "BTN": {
+      "fold": 0.583,
+      "raise": 0.417
+     },
+     "SB": {
+      "fold": 0.146,
+      "call": 0.0,
+      "raise": 0.854
+     }
+    },
+    "mbb": 0.76,
+    "seconds": 5.8,
+    "nodes": 528
+   },
+   "new": {
+    "first_in": {
+     "HJ": {
+      "fold": 0.798,
+      "raise": 0.202
+     },
+     "CO": {
+      "fold": 0.725,
+      "raise": 0.275
+     },
+     "BTN": {
+      "fold": 0.574,
+      "raise": 0.426
+     },
+     "SB": {
+      "fold": 0.146,
+      "call": 0.0,
+      "raise": 0.854
+     }
+    },
+    "mbb": 0.306,
+    "seconds": 14.0,
+    "nodes": 528
+   },
+   "name": "Final table, 5 left, 15bb average, short stack in the big blind, standard payouts",
+   "first_in_raise_diff_points": {
+    "mean": 0.32,
+    "max": 0.9
+   }
+  },
+  {
+   "old": {
+    "first_in": {
+     "HJ": {
+      "fold": 0.78,
+      "raise": 0.22
+     },
+     "CO": {
+      "fold": 0.741,
+      "raise": 0.259
+     },
+     "BTN": {
+      "fold": 0.542,
+      "raise": 0.458
+     },
+     "SB": {
+      "fold": 0.09,
+      "call": 0.547,
+      "raise": 0.363
+     }
+    },
+    "mbb": 0.613,
+    "seconds": 9.2,
+    "nodes": 825
+   },
+   "new": {
+    "first_in": {
+     "HJ": {
+      "fold": 0.781,
+      "raise": 0.219
+     },
+     "CO": {
+      "fold": 0.743,
+      "raise": 0.257
+     },
+     "BTN": {
+      "fold": 0.54,
+      "raise": 0.46
+     },
+     "SB": {
+      "fold": 0.09,
+      "call": 0.547,
+      "raise": 0.363
+     }
+    },
+    "mbb": 0.619,
+    "seconds": 16.2,
+    "nodes": 825
+   },
+   "name": "Final table, 5 left, 30bb average, chip leader on the button, standard payouts",
+   "first_in_raise_diff_points": {
+    "mean": 0.13,
+    "max": 0.2
+   }
+  },
+  {
+   "old": {
+    "first_in": {
+     "HJ": {
+      "fold": 0.775,
+      "raise": 0.225
+     },
+     "CO": {
+      "fold": 0.709,
+      "raise": 0.291
+     },
+     "BTN": {
+      "fold": 0.629,
+      "raise": 0.371
+     },
+     "SB": {
+      "fold": 0.207,
+      "call": 0.066,
+      "raise": 0.727
+     }
+    },
+    "mbb": 0.791,
+    "seconds": 12.0,
+    "nodes": 1059
+   },
+   "new": {
+    "first_in": {
+     "HJ": {
+      "fold": 0.777,
+      "raise": 0.223
+     },
+     "CO": {
+      "fold": 0.709,
+      "raise": 0.291
+     },
+     "BTN": {
+      "fold": 0.635,
+      "raise": 0.365
+     },
+     "SB": {
+      "fold": 0.188,
+      "call": 0.096,
+      "raise": 0.716
+     }
+    },
+    "mbb": 0.636,
+    "seconds": 28.3,
+    "nodes": 1059
+   },
+   "name": "Final table, 5 left, 30bb average, short stack in the big blind, standard payouts",
+   "first_in_raise_diff_points": {
+    "mean": 0.48,
+    "max": 1.1
+   }
+  },
+  {
+   "old": {
+    "first_in": {
+     "UTG": {
+      "fold": 0.836,
+      "raise": 0.164
+     },
+     "HJ": {
+      "fold": 0.795,
+      "raise": 0.205
+     },
+     "CO": {
+      "fold": 0.737,
+      "raise": 0.263
+     },
+     "BTN": {
+      "fold": 0.401,
+      "raise": 0.599
+     },
+     "SB": {
+      "fold": 0.202,
+      "call": 0.154,
+      "raise": 0.644
+     }
+    },
+    "mbb": 0.306,
+    "seconds": 17.4,
+    "nodes": 1407
+   },
+   "new": {
+    "first_in": {
+     "UTG": {
+      "fold": 0.836,
+      "raise": 0.164
+     },
+     "HJ": {
+      "fold": 0.796,
+      "raise": 0.204
+     },
+     "CO": {
+      "fold": 0.736,
+      "raise": 0.264
+     },
+     "BTN": {
+      "fold": 0.401,
+      "raise": 0.599
+     },
+     "SB": {
+      "fold": 0.202,
+      "call": 0.154,
+      "raise": 0.643
+     }
+    },
+    "mbb": 0.302,
+    "seconds": 29.0,
+    "nodes": 1407
+   },
+   "name": "Final table, 6 left, 15bb average, chip leader on the button, standard payouts",
+   "first_in_raise_diff_points": {
+    "mean": 0.06,
+    "max": 0.1
+   }
+  },
+  {
+   "old": {
+    "first_in": {
+     "UTG": {
+      "fold": 0.823,
+      "raise": 0.177
+     },
+     "HJ": {
+      "fold": 0.792,
+      "raise": 0.208
+     },
+     "CO": {
+      "fold": 0.713,
+      "raise": 0.287
+     },
+     "BTN": {
+      "fold": 0.562,
+      "raise": 0.438
+     },
+     "SB": {
+      "fold": 0.127,
+      "call": 0.0,
+      "raise": 0.873
+     }
+    },
+    "mbb": 0.726,
+    "seconds": 15.3,
+    "nodes": 1248
+   },
+   "new": {
+    "first_in": {
+     "UTG": {
+      "fold": 0.829,
+      "raise": 0.171
+     },
+     "HJ": {
+      "fold": 0.792,
+      "raise": 0.208
+     },
+     "CO": {
+      "fold": 0.703,
+      "raise": 0.297
+     },
+     "BTN": {
+      "fold": 0.55,
+      "raise": 0.45
+     },
+     "SB": {
+      "fold": 0.127,
+      "call": 0.0,
+      "raise": 0.873
+     }
+    },
+    "mbb": 0.325,
+    "seconds": 34.0,
+    "nodes": 1248
+   },
+   "name": "Final table, 6 left, 15bb average, short stack in the big blind, standard payouts",
+   "first_in_raise_diff_points": {
+    "mean": 0.56,
+    "max": 1.2
+   }
+  },
+  {
+   "old": {
+    "first_in": {
+     "UTG": {
+      "fold": 0.807,
+      "raise": 0.193
+     },
+     "HJ": {
+      "fold": 0.776,
+      "raise": 0.224
+     },
+     "CO": {
+      "fold": 0.726,
+      "raise": 0.274
+     },
+     "BTN": {
+      "fold": 0.549,
+      "raise": 0.451
+     },
+     "SB": {
+      "fold": 0.073,
+      "call": 0.574,
+      "raise": 0.353
+     }
+    },
+    "mbb": 0.767,
+    "seconds": 31.6,
+    "nodes": 2434
+   },
+   "new": {
+    "first_in": {
+     "UTG": {
+      "fold": 0.807,
+      "raise": 0.193
+     },
+     "HJ": {
+      "fold": 0.776,
+      "raise": 0.224
+     },
+     "CO": {
+      "fold": 0.726,
+      "raise": 0.274
+     },
+     "BTN": {
+      "fold": 0.549,
+      "raise": 0.451
+     },
+     "SB": {
+      "fold": 0.073,
+      "call": 0.573,
+      "raise": 0.354
+     }
+    },
+    "mbb": 0.761,
+    "seconds": 51.4,
+    "nodes": 2434
+   },
+   "name": "Final table, 6 left, 30bb average, chip leader on the button, standard payouts",
+   "first_in_raise_diff_points": {
+    "mean": 0.02,
+    "max": 0.1
+   }
+  },
+  {
+   "old": {
+    "first_in": {
+     "UTG": {
+      "fold": 0.811,
+      "raise": 0.189
+     },
+     "HJ": {
+      "fold": 0.775,
+      "raise": 0.225
+     },
+     "CO": {
+      "fold": 0.706,
+      "raise": 0.294
+     },
+     "BTN": {
+      "fold": 0.627,
+      "raise": 0.373
+     },
+     "SB": {
+      "fold": 0.19,
+      "call": 0.05,
+      "raise": 0.759
+     }
+    },
+    "mbb": 0.823,
+    "seconds": 46.1,
+    "nodes": 3338
+   },
+   "new": {
+    "first_in": {
+     "UTG": {
+      "fold": 0.812,
+      "raise": 0.188
+     },
+     "HJ": {
+      "fold": 0.774,
+      "raise": 0.226
+     },
+     "CO": {
+      "fold": 0.702,
+      "raise": 0.298
+     },
+     "BTN": {
+      "fold": 0.624,
+      "raise": 0.376
+     },
+     "SB": {
+      "fold": 0.181,
+      "call": 0.088,
+      "raise": 0.731
+     }
+    },
+    "mbb": 0.769,
+    "seconds": 89.6,
+    "nodes": 3338
+   },
+   "name": "Final table, 6 left, 30bb average, short stack in the big blind, standard payouts",
+   "first_in_raise_diff_points": {
+    "mean": 0.74,
+    "max": 2.8
+   }
+  },
+  {
+   "old": {
+    "first_in": {
+     "UTG": {
+      "fold": 0.907,
+      "raise": 0.093
+     },
+     "UTG1": {
+      "fold": 0.895,
+      "raise": 0.105
+     },
+     "UTG2": {
+      "fold": 0.885,
+      "raise": 0.115
+     },
+     "LJ": {
+      "fold": 0.854,
+      "raise": 0.146
+     },
+     "HJ": {
+      "fold": 0.803,
+      "raise": 0.197
+     },
+     "CO": {
+      "fold": 0.753,
+      "raise": 0.247
+     },
+     "BTN": {
+      "fold": 0.307,
+      "raise": 0.693
+     },
+     "SB": {
+      "fold": 0.174,
+      "call": 0.019,
+      "raise": 0.807
+     }
+    },
+    "mbb": 0.079,
+    "seconds": 23.4,
+    "nodes": 1722
+   },
+   "new": {
+    "first_in": {
+     "UTG": {
+      "fold": 0.907,
+      "raise": 0.093
+     },
+     "UTG1": {
+      "fold": 0.895,
+      "raise": 0.105
+     },
+     "UTG2": {
+      "fold": 0.88,
+      "raise": 0.12
+     },
+     "LJ": {
+      "fold": 0.854,
+      "raise": 0.146
+     },
+     "HJ": {
+      "fold": 0.804,
+      "raise": 0.196
+     },
+     "CO": {
+      "fold": 0.753,
+      "raise": 0.247
+     },
+     "BTN": {
+      "fold": 0.308,
+      "raise": 0.692
+     },
+     "SB": {
+      "fold": 0.174,
+      "call": 0.019,
+      "raise": 0.807
+     }
+    },
+    "mbb": 0.078,
+    "seconds": 39.0,
+    "nodes": 1722
+   },
+   "name": "Final table, 9 left, 15bb average, chip leader on the button, standard payouts",
+   "first_in_raise_diff_points": {
+    "mean": 0.09,
+    "max": 0.5
+   }
+  },
+  {
+   "old": {
+    "first_in": {
+     "UTG": {
+      "fold": 0.893,
+      "raise": 0.107
+     },
+     "UTG1": {
+      "fold": 0.881,
+      "raise": 0.119
+     },
+     "UTG2": {
+      "fold": 0.87,
+      "raise": 0.13
+     },
+     "LJ": {
+      "fold": 0.837,
+      "raise": 0.163
+     },
+     "HJ": {
+      "fold": 0.78,
+      "raise": 0.22
+     },
+     "CO": {
+      "fold": 0.691,
+      "raise": 0.309
+     },
+     "BTN": {
+      "fold": 0.554,
+      "raise": 0.446
+     },
+     "SB": {
+      "fold": 0.09,
+      "call": 0.0,
+      "raise": 0.91
+     }
+    },
+    "mbb": 0.143,
+    "seconds": 22.0,
+    "nodes": 1626
+   },
+   "new": {
+    "first_in": {
+     "UTG": {
+      "fold": 0.892,
+      "raise": 0.108
+     },
+     "UTG1": {
+      "fold": 0.881,
+      "raise": 0.119
+     },
+     "UTG2": {
+      "fold": 0.87,
+      "raise": 0.13
+     },
+     "LJ": {
+      "fold": 0.834,
+      "raise": 0.166
+     },
+     "HJ": {
+      "fold": 0.773,
+      "raise": 0.227
+     },
+     "CO": {
+      "fold": 0.682,
+      "raise": 0.318
+     },
+     "BTN": {
+      "fold": 0.539,
+      "raise": 0.461
+     },
+     "SB": {
+      "fold": 0.09,
+      "call": 0.0,
+      "raise": 0.91
+     }
+    },
+    "mbb": 0.129,
+    "seconds": 39.1,
+    "nodes": 1626
+   },
+   "name": "Final table, 9 left, 15bb average, short stack in the big blind, standard payouts",
+   "first_in_raise_diff_points": {
+    "mean": 0.44,
+    "max": 1.5
+   }
+  },
+  {
+   "old": {
+    "first_in": {
+     "UTG": {
+      "fold": 0.882,
+      "raise": 0.118
+     },
+     "UTG1": {
+      "fold": 0.872,
+      "raise": 0.128
+     },
+     "UTG2": {
+      "fold": 0.844,
+      "raise": 0.156
+     },
+     "LJ": {
+      "fold": 0.826,
+      "raise": 0.174
+     },
+     "HJ": {
+      "fold": 0.801,
+      "raise": 0.199
+     },
+     "CO": {
+      "fold": 0.735,
+      "raise": 0.265
+     },
+     "BTN": {
+      "fold": 0.531,
+      "raise": 0.469
+     },
+     "SB": {
+      "fold": 0.048,
+      "call": 0.556,
+      "raise": 0.395
+     }
+    },
+    "mbb": 0.089,
+    "seconds": 22.5,
+    "nodes": 1713
+   },
+   "new": {
+    "first_in": {
+     "UTG": {
+      "fold": 0.882,
+      "raise": 0.118
+     },
+     "UTG1": {
+      "fold": 0.872,
+      "raise": 0.128
+     },
+     "UTG2": {
+      "fold": 0.844,
+      "raise": 0.156
+     },
+     "LJ": {
+      "fold": 0.826,
+      "raise": 0.174
+     },
+     "HJ": {
+      "fold": 0.801,
+      "raise": 0.199
+     },
+     "CO": {
+      "fold": 0.735,
+      "raise": 0.265
+     },
+     "BTN": {
+      "fold": 0.531,
+      "raise": 0.469
+     },
+     "SB": {
+      "fold": 0.051,
+      "call": 0.551,
+      "raise": 0.398
+     }
+    },
+    "mbb": 0.087,
+    "seconds": 35.4,
+    "nodes": 1713
+   },
+   "name": "Final table, 9 left, 30bb average, chip leader on the button, standard payouts",
+   "first_in_raise_diff_points": {
+    "mean": 0.04,
+    "max": 0.3
+   }
+  },
+  {
+   "old": {
+    "first_in": {
+     "UTG": {
+      "fold": 0.872,
+      "raise": 0.128
+     },
+     "UTG1": {
+      "fold": 0.855,
+      "raise": 0.145
+     },
+     "UTG2": {
+      "fold": 0.839,
+      "raise": 0.161
+     },
+     "LJ": {
+      "fold": 0.814,
+      "raise": 0.186
+     },
+     "HJ": {
+      "fold": 0.78,
+      "raise": 0.22
+     },
+     "CO": {
+      "fold": 0.717,
+      "raise": 0.283
+     },
+     "BTN": {
+      "fold": 0.615,
+      "raise": 0.385
+     },
+     "SB": {
+      "fold": 0.171,
+      "call": 0.022,
+      "raise": 0.807
+     }
+    },
+    "mbb": 0.083,
+    "seconds": 28.7,
+    "nodes": 1908
+   },
+   "new": {
+    "first_in": {
+     "UTG": {
+      "fold": 0.872,
+      "raise": 0.128
+     },
+     "UTG1": {
+      "fold": 0.856,
+      "raise": 0.144
+     },
+     "UTG2": {
+      "fold": 0.839,
+      "raise": 0.161
+     },
+     "LJ": {
+      "fold": 0.815,
+      "raise": 0.185
+     },
+     "HJ": {
+      "fold": 0.783,
+      "raise": 0.217
+     },
+     "CO": {
+      "fold": 0.718,
+      "raise": 0.282
+     },
+     "BTN": {
+      "fold": 0.619,
+      "raise": 0.381
+     },
+     "SB": {
+      "fold": 0.157,
+      "call": 0.049,
+      "raise": 0.794
+     }
+    },
+    "mbb": 0.086,
+    "seconds": 80.8,
+    "nodes": 1908
+   },
+   "name": "Final table, 9 left, 30bb average, short stack in the big blind, standard payouts",
+   "first_in_raise_diff_points": {
+    "mean": 0.29,
+    "max": 1.3
+   }
+  },
+  {
+   "old": {
+    "first_in": {
+     "BTN": {
+      "fold": 0.246,
+      "raise": 0.754
+     },
+     "SB": {
+      "fold": 0.235,
+      "call": 0.0,
+      "raise": 0.765
+     }
+    },
+    "mbb": 0.283,
+    "seconds": 0.6,
+    "nodes": 42
+   },
+   "new": {
+    "first_in": {
+     "BTN": {
+      "fold": 0.263,
+      "raise": 0.737
+     },
+     "SB": {
+      "fold": 0.235,
+      "call": 0.0,
+      "raise": 0.765
+     }
+    },
+    "mbb": 0.522,
+    "seconds": 1.2,
+    "nodes": 42
+   },
+   "name": "Final table, 3 left, 15bb average, chip leader on the button, top-heavy payouts",
+   "first_in_raise_diff_points": {
+    "mean": 0.85,
+    "max": 1.7
+   }
+  },
+  {
+   "old": {
+    "first_in": {
+     "BTN": {
+      "fold": 0.676,
+      "raise": 0.324
+     },
+     "SB": {
+      "fold": 0.136,
+      "call": 0.0,
+      "raise": 0.864
+     }
+    },
+    "mbb": 0.845,
+    "seconds": 0.7,
+    "nodes": 54
+   },
+   "new": {
+    "first_in": {
+     "BTN": {
+      "fold": 0.676,
+      "raise": 0.324
+     },
+     "SB": {
+      "fold": 0.136,
+      "call": 0.0,
+      "raise": 0.864
+     }
+    },
+    "mbb": 0.308,
+    "seconds": 1.9,
+    "nodes": 54
+   },
+   "name": "Final table, 3 left, 15bb average, short stack in the big blind, top-heavy payouts",
+   "first_in_raise_diff_points": {
+    "mean": 0.0,
+    "max": 0.0
+   }
+  },
+  {
+   "old": {
+    "first_in": {
+     "BTN": {
+      "fold": 0.335,
+      "raise": 0.665
+     },
+     "SB": {
+      "fold": 0.172,
+      "call": 0.345,
+      "raise": 0.483
+     }
+    },
+    "mbb": 0.241,
+    "seconds": 0.7,
+    "nodes": 54
+   },
+   "new": {
+    "first_in": {
+     "BTN": {
+      "fold": 0.332,
+      "raise": 0.668
+     },
+     "SB": {
+      "fold": 0.172,
+      "call": 0.345,
+      "raise": 0.483
+     }
+    },
+    "mbb": 0.232,
+    "seconds": 1.4,
+    "nodes": 54
+   },
+   "name": "Final table, 3 left, 30bb average, chip leader on the button, top-heavy payouts",
+   "first_in_raise_diff_points": {
+    "mean": 0.15,
+    "max": 0.3
+   }
+  },
+  {
+   "old": {
+    "first_in": {
+     "BTN": {
+      "fold": 0.682,
+      "raise": 0.318
+     },
+     "SB": {
+      "fold": 0.208,
+      "call": 0.02,
+      "raise": 0.771
+     }
+    },
+    "mbb": 0.244,
+    "seconds": 1.0,
+    "nodes": 61
+   },
+   "new": {
+    "first_in": {
+     "BTN": {
+      "fold": 0.691,
+      "raise": 0.309
+     },
+     "SB": {
+      "fold": 0.196,
+      "call": 0.057,
+      "raise": 0.747
+     }
+    },
+    "mbb": 0.421,
+    "seconds": 2.4,
+    "nodes": 61
+   },
+   "name": "Final table, 3 left, 30bb average, short stack in the big blind, top-heavy payouts",
+   "first_in_raise_diff_points": {
+    "mean": 1.65,
+    "max": 2.4
+   }
+  },
+  {
+   "old": {
+    "first_in": {
+     "HJ": {
+      "fold": 0.8,
+      "raise": 0.2
+     },
+     "CO": {
+      "fold": 0.739,
+      "raise": 0.261
+     },
+     "BTN": {
+      "fold": 0.373,
+      "raise": 0.627
+     },
+     "SB": {
+      "fold": 0.207,
+      "call": 0.102,
+      "raise": 0.691
+     }
+    },
+    "mbb": 0.233,
+    "seconds": 6.9,
+    "nodes": 599
+   },
+   "new": {
+    "first_in": {
+     "HJ": {
+      "fold": 0.8,
+      "raise": 0.2
+     },
+     "CO": {
+      "fold": 0.739,
+      "raise": 0.261
+     },
+     "BTN": {
+      "fold": 0.377,
+      "raise": 0.623
+     },
+     "SB": {
+      "fold": 0.208,
+      "call": 0.1,
+      "raise": 0.692
+     }
+    },
+    "mbb": 0.233,
+    "seconds": 11.6,
+    "nodes": 599
+   },
+   "name": "Final table, 5 left, 15bb average, chip leader on the button, top-heavy payouts",
+   "first_in_raise_diff_points": {
+    "mean": 0.13,
+    "max": 0.4
+   }
+  },
+  {
+   "old": {
+    "first_in": {
+     "HJ": {
+      "fold": 0.794,
+      "raise": 0.206
+     },
+     "CO": {
+      "fold": 0.731,
+      "raise": 0.269
+     },
+     "BTN": {
+      "fold": 0.59,
+      "raise": 0.41
+     },
+     "SB": {
+      "fold": 0.134,
+      "call": 0.0,
+      "raise": 0.866
+     }
+    },
+    "mbb": 0.662,
+    "seconds": 5.4,
+    "nodes": 528
+   },
+   "new": {
+    "first_in": {
+     "HJ": {
+      "fold": 0.793,
+      "raise": 0.207
+     },
+     "CO": {
+      "fold": 0.721,
+      "raise": 0.279
+     },
+     "BTN": {
+      "fold": 0.585,
+      "raise": 0.415
+     },
+     "SB": {
+      "fold": 0.135,
+      "call": 0.0,
+      "raise": 0.865
+     }
+    },
+    "mbb": 0.26,
+    "seconds": 13.2,
+    "nodes": 528
+   },
+   "name": "Final table, 5 left, 15bb average, short stack in the big blind, top-heavy payouts",
+   "first_in_raise_diff_points": {
+    "mean": 0.43,
+    "max": 1.0
+   }
+  },
+  {
+   "old": {
+    "first_in": {
+     "HJ": {
+      "fold": 0.783,
+      "raise": 0.217
+     },
+     "CO": {
+      "fold": 0.743,
+      "raise": 0.257
+     },
+     "BTN": {
+      "fold": 0.531,
+      "raise": 0.469
+     },
+     "SB": {
+      "fold": 0.087,
+      "call": 0.557,
+      "raise": 0.356
+     }
+    },
+    "mbb": 0.601,
+    "seconds": 8.9,
+    "nodes": 825
+   },
+   "new": {
+    "first_in": {
+     "HJ": {
+      "fold": 0.783,
+      "raise": 0.217
+     },
+     "CO": {
+      "fold": 0.743,
+      "raise": 0.257
+     },
+     "BTN": {
+      "fold": 0.533,
+      "raise": 0.467
+     },
+     "SB": {
+      "fold": 0.087,
+      "call": 0.557,
+      "raise": 0.356
+     }
+    },
+    "mbb": 0.59,
+    "seconds": 15.7,
+    "nodes": 825
+   },
+   "name": "Final table, 5 left, 30bb average, chip leader on the button, top-heavy payouts",
+   "first_in_raise_diff_points": {
+    "mean": 0.05,
+    "max": 0.2
+   }
+  },
+  {
+   "old": {
+    "first_in": {
+     "HJ": {
+      "fold": 0.779,
+      "raise": 0.221
+     },
+     "CO": {
+      "fold": 0.718,
+      "raise": 0.282
+     },
+     "BTN": {
+      "fold": 0.632,
+      "raise": 0.368
+     },
+     "SB": {
+      "fold": 0.192,
+      "call": 0.058,
+      "raise": 0.749
+     }
+    },
+    "mbb": 0.636,
+    "seconds": 11.8,
+    "nodes": 1059
+   },
+   "new": {
+    "first_in": {
+     "HJ": {
+      "fold": 0.778,
+      "raise": 0.222
+     },
+     "CO": {
+      "fold": 0.717,
+      "raise": 0.283
+     },
+     "BTN": {
+      "fold": 0.633,
+      "raise": 0.367
+     },
+     "SB": {
+      "fold": 0.185,
+      "call": 0.089,
+      "raise": 0.725
+     }
+    },
+    "mbb": 0.529,
+    "seconds": 26.6,
+    "nodes": 1059
+   },
+   "name": "Final table, 5 left, 30bb average, short stack in the big blind, top-heavy payouts",
+   "first_in_raise_diff_points": {
+    "mean": 0.68,
+    "max": 2.4
+   }
+  },
+  {
+   "old": {
+    "first_in": {
+     "UTG": {
+      "fold": 0.845,
+      "raise": 0.155
+     },
+     "HJ": {
+      "fold": 0.806,
+      "raise": 0.194
+     },
+     "CO": {
+      "fold": 0.747,
+      "raise": 0.253
+     },
+     "BTN": {
+      "fold": 0.279,
+      "raise": 0.721
+     },
+     "SB": {
+      "fold": 0.179,
+      "call": 0.067,
+      "raise": 0.754
+     }
+    },
+    "mbb": 0.247,
+    "seconds": 14.7,
+    "nodes": 1407
+   },
+   "new": {
+    "first_in": {
+     "UTG": {
+      "fold": 0.846,
+      "raise": 0.154
+     },
+     "HJ": {
+      "fold": 0.807,
+      "raise": 0.193
+     },
+     "CO": {
+      "fold": 0.748,
+      "raise": 0.252
+     },
+     "BTN": {
+      "fold": 0.278,
+      "raise": 0.722
+     },
+     "SB": {
+      "fold": 0.179,
+      "call": 0.068,
+      "raise": 0.754
+     }
+    },
+    "mbb": 0.24,
+    "seconds": 25.9,
+    "nodes": 1407
+   },
+   "name": "Final table, 6 left, 15bb average, chip leader on the button, top-heavy payouts",
+   "first_in_raise_diff_points": {
+    "mean": 0.08,
+    "max": 0.1
+   }
+  },
+  {
+   "old": {
+    "first_in": {
+     "UTG": {
+      "fold": 0.823,
+      "raise": 0.177
+     },
+     "HJ": {
+      "fold": 0.786,
+      "raise": 0.214
+     },
+     "CO": {
+      "fold": 0.715,
+      "raise": 0.285
+     },
+     "BTN": {
+      "fold": 0.575,
+      "raise": 0.425
+     },
+     "SB": {
+      "fold": 0.097,
+      "call": 0.0,
+      "raise": 0.903
+     }
+    },
+    "mbb": 0.633,
+    "seconds": 13.4,
+    "nodes": 1248
+   },
+   "new": {
+    "first_in": {
+     "UTG": {
+      "fold": 0.82,
+      "raise": 0.18
+     },
+     "HJ": {
+      "fold": 0.785,
+      "raise": 0.215
+     },
+     "CO": {
+      "fold": 0.695,
+      "raise": 0.305
+     },
+     "BTN": {
+      "fold": 0.561,
+      "raise": 0.439
+     },
+     "SB": {
+      "fold": 0.097,
+      "call": 0.0,
+      "raise": 0.903
+     }
+    },
+    "mbb": 0.268,
+    "seconds": 30.4,
+    "nodes": 1248
+   },
+   "name": "Final table, 6 left, 15bb average, short stack in the big blind, top-heavy payouts",
+   "first_in_raise_diff_points": {
+    "mean": 0.76,
+    "max": 2.0
+   }
+  },
+  {
+   "old": {
+    "first_in": {
+     "UTG": {
+      "fold": 0.808,
+      "raise": 0.192
+     },
+     "HJ": {
+      "fold": 0.777,
+      "raise": 0.223
+     },
+     "CO": {
+      "fold": 0.729,
+      "raise": 0.271
+     },
+     "BTN": {
+      "fold": 0.523,
+      "raise": 0.477
+     },
+     "SB": {
+      "fold": 0.104,
+      "call": 0.458,
+      "raise": 0.437
+     }
+    },
+    "mbb": 0.715,
+    "seconds": 27.6,
+    "nodes": 2434
+   },
+   "new": {
+    "first_in": {
+     "UTG": {
+      "fold": 0.808,
+      "raise": 0.192
+     },
+     "HJ": {
+      "fold": 0.777,
+      "raise": 0.223
+     },
+     "CO": {
+      "fold": 0.729,
+      "raise": 0.271
+     },
+     "BTN": {
+      "fold": 0.536,
+      "raise": 0.464
+     },
+     "SB": {
+      "fold": 0.104,
+      "call": 0.459,
+      "raise": 0.437
+     }
+    },
+    "mbb": 0.68,
+    "seconds": 46.7,
+    "nodes": 2434
+   },
+   "name": "Final table, 6 left, 30bb average, chip leader on the button, top-heavy payouts",
+   "first_in_raise_diff_points": {
+    "mean": 0.26,
+    "max": 1.3
+   }
+  },
+  {
+   "old": {
+    "first_in": {
+     "UTG": {
+      "fold": 0.799,
+      "raise": 0.201
+     },
+     "HJ": {
+      "fold": 0.776,
+      "raise": 0.224
+     },
+     "CO": {
+      "fold": 0.713,
+      "raise": 0.287
+     },
+     "BTN": {
+      "fold": 0.631,
+      "raise": 0.369
+     },
+     "SB": {
+      "fold": 0.176,
+      "call": 0.015,
+      "raise": 0.808
+     }
+    },
+    "mbb": 0.76,
+    "seconds": 46.2,
+    "nodes": 3338
+   },
+   "new": {
+    "first_in": {
+     "UTG": {
+      "fold": 0.801,
+      "raise": 0.199
+     },
+     "HJ": {
+      "fold": 0.778,
+      "raise": 0.222
+     },
+     "CO": {
+      "fold": 0.709,
+      "raise": 0.291
+     },
+     "BTN": {
+      "fold": 0.635,
+      "raise": 0.365
+     },
+     "SB": {
+      "fold": 0.155,
+      "call": 0.051,
+      "raise": 0.794
+     }
+    },
+    "mbb": 0.687,
+    "seconds": 86.1,
+    "nodes": 3338
+   },
+   "name": "Final table, 6 left, 30bb average, short stack in the big blind, top-heavy payouts",
+   "first_in_raise_diff_points": {
+    "mean": 0.52,
+    "max": 1.4
+   }
+  },
+  {
+   "old": {
+    "first_in": {
+     "UTG": {
+      "fold": 0.907,
+      "raise": 0.093
+     },
+     "UTG1": {
+      "fold": 0.896,
+      "raise": 0.104
+     },
+     "UTG2": {
+      "fold": 0.879,
+      "raise": 0.121
+     },
+     "LJ": {
+      "fold": 0.853,
+      "raise": 0.147
+     },
+     "HJ": {
+      "fold": 0.804,
+      "raise": 0.196
+     },
+     "CO": {
+      "fold": 0.751,
+      "raise": 0.249
+     },
+     "BTN": {
+      "fold": 0.303,
+      "raise": 0.697
+     },
+     "SB": {
+      "fold": 0.171,
+      "call": 0.02,
+      "raise": 0.809
+     }
+    },
+    "mbb": 0.094,
+    "seconds": 24.7,
+    "nodes": 1722
+   },
+   "new": {
+    "first_in": {
+     "UTG": {
+      "fold": 0.907,
+      "raise": 0.093
+     },
+     "UTG1": {
+      "fold": 0.896,
+      "raise": 0.104
+     },
+     "UTG2": {
+      "fold": 0.879,
+      "raise": 0.121
+     },
+     "LJ": {
+      "fold": 0.854,
+      "raise": 0.146
+     },
+     "HJ": {
+      "fold": 0.804,
+      "raise": 0.196
+     },
+     "CO": {
+      "fold": 0.751,
+      "raise": 0.249
+     },
+     "BTN": {
+      "fold": 0.303,
+      "raise": 0.697
+     },
+     "SB": {
+      "fold": 0.171,
+      "call": 0.02,
+      "raise": 0.809
+     }
+    },
+    "mbb": 0.078,
+    "seconds": 37.7,
+    "nodes": 1722
+   },
+   "name": "Final table, 9 left, 15bb average, chip leader on the button, top-heavy payouts",
+   "first_in_raise_diff_points": {
+    "mean": 0.01,
+    "max": 0.1
+   }
+  },
+  {
+   "old": {
+    "first_in": {
+     "UTG": {
+      "fold": 0.893,
+      "raise": 0.107
+     },
+     "UTG1": {
+      "fold": 0.88,
+      "raise": 0.12
+     },
+     "UTG2": {
+      "fold": 0.87,
+      "raise": 0.13
+     },
+     "LJ": {
+      "fold": 0.836,
+      "raise": 0.164
+     },
+     "HJ": {
+      "fold": 0.781,
+      "raise": 0.219
+     },
+     "CO": {
+      "fold": 0.691,
+      "raise": 0.309
+     },
+     "BTN": {
+      "fold": 0.553,
+      "raise": 0.447
+     },
+     "SB": {
+      "fold": 0.095,
+      "call": 0.0,
+      "raise": 0.905
+     }
+    },
+    "mbb": 0.26,
+    "seconds": 21.6,
+    "nodes": 1626
+   },
+   "new": {
+    "first_in": {
+     "UTG": {
+      "fold": 0.892,
+      "raise": 0.108
+     },
+     "UTG1": {
+      "fold": 0.881,
+      "raise": 0.119
+     },
+     "UTG2": {
+      "fold": 0.87,
+      "raise": 0.13
+     },
+     "LJ": {
+      "fold": 0.834,
+      "raise": 0.166
+     },
+     "HJ": {
+      "fold": 0.771,
+      "raise": 0.229
+     },
+     "CO": {
+      "fold": 0.68,
+      "raise": 0.32
+     },
+     "BTN": {
+      "fold": 0.534,
+      "raise": 0.466
+     },
+     "SB": {
+      "fold": 0.095,
+      "call": 0.0,
+      "raise": 0.905
+     }
+    },
+    "mbb": 0.144,
+    "seconds": 39.4,
+    "nodes": 1626
+   },
+   "name": "Final table, 9 left, 15bb average, short stack in the big blind, top-heavy payouts",
+   "first_in_raise_diff_points": {
+    "mean": 0.55,
+    "max": 1.9
+   }
+  },
+  {
+   "old": {
+    "first_in": {
+     "UTG": {
+      "fold": 0.882,
+      "raise": 0.118
+     },
+     "UTG1": {
+      "fold": 0.872,
+      "raise": 0.128
+     },
+     "UTG2": {
+      "fold": 0.845,
+      "raise": 0.155
+     },
+     "LJ": {
+      "fold": 0.826,
+      "raise": 0.174
+     },
+     "HJ": {
+      "fold": 0.801,
+      "raise": 0.199
+     },
+     "CO": {
+      "fold": 0.734,
+      "raise": 0.266
+     },
+     "BTN": {
+      "fold": 0.537,
+      "raise": 0.463
+     },
+     "SB": {
+      "fold": 0.047,
+      "call": 0.554,
+      "raise": 0.399
+     }
+    },
+    "mbb": 0.103,
+    "seconds": 25.4,
+    "nodes": 1713
+   },
+   "new": {
+    "first_in": {
+     "UTG": {
+      "fold": 0.882,
+      "raise": 0.118
+     },
+     "UTG1": {
+      "fold": 0.872,
+      "raise": 0.128
+     },
+     "UTG2": {
+      "fold": 0.844,
+      "raise": 0.156
+     },
+     "LJ": {
+      "fold": 0.826,
+      "raise": 0.174
+     },
+     "HJ": {
+      "fold": 0.801,
+      "raise": 0.199
+     },
+     "CO": {
+      "fold": 0.734,
+      "raise": 0.266
+     },
+     "BTN": {
+      "fold": 0.537,
+      "raise": 0.463
+     },
+     "SB": {
+      "fold": 0.056,
+      "call": 0.538,
+      "raise": 0.405
+     }
+    },
+    "mbb": 0.1,
+    "seconds": 67.8,
+    "nodes": 1713
+   },
+   "name": "Final table, 9 left, 30bb average, chip leader on the button, top-heavy payouts",
+   "first_in_raise_diff_points": {
+    "mean": 0.09,
+    "max": 0.6
+   }
+  },
+  {
+   "old": {
+    "first_in": {
+     "UTG": {
+      "fold": 0.872,
+      "raise": 0.128
+     },
+     "UTG1": {
+      "fold": 0.855,
+      "raise": 0.145
+     },
+     "UTG2": {
+      "fold": 0.839,
+      "raise": 0.161
+     },
+     "LJ": {
+      "fold": 0.815,
+      "raise": 0.185
+     },
+     "HJ": {
+      "fold": 0.781,
+      "raise": 0.219
+     },
+     "CO": {
+      "fold": 0.718,
+      "raise": 0.282
+     },
+     "BTN": {
+      "fold": 0.617,
+      "raise": 0.383
+     },
+     "SB": {
+      "fold": 0.174,
+      "call": 0.029,
+      "raise": 0.797
+     }
+    },
+    "mbb": 0.087,
+    "seconds": 34.5,
+    "nodes": 1908
+   },
+   "new": {
+    "first_in": {
+     "UTG": {
+      "fold": 0.872,
+      "raise": 0.128
+     },
+     "UTG1": {
+      "fold": 0.855,
+      "raise": 0.145
+     },
+     "UTG2": {
+      "fold": 0.839,
+      "raise": 0.161
+     },
+     "LJ": {
+      "fold": 0.814,
+      "raise": 0.186
+     },
+     "HJ": {
+      "fold": 0.783,
+      "raise": 0.217
+     },
+     "CO": {
+      "fold": 0.722,
+      "raise": 0.278
+     },
+     "BTN": {
+      "fold": 0.62,
+      "raise": 0.38
+     },
+     "SB": {
+      "fold": 0.161,
+      "call": 0.053,
+      "raise": 0.786
+     }
+    },
+    "mbb": 0.089,
+    "seconds": 52.1,
+    "nodes": 1908
+   },
+   "name": "Final table, 9 left, 30bb average, short stack in the big blind, top-heavy payouts",
+   "first_in_raise_diff_points": {
+    "mean": 0.26,
+    "max": 1.1
+   }
+  },
+  {
+   "old": {
+    "first_in": {
+     "BTN": {
+      "fold": 0.714,
+      "raise": 0.286
+     },
+     "SB": {
+      "fold": 0.467,
+      "call": 0.111,
+      "raise": 0.422
+     }
+    },
+    "mbb": 0.059,
+    "seconds": 0.7,
+    "nodes": 48
+   },
+   "new": {
+    "first_in": {
+     "BTN": {
+      "fold": 0.713,
+      "raise": 0.287
+     },
+     "SB": {
+      "fold": 0.467,
+      "call": 0.111,
+      "raise": 0.422
+     }
+    },
+    "mbb": 0.056,
+    "seconds": 1.8,
+    "nodes": 48
+   },
+   "name": "Final table, 3 left, 15bb average, chip leader in the big blind",
+   "first_in_raise_diff_points": {
+    "mean": 0.05,
+    "max": 0.1
+   }
+  },
+  {
+   "old": {
+    "first_in": {
+     "BTN": {
+      "fold": 0.675,
+      "raise": 0.325
+     },
+     "SB": {
+      "fold": 0.127,
+      "call": 0.22,
+      "raise": 0.653
+     }
+    },
+    "mbb": 0.752,
+    "seconds": 0.7,
+    "nodes": 36
+   },
+   "new": {
+    "first_in": {
+     "BTN": {
+      "fold": 0.666,
+      "raise": 0.334
+     },
+     "SB": {
+      "fold": 0.125,
+      "call": 0.221,
+      "raise": 0.653
+     }
+    },
+    "mbb": 0.861,
+    "seconds": 1.1,
+    "nodes": 36
+   },
+   "name": "Final table, 3 left, 15bb average, short stack on the button",
+   "first_in_raise_diff_points": {
+    "mean": 0.45,
+    "max": 0.9
+   }
+  },
+  {
+   "old": {
+    "first_in": {
+     "BTN": {
+      "fold": 0.742,
+      "raise": 0.258
+     },
+     "SB": {
+      "fold": 0.427,
+      "call": 0.204,
+      "raise": 0.369
+     }
+    },
+    "mbb": 0.168,
+    "seconds": 1.2,
+    "nodes": 76
+   },
+   "new": {
+    "first_in": {
+     "BTN": {
+      "fold": 0.742,
+      "raise": 0.258
+     },
+     "SB": {
+      "fold": 0.428,
+      "call": 0.202,
+      "raise": 0.37
+     }
+    },
+    "mbb": 0.552,
+    "seconds": 2.8,
+    "nodes": 76
+   },
+   "name": "Final table, 3 left, 30bb average, chip leader in the big blind",
+   "first_in_raise_diff_points": {
+    "mean": 0.05,
+    "max": 0.1
+   }
+  },
+  {
+   "old": {
+    "first_in": {
+     "BTN": {
+      "fold": 0.634,
+      "raise": 0.366
+     },
+     "SB": {
+      "fold": 0.096,
+      "call": 0.548,
+      "raise": 0.356
+     }
+    },
+    "mbb": 0.154,
+    "seconds": 1.0,
+    "nodes": 72
+   },
+   "new": {
+    "first_in": {
+     "BTN": {
+      "fold": 0.624,
+      "raise": 0.376
+     },
+     "SB": {
+      "fold": 0.096,
+      "call": 0.546,
+      "raise": 0.357
+     }
+    },
+    "mbb": 0.603,
+    "seconds": 2.0,
+    "nodes": 72
+   },
+   "name": "Final table, 3 left, 30bb average, short stack on the button",
+   "first_in_raise_diff_points": {
+    "mean": 0.55,
+    "max": 1.0
+   }
+  },
+  {
+   "old": {
+    "first_in": {
+     "HJ": {
+      "fold": 0.817,
+      "raise": 0.183
+     },
+     "CO": {
+      "fold": 0.762,
+      "raise": 0.238
+     },
+     "BTN": {
+      "fold": 0.676,
+      "raise": 0.324
+     },
+     "SB": {
+      "fold": 0.487,
+      "call": 0.04,
+      "raise": 0.473
+     }
+    },
+    "mbb": 0.152,
+    "seconds": 4.8,
+    "nodes": 393
+   },
+   "new": {
+    "first_in": {
+     "HJ": {
+      "fold": 0.817,
+      "raise": 0.183
+     },
+     "CO": {
+      "fold": 0.762,
+      "raise": 0.238
+     },
+     "BTN": {
+      "fold": 0.676,
+      "raise": 0.324
+     },
+     "SB": {
+      "fold": 0.487,
+      "call": 0.04,
+      "raise": 0.473
+     }
+    },
+    "mbb": 0.184,
+    "seconds": 10.1,
+    "nodes": 393
+   },
+   "name": "Final table, 5 left, 15bb average, chip leader in the big blind",
+   "first_in_raise_diff_points": {
+    "mean": 0.0,
+    "max": 0.0
+   }
+  },
+  {
+   "old": {
+    "first_in": {
+     "HJ": {
+      "fold": 0.79,
+      "raise": 0.21
+     },
+     "CO": {
+      "fold": 0.717,
+      "raise": 0.283
+     },
+     "BTN": {
+      "fold": 0.636,
+      "raise": 0.364
+     },
+     "SB": {
+      "fold": 0.14,
+      "call": 0.063,
+      "raise": 0.797
+     }
+    },
+    "mbb": 0.64,
+    "seconds": 6.5,
+    "nodes": 504
+   },
+   "new": {
+    "first_in": {
+     "HJ": {
+      "fold": 0.779,
+      "raise": 0.221
+     },
+     "CO": {
+      "fold": 0.687,
+      "raise": 0.313
+     },
+     "BTN": {
+      "fold": 0.637,
+      "raise": 0.363
+     },
+     "SB": {
+      "fold": 0.142,
+      "call": 0.046,
+      "raise": 0.812
+     }
+    },
+    "mbb": 0.435,
+    "seconds": 11.5,
+    "nodes": 504
+   },
+   "name": "Final table, 5 left, 15bb average, short stack on the button",
+   "first_in_raise_diff_points": {
+    "mean": 1.43,
+    "max": 3.0
+   }
+  },
+  {
+   "old": {
+    "first_in": {
+     "HJ": {
+      "fold": 0.79,
+      "raise": 0.21
+     },
+     "CO": {
+      "fold": 0.73,
+      "raise": 0.27
+     },
+     "BTN": {
+      "fold": 0.661,
+      "raise": 0.339
+     },
+     "SB": {
+      "fold": 0.294,
+      "call": 0.291,
+      "raise": 0.415
+     }
+    },
+    "mbb": 0.607,
+    "seconds": 10.8,
+    "nodes": 947
+   },
+   "new": {
+    "first_in": {
+     "HJ": {
+      "fold": 0.789,
+      "raise": 0.211
+     },
+     "CO": {
+      "fold": 0.732,
+      "raise": 0.268
+     },
+     "BTN": {
+      "fold": 0.662,
+      "raise": 0.338
+     },
+     "SB": {
+      "fold": 0.295,
+      "call": 0.288,
+      "raise": 0.417
+     }
+    },
+    "mbb": 0.681,
+    "seconds": 24.1,
+    "nodes": 947
+   },
+   "name": "Final table, 5 left, 30bb average, chip leader in the big blind",
+   "first_in_raise_diff_points": {
+    "mean": 0.15,
+    "max": 0.2
+   }
+  },
+  {
+   "old": {
+    "first_in": {
+     "HJ": {
+      "fold": 0.772,
+      "raise": 0.228
+     },
+     "CO": {
+      "fold": 0.73,
+      "raise": 0.27
+     },
+     "BTN": {
+      "fold": 0.63,
+      "raise": 0.37
+     },
+     "SB": {
+      "fold": 0.104,
+      "call": 0.542,
+      "raise": 0.354
+     }
+    },
+    "mbb": 0.465,
+    "seconds": 14.6,
+    "nodes": 725
+   },
+   "new": {
+    "first_in": {
+     "HJ": {
+      "fold": 0.773,
+      "raise": 0.227
+     },
+     "CO": {
+      "fold": 0.731,
+      "raise": 0.269
+     },
+     "BTN": {
+      "fold": 0.629,
+      "raise": 0.371
+     },
+     "SB": {
+      "fold": 0.104,
+      "call": 0.541,
+      "raise": 0.354
+     }
+    },
+    "mbb": 0.445,
+    "seconds": 16.5,
+    "nodes": 725
+   },
+   "name": "Final table, 5 left, 30bb average, short stack on the button",
+   "first_in_raise_diff_points": {
+    "mean": 0.08,
+    "max": 0.1
+   }
+  },
+  {
+   "old": {
+    "first_in": {
+     "UTG": {
+      "fold": 0.844,
+      "raise": 0.156
+     },
+     "HJ": {
+      "fold": 0.813,
+      "raise": 0.187
+     },
+     "CO": {
+      "fold": 0.748,
+      "raise": 0.252
+     },
+     "BTN": {
+      "fold": 0.652,
+      "raise": 0.348
+     },
+     "SB": {
+      "fold": 0.438,
+      "call": 0.068,
+      "raise": 0.493
+     }
+    },
+    "mbb": 0.215,
+    "seconds": 12.2,
+    "nodes": 927
+   },
+   "new": {
+    "first_in": {
+     "UTG": {
+      "fold": 0.845,
+      "raise": 0.155
+     },
+     "HJ": {
+      "fold": 0.813,
+      "raise": 0.187
+     },
+     "CO": {
+      "fold": 0.748,
+      "raise": 0.252
+     },
+     "BTN": {
+      "fold": 0.653,
+      "raise": 0.347
+     },
+     "SB": {
+      "fold": 0.438,
+      "call": 0.068,
+      "raise": 0.493
+     }
+    },
+    "mbb": 0.222,
+    "seconds": 21.7,
+    "nodes": 927
+   },
+   "name": "Final table, 6 left, 15bb average, chip leader in the big blind",
+   "first_in_raise_diff_points": {
+    "mean": 0.04,
+    "max": 0.1
+   }
+  },
+  {
+   "old": {
+    "first_in": {
+     "UTG": {
+      "fold": 0.819,
+      "raise": 0.181
+     },
+     "HJ": {
+      "fold": 0.777,
+      "raise": 0.223
+     },
+     "CO": {
+      "fold": 0.7,
+      "raise": 0.3
+     },
+     "BTN": {
+      "fold": 0.588,
+      "raise": 0.412
+     },
+     "SB": {
+      "fold": 0.146,
+      "call": 0.091,
+      "raise": 0.763
+     }
+    },
+    "mbb": 0.635,
+    "seconds": 19.3,
+    "nodes": 1401
+   },
+   "new": {
+    "first_in": {
+     "UTG": {
+      "fold": 0.819,
+      "raise": 0.181
+     },
+     "HJ": {
+      "fold": 0.779,
+      "raise": 0.221
+     },
+     "CO": {
+      "fold": 0.663,
+      "raise": 0.337
+     },
+     "BTN": {
+      "fold": 0.592,
+      "raise": 0.408
+     },
+     "SB": {
+      "fold": 0.146,
+      "call": 0.092,
+      "raise": 0.762
+     }
+    },
+    "mbb": 0.438,
+    "seconds": 34.6,
+    "nodes": 1401
+   },
+   "name": "Final table, 6 left, 15bb average, short stack on the button",
+   "first_in_raise_diff_points": {
+    "mean": 0.88,
+    "max": 3.7
+   }
+  },
+  {
+   "old": {
+    "first_in": {
+     "UTG": {
+      "fold": 0.808,
+      "raise": 0.192
+     },
+     "HJ": {
+      "fold": 0.781,
+      "raise": 0.219
+     },
+     "CO": {
+      "fold": 0.717,
+      "raise": 0.283
+     },
+     "BTN": {
+      "fold": 0.648,
+      "raise": 0.352
+     },
+     "SB": {
+      "fold": 0.253,
+      "call": 0.321,
+      "raise": 0.426
+     }
+    },
+    "mbb": 0.804,
+    "seconds": 31.0,
+    "nodes": 2276
+   },
+   "new": {
+    "first_in": {
+     "UTG": {
+      "fold": 0.808,
+      "raise": 0.192
+     },
+     "HJ": {
+      "fold": 0.783,
+      "raise": 0.217
+     },
+     "CO": {
+      "fold": 0.716,
+      "raise": 0.284
      },
      "BTN": {
       "fold": 0.656,
       "raise": 0.344
+     },
+     "SB": {
+      "fold": 0.253,
+      "call": 0.321,
+      "raise": 0.426
+     }
+    },
+    "mbb": 0.874,
+    "seconds": 65.0,
+    "nodes": 2276
+   },
+   "name": "Final table, 6 left, 30bb average, chip leader in the big blind",
+   "first_in_raise_diff_points": {
+    "mean": 0.22,
+    "max": 0.8
+   }
+  },
+  {
+   "old": {
+    "first_in": {
+     "UTG": {
+      "fold": 0.799,
+      "raise": 0.201
+     },
+     "HJ": {
+      "fold": 0.772,
+      "raise": 0.228
+     },
+     "CO": {
+      "fold": 0.711,
+      "raise": 0.289
+     },
+     "BTN": {
+      "fold": 0.623,
+      "raise": 0.377
+     },
+     "SB": {
+      "fold": 0.107,
+      "call": 0.526,
+      "raise": 0.367
+     }
+    },
+    "mbb": 0.536,
+    "seconds": 40.9,
+    "nodes": 2691
+   },
+   "new": {
+    "first_in": {
+     "UTG": {
+      "fold": 0.799,
+      "raise": 0.201
+     },
+     "HJ": {
+      "fold": 0.771,
+      "raise": 0.229
+     },
+     "CO": {
+      "fold": 0.711,
+      "raise": 0.289
+     },
+     "BTN": {
+      "fold": 0.622,
+      "raise": 0.378
+     },
+     "SB": {
+      "fold": 0.106,
+      "call": 0.527,
+      "raise": 0.367
+     }
+    },
+    "mbb": 0.531,
+    "seconds": 65.3,
+    "nodes": 2691
+   },
+   "name": "Final table, 6 left, 30bb average, short stack on the button",
+   "first_in_raise_diff_points": {
+    "mean": 0.04,
+    "max": 0.1
+   }
+  },
+  {
+   "old": {
+    "first_in": {
+     "UTG": {
+      "fold": 0.908,
+      "raise": 0.092
+     },
+     "UTG1": {
+      "fold": 0.896,
+      "raise": 0.104
+     },
+     "UTG2": {
+      "fold": 0.886,
+      "raise": 0.114
+     },
+     "LJ": {
+      "fold": 0.855,
+      "raise": 0.145
+     },
+     "HJ": {
+      "fold": 0.802,
+      "raise": 0.198
+     },
+     "CO": {
+      "fold": 0.743,
+      "raise": 0.257
+     },
+     "BTN": {
+      "fold": 0.639,
+      "raise": 0.361
+     },
+     "SB": {
+      "fold": 0.426,
+      "call": 0.065,
+      "raise": 0.509
+     }
+    },
+    "mbb": 0.164,
+    "seconds": 23.2,
+    "nodes": 1467
+   },
+   "new": {
+    "first_in": {
+     "UTG": {
+      "fold": 0.908,
+      "raise": 0.092
+     },
+     "UTG1": {
+      "fold": 0.896,
+      "raise": 0.104
+     },
+     "UTG2": {
+      "fold": 0.886,
+      "raise": 0.114
+     },
+     "LJ": {
+      "fold": 0.854,
+      "raise": 0.146
+     },
+     "HJ": {
+      "fold": 0.803,
+      "raise": 0.197
+     },
+     "CO": {
+      "fold": 0.743,
+      "raise": 0.257
+     },
+     "BTN": {
+      "fold": 0.639,
+      "raise": 0.361
+     },
+     "SB": {
+      "fold": 0.426,
+      "call": 0.063,
+      "raise": 0.511
+     }
+    },
+    "mbb": 0.158,
+    "seconds": 34.9,
+    "nodes": 1467
+   },
+   "name": "Final table, 9 left, 15bb average, chip leader in the big blind",
+   "first_in_raise_diff_points": {
+    "mean": 0.05,
+    "max": 0.2
+   }
+  },
+  {
+   "old": {
+    "first_in": {
+     "UTG": {
+      "fold": 0.898,
+      "raise": 0.102
+     },
+     "UTG1": {
+      "fold": 0.881,
+      "raise": 0.119
+     },
+     "UTG2": {
+      "fold": 0.874,
+      "raise": 0.126
+     },
+     "LJ": {
+      "fold": 0.836,
+      "raise": 0.164
+     },
+     "HJ": {
+      "fold": 0.773,
+      "raise": 0.227
+     },
+     "CO": {
+      "fold": 0.649,
+      "raise": 0.351
+     },
+     "BTN": {
+      "fold": 0.627,
+      "raise": 0.373
+     },
+     "SB": {
+      "fold": 0.124,
+      "call": 0.0,
+      "raise": 0.876
+     }
+    },
+    "mbb": 0.178,
+    "seconds": 22.2,
+    "nodes": 1539
+   },
+   "new": {
+    "first_in": {
+     "UTG": {
+      "fold": 0.897,
+      "raise": 0.103
+     },
+     "UTG1": {
+      "fold": 0.881,
+      "raise": 0.119
+     },
+     "UTG2": {
+      "fold": 0.874,
+      "raise": 0.126
+     },
+     "LJ": {
+      "fold": 0.834,
+      "raise": 0.166
+     },
+     "HJ": {
+      "fold": 0.755,
+      "raise": 0.245
+     },
+     "CO": {
+      "fold": 0.618,
+      "raise": 0.382
+     },
+     "BTN": {
+      "fold": 0.627,
+      "raise": 0.373
+     },
+     "SB": {
+      "fold": 0.124,
+      "call": 0.0,
+      "raise": 0.876
+     }
+    },
+    "mbb": 0.054,
+    "seconds": 35.1,
+    "nodes": 1539
+   },
+   "name": "Final table, 9 left, 15bb average, short stack on the button",
+   "first_in_raise_diff_points": {
+    "mean": 0.65,
+    "max": 3.1
+   }
+  },
+  {
+   "old": {
+    "first_in": {
+     "UTG": {
+      "fold": 0.879,
+      "raise": 0.121
+     },
+     "UTG1": {
+      "fold": 0.866,
+      "raise": 0.134
+     },
+     "UTG2": {
+      "fold": 0.851,
+      "raise": 0.149
+     },
+     "LJ": {
+      "fold": 0.828,
+      "raise": 0.172
+     },
+     "HJ": {
+      "fold": 0.802,
+      "raise": 0.198
+     },
+     "CO": {
+      "fold": 0.75,
+      "raise": 0.25
+     },
+     "BTN": {
+      "fold": 0.705,
+      "raise": 0.295
+     },
+     "SB": {
+      "fold": 0.126,
+      "call": 0.533,
+      "raise": 0.341
+     }
+    },
+    "mbb": 0.073,
+    "seconds": 34.8,
+    "nodes": 2182
+   },
+   "new": {
+    "first_in": {
+     "UTG": {
+      "fold": 0.88,
+      "raise": 0.12
+     },
+     "UTG1": {
+      "fold": 0.866,
+      "raise": 0.134
+     },
+     "UTG2": {
+      "fold": 0.851,
+      "raise": 0.149
+     },
+     "LJ": {
+      "fold": 0.828,
+      "raise": 0.172
+     },
+     "HJ": {
+      "fold": 0.802,
+      "raise": 0.198
+     },
+     "CO": {
+      "fold": 0.75,
+      "raise": 0.25
+     },
+     "BTN": {
+      "fold": 0.705,
+      "raise": 0.295
+     },
+     "SB": {
+      "fold": 0.126,
+      "call": 0.533,
+      "raise": 0.341
+     }
+    },
+    "mbb": 0.075,
+    "seconds": 63.4,
+    "nodes": 2182
+   },
+   "name": "Final table, 9 left, 30bb average, chip leader in the big blind",
+   "first_in_raise_diff_points": {
+    "mean": 0.01,
+    "max": 0.1
+   }
+  },
+  {
+   "old": {
+    "first_in": {
+     "UTG": {
+      "fold": 0.871,
+      "raise": 0.129
+     },
+     "UTG1": {
+      "fold": 0.85,
+      "raise": 0.15
+     },
+     "UTG2": {
+      "fold": 0.835,
+      "raise": 0.165
+     },
+     "LJ": {
+      "fold": 0.811,
+      "raise": 0.189
+     },
+     "HJ": {
+      "fold": 0.771,
+      "raise": 0.229
+     },
+     "CO": {
+      "fold": 0.713,
+      "raise": 0.287
+     },
+     "BTN": {
+      "fold": 0.644,
+      "raise": 0.356
+     },
+     "SB": {
+      "fold": 0.116,
+      "call": 0.521,
+      "raise": 0.363
+     }
+    },
+    "mbb": 0.062,
+    "seconds": 24.7,
+    "nodes": 1596
+   },
+   "new": {
+    "first_in": {
+     "UTG": {
+      "fold": 0.871,
+      "raise": 0.129
+     },
+     "UTG1": {
+      "fold": 0.85,
+      "raise": 0.15
+     },
+     "UTG2": {
+      "fold": 0.835,
+      "raise": 0.165
+     },
+     "LJ": {
+      "fold": 0.808,
+      "raise": 0.192
+     },
+     "HJ": {
+      "fold": 0.771,
+      "raise": 0.229
+     },
+     "CO": {
+      "fold": 0.712,
+      "raise": 0.288
+     },
+     "BTN": {
+      "fold": 0.645,
+      "raise": 0.355
+     },
+     "SB": {
+      "fold": 0.117,
+      "call": 0.519,
+      "raise": 0.364
+     }
+    },
+    "mbb": 0.069,
+    "seconds": 35.9,
+    "nodes": 1596
+   },
+   "name": "Final table, 9 left, 30bb average, short stack on the button",
+   "first_in_raise_diff_points": {
+    "mean": 0.08,
+    "max": 0.3
+   }
+  },
+  {
+   "old": {
+    "first_in": {
+     "HJ": {
+      "fold": 0.818,
+      "raise": 0.182
+     },
+     "CO": {
+      "fold": 0.601,
+      "raise": 0.399
+     },
+     "BTN": {
+      "fold": 0.657,
+      "raise": 0.343
      },
      "SB": {
       "fold": 0.0,
@@ -1022,61 +4902,85 @@
       "raise": 1.0
      }
     },
-    "mbb": 0.6,
-    "seconds": 28.5,
+    "mbb": 0.585,
+    "seconds": 8.6,
+    "nodes": 895
+   },
+   "new": {
+    "first_in": {
+     "HJ": {
+      "fold": 0.821,
+      "raise": 0.179
+     },
+     "CO": {
+      "fold": 0.601,
+      "raise": 0.399
+     },
+     "BTN": {
+      "fold": 0.657,
+      "raise": 0.343
+     },
+     "SB": {
+      "fold": 0.0,
+      "call": 0.0,
+      "raise": 1.0
+     }
+    },
+    "mbb": 0.51,
+    "seconds": 24.6,
     "nodes": 895
    },
    "name": "Final-table bubble",
    "first_in_raise_diff_points": {
-    "mean": 0.83,
-    "max": 1.3
+    "mean": 0.08,
+    "max": 0.3
    }
   },
   {
    "old": {
     "first_in": {
      "CO": {
-      "fold": 0.449,
-      "raise": 0.551
+      "fold": 0.436,
+      "raise": 0.564
      },
      "BTN": {
-      "fold": 0.625,
-      "raise": 0.375
+      "fold": 0.624,
+      "raise": 0.376
      },
      "SB": {
-      "fold": 0.266,
-      "call": 0.15,
-      "raise": 0.584
+      "fold": 0.334,
+      "call": 0.043,
+      "raise": 0.623
      }
     },
-    "mbb": 1.283,
-    "seconds": 2.4,
+    "mbb": 1.331,
+    "seconds": 2.0,
     "nodes": 202
    },
    "new": {
     "first_in": {
      "CO": {
-      "fold": 0.443,
-      "raise": 0.557
+      "fold": 0.433,
+      "raise": 0.567
      },
      "BTN": {
-      "fold": 0.607,
-      "raise": 0.393
+      "fold": 0.61,
+      "raise": 0.39
      },
      "SB": {
-      "fold": 0.314,
-      "call": 0.043,
-      "raise": 0.643
+      "fold": 0.334,
+      "call": 0.044,
+      "raise": 0.622
      }
     },
-    "mbb": 0.352,
-    "seconds": 7.4,
+    "mbb": 0.301,
+    "seconds": 7.1,
     "nodes": 202
    },
    "name": "Sit & go bubble",
    "first_in_raise_diff_points": {
-    "mean": 2.77,
-    "max": 5.9
+    "mean": 0.6,
+    "max": 1.4
    }
   }
  ]

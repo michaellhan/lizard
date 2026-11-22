@@ -9,7 +9,7 @@ import { useSettings } from "@/state/settings";
 import { SOLVE_SETUP_KEY, SolvePage } from "./SolvePage";
 
 // (every stored tournament spot taken as built: pfIcmBuilt.test.ts holds the real list to the files)
-vi.mock("@/features/practice/pfIcmBuilt.json", () => ({ default: { model: "test", equity: "test", built: Array.from({ length: 5000 }, (_, i) => i) } }));
+vi.mock("@/features/practice/pfIcmBuilt.json", () => ({ default: { model: "test", built: Array.from({ length: 5000 }, (_, i) => i) } }));
 
 // (the page remembers its last setup in this browser: one test's mustn't open the next's)
 afterEach(() => {

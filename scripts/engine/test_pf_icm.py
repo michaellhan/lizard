@@ -2,8 +2,9 @@
 
 What it checks:
 - in chips it is pf_game's game exactly (same tree, same strategies), and a winner-take-all prize model is chips;
-- the calibrated game (engine/pf_icm_calib.py, Study's and the stored spots' since 2026-11-17): winner-take-all is chips,
-  its one-pass pricing of folded seats is pf_engine's loop, heads-up push/fold, a bust's bounty to the right seat;
+- the same game on the cash grid's engine (engine/pf_icm_calib.py, a cross-check): winner-take-all is chips, its
+  one-pass pricing of folded seats is pf_engine's loop, heads-up push/fold, a bust's bounty to the right seat, and it is
+  close to pf_icm's game;
 - heads-up push/fold matches pf_classes.push_fold, and a bubble's push/fold matches the advisor's equilibrium in prize
   equity where the two models are the same game (no overcalls, folded seats paid nothing);
 - it converges: exploitability, in mbb/hand of prize equity a seat, falls with iterations to well under a live solve's
@@ -138,8 +139,8 @@ class Chips(unittest.TestCase):
 
 
 class Calibrated(unittest.TestCase):
-    """engine/pf_icm_calib.py: pf_icm's tree on pf_engine's game with the calibrated flop values (Study's tournament
-    solve and every stored spot since 2026-11-17)."""
+    """engine/pf_icm_calib.py: pf_icm's tree on pf_engine's game with the calibrated flop values, a cross-check of
+    pf_icm.ICMGame (which Study and the stored spots solve on)."""
 
     def test_winner_take_all_is_chips(self):
         # equal stacks (no side pots): the same solve
@@ -180,15 +181,20 @@ class Calibrated(unittest.TestCase):
 
     def test_folded_seats_priced_in_one_pass_as_pf_engines_loop(self):
         # pf_engine.Game prices a heads-up pot's folded seats in a Python loop; pf_icm_calib.Game in one pass: the same
-        # numbers (a push/fold tree, which pf_engine's three-action arrays hold)
+        # numbers (a push/fold tree, which pf_engine's three-action arrays hold; the side pots as pf_engine gives them,
+        # to the deeper stack, which pf_icm_calib.Game splits evenly: test_winner_take_all_side_pots_...)
+        class DeeperSidePots(C.Game):
+            def _even_side_pots(self):
+                pass
+
         pos, stacks, pay = ["BTN", "SB", "BB"], [10.0, 14.0, 6.0], [50, 30, 20]
         model = icm.Model(dict(zip(pos, stacks)), pay)
         root = I.build(pos, stacks, [0.1] * 3, max_players=3, cold4=True, pushfold=True)
         p = M.load_params() or M.Params()
         at = lambda d: M.flop_model(max(10.0, min(250.0, d)), p)  # noqa: E731
         g0 = E.Game(root, pos, at, stacks, payoff=C.PrizePayoff(model, pos), ante=0.1)
-        g1 = C.Game(I.build(pos, stacks, [0.1] * 3, max_players=3, cold4=True, pushfold=True), pos, at, stacks,
-                    payoff=C.PrizePayoff(model, pos), ante=0.1)
+        g1 = DeeperSidePots(I.build(pos, stacks, [0.1] * 3, max_players=3, cold4=True, pushfold=True), pos, at, stacks,
+                      payoff=C.PrizePayoff(model, pos), ante=0.1)
         for t in range(1, 21):
             g0.iterate(t)
             g1.iterate(t)
@@ -202,7 +208,9 @@ class Calibrated(unittest.TestCase):
                 jam = freq(g, s, [], "all-in")
                 pf = PC.push_fold(np.ones(1326), np.ones(1326), st, 0.5, 1.0, 1.5, 1, iters=2500)
                 pfc = np.bincount(CLASS_OF, weights=pf, minlength=169) / N_IN
-                self.assertAlmostEqual(share(jam), share(pfc), delta=0.005)
+                # (0.01, as PushFold's: on the exact equity table a class at the jammer's indifference may be mixed
+                # differently by the two methods, up to its weight)
+                self.assertAlmostEqual(share(jam), share(pfc), delta=0.01)
 
     def test_a_bust_pays_its_bounty_to_the_seat_that_won_its_chips(self):
         pos, stacks = ["BTN", "SB", "BB"], [10.0, 20.0, 30.0]
@@ -215,11 +223,21 @@ class Calibrated(unittest.TestCase):
         w = pp.values(put[None, :], np.array([[0.0, 0.0, 20.5]]), [[]])
         self.assertGreater(v[0, 2], w[0, 2])                                     # the bounty, in chip equivalents
 
-    def test_study_solves_on_it(self):
-        spec, why = IS.spec_of(Advisor(), {"players": 3, "bb": 1.0, "stack": 15, "payouts": [50, 30, 20]})
-        self.assertIsNone(why)
-        self.assertIsInstance(spec.game(), C.Game)
-        self.assertIn("calibrated", IS.MODEL_NAME)
+    def test_close_to_pf_icms_game(self):
+        # the same tree and flop model on two engines (pf_icm.ICMGame, which Study and the stored spots use, and
+        # pf_engine's): close on average, not class by class (each engine prices a three-way pot and a folded seat its
+        # own way; at 1,000 iterations the chip-EV references read the same to 0.1 point, docs/ACCURACY.md 20.7)
+        pos = ["BTN", "SB", "BB"]
+        for stacks, pay in (([15.0, 15.0, 15.0], None), ([20.0, 12.0, 30.0], [50, 30, 20])):
+            with self.subTest(pay=pay):
+                model = icm.Model(dict(zip(pos, stacks)), pay) if pay else None
+                gi = I.game(pos, stacks, [0.1] * 3, icm_model=model)
+                gc = C.game(pos, stacks, [0.1] * 3, icm_model=model)
+                self.assertEqual(gi.N, gc.N)
+                for t in range(1, 301):
+                    gi.iterate(t)
+                    gc.iterate(t)
+                self.assertLess(np.abs(gi.average() - gc.average()).mean(), 0.05)
 
 
 class PushFold(unittest.TestCase):

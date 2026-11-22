@@ -1,6 +1,6 @@
-"""The tournament preflop on upstream's class-level game (engine/pf_icm.py ICMGame, upstream's library flop model) against
-the same tree on Lizard's calibrated solver (engine/pf_icm_calib.py: pf_engine's game, pf_model's calibrated flop values),
-docs/ACCURACY.md 20.7.
+"""The tournament preflop on engine/pf_icm.py's game (ICMGame: "old"; upstream's library flop model until 2026-11-18,
+pf_model's calibrated one since) against the same tree on the cash grid's engine (engine/pf_icm_calib.py: "new",
+pf_engine's game with pf_model's calibrated flop values), docs/ACCURACY.md 20.7.
 
 1. Chip EV against the published tournament references in solver/tests/preflop_refs.py FORMAT_REFS that the tournament
    tree plays (Poker Academy's 40bb MTT, 9-handed with a 1bb big-blind ante and 2.3bb opens; GTO Wizard's heads-up 50bb

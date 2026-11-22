@@ -13,7 +13,7 @@ import { gradedOn, PF_MODEL } from "@/features/practice/pfGrade";
 import { decide, finish, newHand, setupOf, withVillain, type PracticeHand, type TournamentOptions } from "@/features/practice/practice";
 import { ALL_PRESETS, readDraft, stageDraft } from "@/features/practice/TournamentFields";
 // (every stored tournament spot taken as built: pfIcmBuilt.test.ts holds the real list to the files)
-vi.mock("@/features/practice/pfIcmBuilt.json", () => ({ default: { model: "test", equity: "test", built: Array.from({ length: 5000 }, (_, i) => i) } }));
+vi.mock("@/features/practice/pfIcmBuilt.json", () => ({ default: { model: "test", built: Array.from({ length: 5000 }, (_, i) => i) } }));
 import { seatsOf } from "@/poker/seats";
 import type { Move } from "@/poker/table";
 import { SolverError, type Provenance } from "@/solver/types";
