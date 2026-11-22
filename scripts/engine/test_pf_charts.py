@@ -449,14 +449,14 @@ class FlatAlternative(unittest.TestCase):
         finally:
             PC._push = orig
         call, fold = g["actions"].index("call"), g["actions"].index("fold")
-        for c in ("A2s", "76s", "AJo"):
+        for c in ("A4s", "65s", "A5s"):     # (A2s, 76s and AJo before the format moves were smoothed: ACCURACY 32)
             m = CLASS_OF == CLASS_INDEX[c]
             chart = {a: np.broadcast_to(np.asarray(v, float), CLASS_OF.shape)[m] for a, v in handed.items()}
             self.assertLess(float(chart["call"].max()), 1e-9, c)                # the chart only 3-bets it
             self.assertGreater(float(chart["raise"].min()), 1 - 1e-9, c)
             self.assertLess(g["cells"][c]["f"][fold], 0.01, c)                  # none of it folds
-        self.assertGreater(g["cells"]["A2s"]["f"][call], 0.99)                  # its jam loses to folding: all flat
-        self.assertGreater(g["cells"]["AJo"]["f"][call], 0.5)                   # (93%; the rest jams)
+        self.assertGreater(g["cells"]["A4s"]["f"][call], 0.99)                  # its jam loses to folding: all flat
+        self.assertGreater(g["cells"]["A5s"]["f"][call], 0.1)                   # (15%; the rest jams)
 
     def test_upstream_keeps_upstreams(self):
         self.assertIs(A._flat_ev, PC.flat_ev)

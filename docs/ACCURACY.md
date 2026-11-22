@@ -3152,3 +3152,91 @@ fingerprints. The four 3-way spots, already served as built, moved again and sta
   on the old table; upstream's model grid (`engine/pf/` without a tag) is no longer reached (cash goes to
   `engine/pf_solve.py`, tournaments to `engine/pf_icm_study.py`).
 - Sections 18.8 to 18.11 measured grades on the lz3 grid and were not measured again.
+
+## 32. The format charts' moves smoothed along hand families (2026-11-22)
+
+A report: 6-max 40bb, the small blind facing a HJ open 3bet K9s 78% and KTs 1%, and called QTs 41% where Q9s 3bet 39%.
+The format charts (other depths, antes, 7 to 9 players, a straddle, heads-up) are the 100bb chart plus a per-class move,
+the format game's class-level solve minus the 100bb one (`solver/gto/pf_formats.py` `moves`/`apply`, data
+`gto/pf_format_data.py`, built by `solver/scripts/build_pf_formats.py`). Among near-indifferent bluffs a class-level
+solve plays each class purely and picks which one arbitrarily, and the two solves pick differently, so the difference
+flips sign between neighbours (K9s +0.78 raise, KTs 0).
+
+**Sweep** (`scripts/engine/pf_format_inversions.py`): every heads-up chart line of every format game (raise first in,
+facing an open, the opener facing a 3bet, the 3bettor facing the 4bet, the opener facing the 5bet; 691 decisions), as
+upstream's `preflop.strategy_for` serves it, counting a weaker class continuing 25 points or more more often than the
+one dominating it (the next kicker up with the same top card, A5/A6 left out; the suited twin; the next pair up).
+
+| game | decisions | before | after |
+|---|---:|---:|---:|
+| 6-max 20bb | 41 | 22 | 7 |
+| 6-max 40bb | 50 | 28 | 18 |
+| 6-max 60bb | 57 | 26 | 4 |
+| 6-max 20bb ante | 41 | 53 | 10 |
+| 6-max 40bb ante | 50 | 76 | 51 |
+| 6-max 100bb ante | 65 | 63 | 6 |
+| 7-handed 100bb | 86 | 11 | 2 |
+| 8-handed 100bb | 107 | 32 | 24 |
+| 9-handed 100bb | 128 | 42 | 31 |
+| 6-max straddle | 54 | 57 | 5 |
+| heads-up 20bb | 3 | 17 | 10 |
+| heads-up 40bb | 4 | 10 | 0 |
+| heads-up 100bb | 5 | 9 | 9 |
+| total | 691 | 446 | 177 |
+
+13 of them are in the 100bb chart the moves are added to, before and after; all are kicker steps. 271 went, 175 stayed,
+2 are new (K7s over K8s, the SB facing a BTN open with the ante, at 40 and 100bb).
+
+**Fix, in the build.** Each decision's per-class move is replaced by its family's around it before it is encoded
+(`build_pf_formats.py` `family_smooth`, `SMOOTH = 1.0`): pairs form one family, and each high card's suited and offsuit
+hands by kicker one each, and the move is a Gaussian-weighted average over one kicker step (weights 1, 0.61, 0.14 for the
+class, its neighbours, theirs), weighted by how often the class reaches the decision in both solves (the move's existing
+reach guard), then multiplied by that guard as before. The value hands (JJ, QQ, KK, AA, AKs, AKo: `VALUE`, each the top of its
+family) are left out of the families, keeping their own moves and lending none: their move is no pick among
+near-indifferent neighbours, and smoothed with them a first build moved a premium's action 25 points or more 615 times
+over the sweep's decisions (the 9-handed UTG facing a squeeze raised AKs 31% and flatted 65%, taking AQs's flats, where
+it had raised 100%; `scripts/engine/test_pf_charts.py` HandOrder caught it); now none. Nothing is hand-edited; unsmoothed (`SMOOTH = 0`) the build from
+the same solves is byte-identical to the shipped file. The known case: KTs 3bets 20%, K9s 35%, K8s 26%; QTs calls 17%,
+Q9s 3bets 6% and calls 10% (the range raises 7.2% and calls 3.2%; before, 7.5 and 3.2).
+
+**Solves used.** The format games' class-level solves of 2026-10-29 (the shipped file's own), on the old 3,000-board
+equity table: the moves come from their stored strategy sums, so the exact table of section 31 does not enter a rebuild
+without re-solving. No 8-handed solve of today's tree is on disk, and re-solving it needs about 3 GB (stopped at 2.9 GB,
+over the 1 GB a process the gtosolver builds leave), so the stored 8-handed moves are kept and smoothed once with unit
+weights (`--keep players:8 --smooth-kept players:8`; never pass `--smooth-kept` again on a smoothed file).
+
+**Held decisions.** The published flop library's spots at 40bb, heads-up and 8 players take their ranges from these
+moves (`engine/pf_charts.py` `PUBLISHED`), and their flops were solved on the old ranges
+(`scripts/engine/test_pf_charts.py` LibrarySpots checks the fingerprints); smoothing moved 16 of them. So every move
+entry read on a published spot's line, for a player who reaches the flop, keeps its old move: 38 decisions (40bb 11,
+the same 11 with the ante, 8 players 14, the heads-up limp 2), listed by `scripts/pf/format_held.py` and passed as
+`--hold`. A held 40bb decision holds its ante move too, since the chart with the ante adds both and their pure choices
+cancel only while both come from one build (holding the depth alone made 9 new inversions with the ante). No published
+spot's range moves. Most of what remains is at these decisions, at 9 players (which plays the 8-handed moves), and at
+lines the 100bb solve never reaches (the guard: J9s over JTs facing a 5bet at 60bb and with the straddle). Since
+2026-11-18 the browser repairs the served charts' order anyway (`engine/pf_dominance.py`, section 18.9) except at nodes
+feeding a library spot; this sweep measures upstream's answer, which is the repair's input and what a local server
+serves.
+
+Rebuild (from `solver/`, with DIR holding the format solves):
+
+    HOLD=$(../.venv/bin/python ../scripts/pf/format_held.py)
+    slot.sh ../.venv/bin/python scripts/build_pf_formats.py --write --dir DIR --keep players:8 --smooth-kept players:8 --hold "$HOLD"
+
+**Published references** (`solver/scripts/preflop_format_reference.py`): the 6 certain ones all inside tolerance, mean
+0.92 points, as before. The 40bb MTT small blind against a CO open goes from fold 78.1 / call 11.1 / raise 10.8 (outside
+the ±4 against 72.6 / 14.4 / 13.1) to 76.3 / 12.2 / 11.5; against a BTN open 74.5 / 11.7 / 13.8 (was 75.2 / 10.9 /
+13.9); heads-up 50bb SB first in limps 37.2% (36.9). Tests: `solver/tests/test_gto.py` TestPreflop, TestTableSizes,
+TestPreflopSubgame, TestOpenerVs3bet, TestPublishedBlindFrequencies, TestPublishedPreflopReferences, TestRake,
+TestAdvisor (76, OK) and `scripts/engine` (369). `test_pf_charts.py` FlatAlternative's example hands for a share a
+20bb small blind's jam doesn't take are A4s, 65s and A5s now (A2s, 76s and AJo were the ones the chart only 3-bet
+before).
+
+**Not established.**
+- The format games re-solved on the exact equity table (section 31) and with `engine/pf_model.py`'s
+  `LowerEdgeLibraryModel`: the 8-handed BB against UTG1 and heads-up 20bb keep a diagonal pattern (63s, 74s, 85s over
+  the next kicker) that looks like the library's edge-join overvaluation (section 18.6). Needs the 8-handed game at about
+  3 GB.
+- The 38 held decisions keep their pure choices until the 16 library spots they feed are rebuilt on smoothed ranges.
+- Smoothing is a prior (neighbouring classes play alike), not a solve: σ = 1 kicker step was picked by the sweep and
+  the references, not measured against a combo-level solve of a format game.
