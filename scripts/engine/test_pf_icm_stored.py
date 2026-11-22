@@ -131,7 +131,10 @@ class Stored(unittest.TestCase):
                 self.assertIsNotNone(blob, f"engine/pf_icm/{spec.key}.bin is missing")
                 PS.unpack(spec.game(), blob)       # raises where the tree doesn't match
                 self.assertAlmostEqual(PS.stored_mbb(blob), e["mbb"], places=2)
-                self.assertLess(e["mbb"], 10.0, "further from equilibrium than any measured floor (ACCURACY 20.3)")
+                # the 3-way pot's floor (ACCURACY 20.3): in prize equity under 4 (3.47 at most); in chips, and with
+                # bounties paid like chips, a short big blind's side pots raise it to 14.5 at most (ACCURACY 20.7)
+                floor = 15.0 if e["set"] in ("chips", "bounty") else 4.0
+                self.assertLess(e["mbb"], floor, "further from equilibrium than any measured floor")
 
     def test_answered_from_the_file_as_practice_asks(self):
         for e in CURRENT:

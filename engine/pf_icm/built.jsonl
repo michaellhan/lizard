@@ -337,3 +337,655 @@
 {"name": "Final table, 9 left, 40bb average, equal stacks", "key": "icm9_99e866ac50a14658", "nodes": 2542, "iterations": 1500, "seconds": 44.8, "mbb": 0.05, "bytes": 16847}
 {"name": "Final table, 9 left, 40bb average, chip leader on the button", "key": "icm9_992c24b03a446e1c", "nodes": 1764, "iterations": 1500, "seconds": 30.9, "mbb": 0.042, "bytes": 12797}
 {"name": "Final table, 9 left, 40bb average, short stack in the big blind", "key": "icm9_fef707f5acc16bf3", "nodes": 2244, "iterations": 1500, "seconds": 44.3, "mbb": 0.043, "bytes": 14026}
+{"name": "Final-table bubble, PKO 5 a head", "key": "icm5_f823ceb54ea9b1d7", "nodes": 895, "iterations": 1500, "seconds": 19.0, "mbb": 1.511, "bytes": 8613}
+{"name": "Final-table bubble, PKO 2.5 a head", "key": "icm5_8f7872f25cfe9be1", "nodes": 895, "iterations": 1500, "seconds": 19.0, "mbb": 0.892, "bytes": 6937}
+{"name": "Final-table bubble, KO 2.5 a head", "key": "icm5_e27e5c13df9421da", "nodes": 895, "iterations": 1500, "seconds": 18.7, "mbb": 1.383, "bytes": 6687}
+{"name": "Final table, 6 left, 15bb average, equal stacks, PKO 2.5 a head", "key": "icm6_d6be7f5541f34a0a", "nodes": 924, "iterations": 1500, "seconds": 20.7, "mbb": 0.509, "bytes": 5009}
+{"name": "Final table, 6 left, 15bb average, equal stacks, PKO 5 a head", "key": "icm6_f499122b5d12df76", "nodes": 924, "iterations": 1500, "seconds": 21.5, "mbb": 0.591, "bytes": 4461}
+{"name": "Final table, 6 left, 15bb average, chip leader on the button, PKO 2.5 a head", "key": "icm6_f02784d63d33c128", "nodes": 1407, "iterations": 1500, "seconds": 34.0, "mbb": 0.43, "bytes": 6313}
+{"name": "Final table, 6 left, 15bb average, chip leader on the button, PKO 5 a head", "key": "icm6_ff7b3de9ca53c8f9", "nodes": 1407, "iterations": 1500, "seconds": 34.3, "mbb": 0.633, "bytes": 6948}
+{"name": "Final table, 6 left, 15bb average, short stack in the big blind, PKO 2.5 a head", "key": "icm6_17bc37b97ece43a4", "nodes": 1248, "iterations": 1500, "seconds": 30.2, "mbb": 1.332, "bytes": 8535}
+{"name": "Final table, 6 left, 15bb average, short stack in the big blind, PKO 5 a head", "key": "icm6_d9fc9797ac186362", "nodes": 1248, "iterations": 1500, "seconds": 30.1, "mbb": 2.649, "bytes": 8839}
+{"name": "Final table, 6 left, 30bb average, equal stacks, PKO 2.5 a head", "key": "icm6_34dbf0c23c7b2499", "nodes": 2008, "iterations": 1500, "seconds": 46.8, "mbb": 0.9, "bytes": 10097}
+{"name": "Final table, 6 left, 30bb average, equal stacks, PKO 5 a head", "key": "icm6_cd15ed5ca941ad5e", "nodes": 2008, "iterations": 1500, "seconds": 47.5, "mbb": 1.067, "bytes": 10551}
+{"name": "Final table, 6 left, 30bb average, chip leader on the button, PKO 2.5 a head", "key": "icm6_9367ac8ef4e8f768", "nodes": 2434, "iterations": 1500, "seconds": 64.9, "mbb": 0.924, "bytes": 13057}
+{"name": "Final table, 6 left, 30bb average, chip leader on the button, PKO 5 a head", "key": "icm6_3cea9a9523317752", "nodes": 2434, "iterations": 1500, "seconds": 63.5, "mbb": 1.035, "bytes": 11839}
+{"name": "Final table, 6 left, 30bb average, short stack in the big blind, PKO 2.5 a head", "key": "icm6_98525796507fc577", "nodes": 3338, "iterations": 1500, "seconds": 78.5, "mbb": 1.26, "bytes": 22188}
+{"name": "Final table, 6 left, 30bb average, short stack in the big blind, PKO 5 a head", "key": "icm6_34ebd000d1a13516", "nodes": 3338, "iterations": 1500, "seconds": 79.8, "mbb": 3.468, "bytes": 20456}
+{"name": "Early, PKO 0.05 a head", "key": "icm8_4c02b3cdec24e380", "nodes": 2148, "iterations": 1500, "seconds": 57.3, "mbb": 0.561, "bytes": 13969}
+{"name": "Early, PKO 0.1 a head", "key": "icm8_5e076fc93c6bcde8", "nodes": 2148, "iterations": 1500, "seconds": 58.7, "mbb": 0.989, "bytes": 13158}
+{"name": "Early, KO 0.05 a head", "key": "icm8_5c7369ea01575a84", "nodes": 2148, "iterations": 1500, "seconds": 57.2, "mbb": 11.25, "bytes": 13622}
+{"name": "Bubble, PKO 0.4 a head", "key": "icm8_35f624e1f418093e", "nodes": 1310, "iterations": 1500, "seconds": 37.5, "mbb": 2.571, "bytes": 10042}
+{"name": "Bubble, PKO 0.8 a head", "key": "icm8_6f4322309721d1ec", "nodes": 1310, "iterations": 1500, "seconds": 36.7, "mbb": 11.126, "bytes": 13806}
+{"name": "Bubble, KO 0.4 a head", "key": "icm8_d2f78f45e44c8d51", "nodes": 1310, "iterations": 1500, "seconds": 36.8, "mbb": 14.45, "bytes": 12733}
+{"name": "Final table, PKO 2.5 a head", "key": "icm9_5fc223a6b2e912a5", "nodes": 2096, "iterations": 1500, "seconds": 64.1, "mbb": 0.481, "bytes": 15928}
+{"name": "Final table, PKO 5 a head", "key": "icm9_a33bb4de6a09f840", "nodes": 2096, "iterations": 1500, "seconds": 63.3, "mbb": 0.876, "bytes": 16135}
+{"name": "Final table, 9 left, 15bb average, equal stacks, PKO 2.5 a head", "key": "icm9_dcb90274b06a6624", "nodes": 1464, "iterations": 1500, "seconds": 36.7, "mbb": 0.058, "bytes": 6957}
+{"name": "Final table, KO 2.5 a head", "key": "icm9_ab92cd6b94479a7e", "nodes": 2096, "iterations": 1500, "seconds": 53.8, "mbb": 0.687, "bytes": 20709}
+{"name": "Final table, 9 left, 15bb average, equal stacks, PKO 5 a head", "key": "icm9_dcf9aca79aa38b8f", "nodes": 1464, "iterations": 1500, "seconds": 41.8, "mbb": 0.044, "bytes": 7381}
+{"name": "Final table, 9 left, 15bb average, chip leader on the button, PKO 2.5 a head", "key": "icm9_d3b85224a77e8462", "nodes": 1722, "iterations": 1500, "seconds": 53.6, "mbb": 0.075, "bytes": 8019}
+{"name": "Final table, 9 left, 15bb average, chip leader on the button, PKO 5 a head", "key": "icm9_49da90fc3534e745", "nodes": 1722, "iterations": 1500, "seconds": 53.9, "mbb": 0.075, "bytes": 8344}
+{"name": "Final table, 9 left, 15bb average, short stack in the big blind, PKO 2.5 a head", "key": "icm9_6c3976844a80c5cd", "nodes": 1626, "iterations": 1500, "seconds": 48.9, "mbb": 0.305, "bytes": 9308}
+{"name": "Final table, 9 left, 15bb average, short stack in the big blind, PKO 5 a head", "key": "icm9_34afb9359f3f13a4", "nodes": 1626, "iterations": 1500, "seconds": 48.2, "mbb": 0.453, "bytes": 8901}
+{"name": "Final table, 9 left, 30bb average, equal stacks, PKO 2.5 a head", "key": "icm9_ce30f7aa58e11c3c", "nodes": 1716, "iterations": 1500, "seconds": 46.3, "mbb": 0.039, "bytes": 10870}
+{"name": "Final table, 9 left, 30bb average, equal stacks, PKO 5 a head", "key": "icm9_3e04182dc664c242", "nodes": 1716, "iterations": 1500, "seconds": 42.1, "mbb": 0.039, "bytes": 9467}
+{"name": "Final table, 9 left, 30bb average, chip leader on the button, PKO 2.5 a head", "key": "icm9_790a2901ef20a92d", "nodes": 1713, "iterations": 1500, "seconds": 38.2, "mbb": 0.044, "bytes": 10046}
+{"name": "Final table, 9 left, 30bb average, chip leader on the button, PKO 5 a head", "key": "icm9_fcfed48c84146ea9", "nodes": 1713, "iterations": 1500, "seconds": 39.8, "mbb": 0.058, "bytes": 10492}
+{"name": "Final table, 9 left, 30bb average, short stack in the big blind, PKO 2.5 a head", "key": "icm9_547101c427d67f71", "nodes": 1908, "iterations": 1500, "seconds": 54.9, "mbb": 0.185, "bytes": 14479}
+{"name": "Final table, 3 left, 10bb average, equal stacks, flat payouts", "key": "icm3_7846b9d8f67ada22", "nodes": 54, "iterations": 1500, "seconds": 1.6, "mbb": 0.04, "bytes": 1216}
+{"name": "Final table, 3 left, 10bb average, chip leader on the button, flat payouts", "key": "icm3_bdd15b09e9783302", "nodes": 42, "iterations": 1500, "seconds": 1.0, "mbb": 0.511, "bytes": 514}
+{"name": "Final table, 3 left, 10bb average, short stack in the big blind, flat payouts", "key": "icm3_9e8b836aba1b38a6", "nodes": 54, "iterations": 1500, "seconds": 1.3, "mbb": 2.279, "bytes": 1335}
+{"name": "Final table, 3 left, 15bb average, equal stacks, flat payouts", "key": "icm3_2b864f9262f4de83", "nodes": 54, "iterations": 1500, "seconds": 1.2, "mbb": 0.14, "bytes": 1244}
+{"name": "Final table, 3 left, 15bb average, chip leader on the button, flat payouts", "key": "icm3_93156b77676477b7", "nodes": 42, "iterations": 1500, "seconds": 1.0, "mbb": 0.139, "bytes": 689}
+{"name": "Final table, 3 left, 15bb average, short stack in the big blind, flat payouts", "key": "icm3_853bd6c73803f4c6", "nodes": 54, "iterations": 1500, "seconds": 1.3, "mbb": 0.772, "bytes": 1030}
+{"name": "Final table, 3 left, 20bb average, equal stacks, flat payouts", "key": "icm3_cf7c318a7381f8cb", "nodes": 54, "iterations": 1500, "seconds": 1.2, "mbb": 0.205, "bytes": 1201}
+{"name": "Final table, 3 left, 20bb average, chip leader on the button, flat payouts", "key": "icm3_2a49d148c05c4082", "nodes": 54, "iterations": 1500, "seconds": 1.2, "mbb": 0.156, "bytes": 890}
+{"name": "Final table, 3 left, 20bb average, short stack in the big blind, flat payouts", "key": "icm3_1ff09aaff85786d8", "nodes": 47, "iterations": 1500, "seconds": 1.3, "mbb": 0.594, "bytes": 761}
+{"name": "Final table, 3 left, 30bb average, equal stacks, flat payouts", "key": "icm3_acd648e5ece1ebcd", "nodes": 47, "iterations": 1500, "seconds": 1.3, "mbb": 0.295, "bytes": 982}
+{"name": "Final table, 3 left, 30bb average, chip leader on the button, flat payouts", "key": "icm3_9260ef3d21b7d739", "nodes": 54, "iterations": 1500, "seconds": 1.2, "mbb": 0.339, "bytes": 1081}
+{"name": "Final table, 3 left, 30bb average, short stack in the big blind, flat payouts", "key": "icm3_b2a1902fbf07065a", "nodes": 61, "iterations": 1500, "seconds": 1.5, "mbb": 0.208, "bytes": 947}
+{"name": "Final table, 3 left, 40bb average, equal stacks, flat payouts", "key": "icm3_1c1740c42a5165c7", "nodes": 82, "iterations": 1500, "seconds": 1.8, "mbb": 0.192, "bytes": 1312}
+{"name": "Final table, 9 left, 30bb average, short stack in the big blind, PKO 5 a head", "key": "icm9_e3b4bbec9592f661", "nodes": 1908, "iterations": 1500, "seconds": 53.8, "mbb": 0.974, "bytes": 15154}
+{"name": "Final table, 3 left, 40bb average, chip leader on the button, flat payouts", "key": "icm3_64794cd78c13eadc", "nodes": 54, "iterations": 1500, "seconds": 1.2, "mbb": 0.506, "bytes": 1077}
+{"name": "Final table, 3 left, 40bb average, short stack in the big blind, flat payouts", "key": "icm3_ba8b8314a6f7f208", "nodes": 78, "iterations": 1500, "seconds": 1.6, "mbb": 0.254, "bytes": 1054}
+{"name": "Final table, 3 left, 10bb average, equal stacks, standard payouts", "key": "icm3_17602aef464d520b", "nodes": 54, "iterations": 1500, "seconds": 1.2, "mbb": 0.062, "bytes": 1101}
+{"name": "Final table, 3 left, 10bb average, chip leader on the button, standard payouts", "key": "icm3_bee4061d85cddfdb", "nodes": 42, "iterations": 1500, "seconds": 1.1, "mbb": 0.444, "bytes": 511}
+{"name": "Final table, 3 left, 10bb average, short stack in the big blind, standard payouts", "key": "icm3_984de56bdf39981f", "nodes": 54, "iterations": 1500, "seconds": 1.3, "mbb": 2.672, "bytes": 1219}
+{"name": "Final table, 3 left, 15bb average, equal stacks, standard payouts", "key": "icm3_296d4c1f8a8a9bc1", "nodes": 54, "iterations": 1500, "seconds": 1.2, "mbb": 0.178, "bytes": 1251}
+{"name": "Final table, 3 left, 15bb average, chip leader on the button, standard payouts", "key": "icm3_29787bb32bbe0afe", "nodes": 42, "iterations": 1500, "seconds": 1.0, "mbb": 0.289, "bytes": 679}
+{"name": "Final table, 3 left, 15bb average, short stack in the big blind, standard payouts", "key": "icm3_57f7a9f60ef735a3", "nodes": 54, "iterations": 1500, "seconds": 1.2, "mbb": 0.716, "bytes": 1003}
+{"name": "Final table, 3 left, 20bb average, equal stacks, standard payouts", "key": "icm3_362f1c0e912b0896", "nodes": 54, "iterations": 1500, "seconds": 1.2, "mbb": 0.215, "bytes": 1194}
+{"name": "Final table, 3 left, 20bb average, chip leader on the button, standard payouts", "key": "icm3_76b15d3e923a5cd3", "nodes": 54, "iterations": 1500, "seconds": 1.2, "mbb": 0.225, "bytes": 941}
+{"name": "Final table, 3 left, 20bb average, short stack in the big blind, standard payouts", "key": "icm3_f41a384f024f488f", "nodes": 47, "iterations": 1500, "seconds": 1.2, "mbb": 0.63, "bytes": 783}
+{"name": "Final table, 3 left, 30bb average, equal stacks, standard payouts", "key": "icm3_69ed49c5ae439b84", "nodes": 47, "iterations": 1500, "seconds": 1.2, "mbb": 0.247, "bytes": 960}
+{"name": "Final table, 3 left, 30bb average, chip leader on the button, standard payouts", "key": "icm3_47e6ac0577a4fb3b", "nodes": 54, "iterations": 1500, "seconds": 1.2, "mbb": 0.272, "bytes": 1008}
+{"name": "Final table, 3 left, 30bb average, short stack in the big blind, standard payouts", "key": "icm3_3f017bad480e0cbf", "nodes": 61, "iterations": 1500, "seconds": 1.4, "mbb": 0.252, "bytes": 895}
+{"name": "Final table, 3 left, 40bb average, equal stacks, standard payouts", "key": "icm3_1162c421558daaba", "nodes": 82, "iterations": 1500, "seconds": 1.7, "mbb": 0.288, "bytes": 1277}
+{"name": "Final table, 3 left, 40bb average, chip leader on the button, standard payouts", "key": "icm3_6d6426ab7d945641", "nodes": 54, "iterations": 1500, "seconds": 1.2, "mbb": 0.478, "bytes": 1032}
+{"name": "Final table, 3 left, 40bb average, short stack in the big blind, standard payouts", "key": "icm3_f77dc7c0bc3b2ce1", "nodes": 78, "iterations": 1500, "seconds": 1.6, "mbb": 0.272, "bytes": 1067}
+{"name": "Final table, 3 left, 10bb average, equal stacks, top-heavy payouts", "key": "icm3_6813cdfcfda99f6a", "nodes": 54, "iterations": 1500, "seconds": 1.2, "mbb": 0.069, "bytes": 1098}
+{"name": "Final table, 3 left, 10bb average, chip leader on the button, top-heavy payouts", "key": "icm3_b02d5b3522554e75", "nodes": 42, "iterations": 1500, "seconds": 1.0, "mbb": 0.486, "bytes": 524}
+{"name": "Final table, 3 left, 10bb average, short stack in the big blind, top-heavy payouts", "key": "icm3_041a2aa2329c1ad4", "nodes": 54, "iterations": 1500, "seconds": 1.2, "mbb": 3.406, "bytes": 1371}
+{"name": "Final table, 3 left, 15bb average, equal stacks, top-heavy payouts", "key": "icm3_c475e871e56a7e5c", "nodes": 54, "iterations": 1500, "seconds": 1.2, "mbb": 0.171, "bytes": 1225}
+{"name": "Final table, 3 left, 15bb average, chip leader on the button, top-heavy payouts", "key": "icm3_95111567e902063a", "nodes": 42, "iterations": 1500, "seconds": 1.0, "mbb": 0.299, "bytes": 758}
+{"name": "Final table, 3 left, 15bb average, short stack in the big blind, top-heavy payouts", "key": "icm3_64330b92edfdf36e", "nodes": 54, "iterations": 1500, "seconds": 1.2, "mbb": 0.742, "bytes": 966}
+{"name": "Final table, 3 left, 20bb average, equal stacks, top-heavy payouts", "key": "icm3_fc048ac5f5db0c3e", "nodes": 54, "iterations": 1500, "seconds": 1.2, "mbb": 0.199, "bytes": 1210}
+{"name": "Final table, 3 left, 20bb average, chip leader on the button, top-heavy payouts", "key": "icm3_98cd11ae0c3ed864", "nodes": 54, "iterations": 1500, "seconds": 1.2, "mbb": 0.21, "bytes": 946}
+{"name": "Final table, 3 left, 20bb average, short stack in the big blind, top-heavy payouts", "key": "icm3_0cca55dcc09608cd", "nodes": 47, "iterations": 1500, "seconds": 1.2, "mbb": 0.634, "bytes": 840}
+{"name": "Final table, 3 left, 30bb average, equal stacks, top-heavy payouts", "key": "icm3_a41d741a97508e06", "nodes": 47, "iterations": 1500, "seconds": 1.2, "mbb": 0.315, "bytes": 918}
+{"name": "Final table, 3 left, 30bb average, chip leader on the button, top-heavy payouts", "key": "icm3_6ab89a96be2c1069", "nodes": 54, "iterations": 1500, "seconds": 1.2, "mbb": 0.223, "bytes": 1010}
+{"name": "Final table, 3 left, 30bb average, short stack in the big blind, top-heavy payouts", "key": "icm3_1399a88cbcf710b9", "nodes": 61, "iterations": 1500, "seconds": 1.4, "mbb": 0.234, "bytes": 932}
+{"name": "Final table, 3 left, 40bb average, equal stacks, top-heavy payouts", "key": "icm3_e0a8251f5c7fea21", "nodes": 82, "iterations": 1500, "seconds": 1.7, "mbb": 0.226, "bytes": 1306}
+{"name": "Final table, 3 left, 40bb average, chip leader on the button, top-heavy payouts", "key": "icm3_6ec39e1631e18f59", "nodes": 54, "iterations": 1500, "seconds": 1.2, "mbb": 0.434, "bytes": 1051}
+{"name": "Final table, 3 left, 40bb average, short stack in the big blind, top-heavy payouts", "key": "icm3_65b732f05b9bc824", "nodes": 78, "iterations": 1500, "seconds": 1.6, "mbb": 0.259, "bytes": 1030}
+{"name": "Final table, 3 left, 10bb average, chip leader in the big blind", "key": "icm3_f52f92a8653c3a63", "nodes": 24, "iterations": 1500, "seconds": 0.7, "mbb": 0.039, "bytes": 542}
+{"name": "Final table, 3 left, 10bb average, short stack on the button", "key": "icm3_b6e7ed326f78b99a", "nodes": 36, "iterations": 1500, "seconds": 0.9, "mbb": 0.119, "bytes": 898}
+{"name": "Final table, 3 left, 15bb average, chip leader in the big blind", "key": "icm3_d548703601c7f007", "nodes": 48, "iterations": 1500, "seconds": 1.1, "mbb": 0.06, "bytes": 854}
+{"name": "Final table, 3 left, 15bb average, short stack on the button", "key": "icm3_074b012d94cc77bd", "nodes": 36, "iterations": 1500, "seconds": 1.0, "mbb": 0.306, "bytes": 1367}
+{"name": "Final table, 3 left, 20bb average, chip leader in the big blind", "key": "icm3_5be47597bae033ad", "nodes": 54, "iterations": 1500, "seconds": 1.2, "mbb": 0.036, "bytes": 1272}
+{"name": "Final table, 3 left, 20bb average, short stack on the button", "key": "icm3_3ccdfd442d2088b6", "nodes": 57, "iterations": 1500, "seconds": 1.3, "mbb": 0.21, "bytes": 965}
+{"name": "Final table, 3 left, 30bb average, chip leader in the big blind", "key": "icm3_0cfa53285f707935", "nodes": 76, "iterations": 1500, "seconds": 1.7, "mbb": 0.158, "bytes": 1241}
+{"name": "Final table, 3 left, 30bb average, short stack on the button", "key": "icm3_960e3cafd78ed83d", "nodes": 72, "iterations": 1500, "seconds": 1.6, "mbb": 0.155, "bytes": 1228}
+{"name": "Final table, 3 left, 40bb average, chip leader in the big blind", "key": "icm3_02fcf64c153de123", "nodes": 76, "iterations": 1500, "seconds": 1.7, "mbb": 0.153, "bytes": 1330}
+{"name": "Final table, 3 left, 40bb average, short stack on the button", "key": "icm3_6f7a87971e2a511e", "nodes": 107, "iterations": 1500, "seconds": 2.2, "mbb": 0.297, "bytes": 1364}
+{"name": "Final table, 4 left, 10bb average, equal stacks, flat payouts", "key": "icm4_5207eed3d8fb2451", "nodes": 149, "iterations": 1500, "seconds": 3.2, "mbb": 0.106, "bytes": 1717}
+{"name": "Final table, 4 left, 10bb average, chip leader on the button, flat payouts", "key": "icm4_c84a86444fb367be", "nodes": 137, "iterations": 1500, "seconds": 2.6, "mbb": 0.18, "bytes": 1345}
+{"name": "Final table, 4 left, 10bb average, short stack in the big blind, flat payouts", "key": "icm4_bf4e054f18db0209", "nodes": 188, "iterations": 1500, "seconds": 3.9, "mbb": 0.628, "bytes": 2568}
+{"name": "Final table, 4 left, 15bb average, equal stacks, flat payouts", "key": "icm4_fcfad2ba6590e87c", "nodes": 149, "iterations": 1500, "seconds": 3.1, "mbb": 0.289, "bytes": 2019}
+{"name": "Final table, 4 left, 15bb average, chip leader on the button, flat payouts", "key": "icm4_1c1f636403d9dd4d", "nodes": 197, "iterations": 1500, "seconds": 3.9, "mbb": 0.216, "bytes": 1829}
+{"name": "Final table, 4 left, 15bb average, short stack in the big blind, flat payouts", "key": "icm4_cc2a1ed424c2d1d1", "nodes": 188, "iterations": 1500, "seconds": 3.9, "mbb": 0.703, "bytes": 2339}
+{"name": "Final table, 4 left, 20bb average, equal stacks, flat payouts", "key": "icm4_5af137b3b3d1ec6d", "nodes": 197, "iterations": 1500, "seconds": 3.9, "mbb": 0.542, "bytes": 2276}
+{"name": "Final table, 4 left, 20bb average, chip leader on the button, flat payouts", "key": "icm4_6fa077529be3be93", "nodes": 197, "iterations": 1500, "seconds": 3.9, "mbb": 0.305, "bytes": 1990}
+{"name": "Final table, 4 left, 30bb average, equal stacks, flat payouts", "key": "icm4_8b44a7feb3d86e48", "nodes": 176, "iterations": 1500, "seconds": 3.5, "mbb": 0.419, "bytes": 1735}
+{"name": "Final table, 4 left, 20bb average, short stack in the big blind, flat payouts", "key": "icm4_2cbb91431c716463", "nodes": 269, "iterations": 1500, "seconds": 5.2, "mbb": 1.199, "bytes": 3341}
+{"name": "Final table, 4 left, 30bb average, chip leader on the button, flat payouts", "key": "icm4_c20f2f4f6d997753", "nodes": 197, "iterations": 1500, "seconds": 3.6, "mbb": 0.38, "bytes": 2038}
+{"name": "Final table, 4 left, 30bb average, short stack in the big blind, flat payouts", "key": "icm4_ceef83dfb484ab33", "nodes": 267, "iterations": 1500, "seconds": 4.9, "mbb": 0.485, "bytes": 2677}
+{"name": "Final table, 4 left, 40bb average, equal stacks, flat payouts", "key": "icm4_b138adc91f26e8d1", "nodes": 310, "iterations": 1500, "seconds": 4.7, "mbb": 0.576, "bytes": 3031}
+{"name": "Final table, 4 left, 40bb average, chip leader on the button, flat payouts", "key": "icm4_65ca63da1eda6bcd", "nodes": 176, "iterations": 1500, "seconds": 2.9, "mbb": 0.416, "bytes": 1760}
+{"name": "Final table, 4 left, 10bb average, equal stacks, standard payouts", "key": "icm4_a274f26cdb1295c7", "nodes": 149, "iterations": 1500, "seconds": 2.6, "mbb": 0.109, "bytes": 1850}
+{"name": "Final table, 4 left, 10bb average, chip leader on the button, standard payouts", "key": "icm4_9f443e61e642c4b9", "nodes": 137, "iterations": 1500, "seconds": 2.3, "mbb": 0.243, "bytes": 1559}
+{"name": "Final table, 4 left, 40bb average, short stack in the big blind, flat payouts", "key": "icm4_1a571d8e4cfc6ca2", "nodes": 401, "iterations": 1500, "seconds": 6.2, "mbb": 0.47, "bytes": 3230}
+{"name": "Final table, 4 left, 15bb average, equal stacks, standard payouts", "key": "icm4_d52d7adc173175f8", "nodes": 149, "iterations": 1500, "seconds": 2.5, "mbb": 0.281, "bytes": 2023}
+{"name": "Final table, 4 left, 10bb average, short stack in the big blind, standard payouts", "key": "icm4_34b29139b79d44ac", "nodes": 188, "iterations": 1500, "seconds": 3.1, "mbb": 0.768, "bytes": 2373}
+{"name": "Final table, 4 left, 15bb average, chip leader on the button, standard payouts", "key": "icm4_3bc3cb15d6b5ac21", "nodes": 197, "iterations": 1500, "seconds": 3.1, "mbb": 0.256, "bytes": 1829}
+{"name": "Final table, 4 left, 15bb average, short stack in the big blind, standard payouts", "key": "icm4_a5a8892b5740de1b", "nodes": 188, "iterations": 1500, "seconds": 3.1, "mbb": 0.753, "bytes": 2656}
+{"name": "Final table, 4 left, 20bb average, equal stacks, standard payouts", "key": "icm4_2f6ae9d98dea11ba", "nodes": 197, "iterations": 1500, "seconds": 3.2, "mbb": 0.474, "bytes": 2328}
+{"name": "Final table, 4 left, 20bb average, chip leader on the button, standard payouts", "key": "icm4_fcad2fab6717cd8c", "nodes": 197, "iterations": 1500, "seconds": 3.2, "mbb": 0.288, "bytes": 1949}
+{"name": "Final table, 4 left, 30bb average, equal stacks, standard payouts", "key": "icm4_00d07fee03917ffe", "nodes": 176, "iterations": 1500, "seconds": 2.8, "mbb": 0.502, "bytes": 1920}
+{"name": "Final table, 4 left, 20bb average, short stack in the big blind, standard payouts", "key": "icm4_d5b756fd078abfd1", "nodes": 269, "iterations": 1500, "seconds": 4.2, "mbb": 1.028, "bytes": 3287}
+{"name": "Final table, 4 left, 30bb average, chip leader on the button, standard payouts", "key": "icm4_946406e602ff192d", "nodes": 197, "iterations": 1500, "seconds": 3.2, "mbb": 0.461, "bytes": 2210}
+{"name": "Final table, 4 left, 30bb average, short stack in the big blind, standard payouts", "key": "icm4_e3c8c1d4f8e0c7ff", "nodes": 267, "iterations": 1500, "seconds": 4.3, "mbb": 0.521, "bytes": 2602}
+{"name": "Final table, 4 left, 40bb average, equal stacks, standard payouts", "key": "icm4_5b7f18db1ab256bb", "nodes": 310, "iterations": 1500, "seconds": 4.5, "mbb": 0.65, "bytes": 3146}
+{"name": "Final table, 4 left, 40bb average, chip leader on the button, standard payouts", "key": "icm4_5239f3f31ef8fa79", "nodes": 176, "iterations": 1500, "seconds": 3.0, "mbb": 0.544, "bytes": 1840}
+{"name": "Final table, 4 left, 10bb average, equal stacks, top-heavy payouts", "key": "icm4_29ddd9129d055991", "nodes": 149, "iterations": 1500, "seconds": 3.0, "mbb": 0.096, "bytes": 1957}
+{"name": "Final table, 4 left, 10bb average, chip leader on the button, top-heavy payouts", "key": "icm4_c97e773a37a7ee3a", "nodes": 137, "iterations": 1500, "seconds": 2.6, "mbb": 0.238, "bytes": 1319}
+{"name": "Final table, 4 left, 40bb average, short stack in the big blind, standard payouts", "key": "icm4_5039aeb791dfb832", "nodes": 401, "iterations": 1500, "seconds": 7.3, "mbb": 0.489, "bytes": 3340}
+{"name": "Final table, 4 left, 15bb average, equal stacks, top-heavy payouts", "key": "icm4_102f2b27df3d0088", "nodes": 149, "iterations": 1500, "seconds": 3.0, "mbb": 0.258, "bytes": 2053}
+{"name": "Final table, 4 left, 10bb average, short stack in the big blind, top-heavy payouts", "key": "icm4_3bb691a92a859d78", "nodes": 188, "iterations": 1500, "seconds": 3.7, "mbb": 0.679, "bytes": 2800}
+{"name": "Final table, 4 left, 15bb average, short stack in the big blind, top-heavy payouts", "key": "icm4_c6cb4b3eda0561ac", "nodes": 188, "iterations": 1500, "seconds": 3.7, "mbb": 0.718, "bytes": 2935}
+{"name": "Final table, 4 left, 15bb average, chip leader on the button, top-heavy payouts", "key": "icm4_8e3f9effb2b152f1", "nodes": 197, "iterations": 1500, "seconds": 3.7, "mbb": 0.25, "bytes": 1875}
+{"name": "Final table, 4 left, 20bb average, equal stacks, top-heavy payouts", "key": "icm4_58dcfde3a3bfcd0f", "nodes": 197, "iterations": 1500, "seconds": 3.8, "mbb": 0.496, "bytes": 2506}
+{"name": "Final table, 4 left, 20bb average, chip leader on the button, top-heavy payouts", "key": "icm4_b25d770f50c334cd", "nodes": 197, "iterations": 1500, "seconds": 3.8, "mbb": 0.269, "bytes": 2089}
+{"name": "Final table, 4 left, 30bb average, equal stacks, top-heavy payouts", "key": "icm4_1adf575f8bec36be", "nodes": 176, "iterations": 1500, "seconds": 3.5, "mbb": 0.472, "bytes": 1930}
+{"name": "Final table, 4 left, 20bb average, short stack in the big blind, top-heavy payouts", "key": "icm4_627caea41c31efe0", "nodes": 269, "iterations": 1500, "seconds": 5.3, "mbb": 1.05, "bytes": 2825}
+{"name": "Final table, 4 left, 30bb average, chip leader on the button, top-heavy payouts", "key": "icm4_9ef4c20b81d110f6", "nodes": 197, "iterations": 1500, "seconds": 3.8, "mbb": 0.385, "bytes": 2312}
+{"name": "Final table, 4 left, 30bb average, short stack in the big blind, top-heavy payouts", "key": "icm4_9e3d15262ceb18ab", "nodes": 267, "iterations": 1500, "seconds": 5.3, "mbb": 0.459, "bytes": 2716}
+{"name": "Final table, 4 left, 40bb average, equal stacks, top-heavy payouts", "key": "icm4_6361ad48c648dc42", "nodes": 310, "iterations": 1500, "seconds": 5.5, "mbb": 0.561, "bytes": 3244}
+{"name": "Final table, 4 left, 40bb average, chip leader on the button, top-heavy payouts", "key": "icm4_ac7d09b977cd1ec2", "nodes": 176, "iterations": 1500, "seconds": 3.4, "mbb": 0.531, "bytes": 1893}
+{"name": "Final table, 4 left, 10bb average, chip leader in the big blind", "key": "icm4_4a9b8ba5531881c8", "nodes": 143, "iterations": 1500, "seconds": 2.7, "mbb": 0.046, "bytes": 1565}
+{"name": "Final table, 4 left, 40bb average, short stack in the big blind, top-heavy payouts", "key": "icm4_98e81f28539f5814", "nodes": 401, "iterations": 1500, "seconds": 7.4, "mbb": 0.408, "bytes": 3243}
+{"name": "Final table, 4 left, 10bb average, short stack on the button", "key": "icm4_01440977a05a2370", "nodes": 158, "iterations": 1500, "seconds": 3.1, "mbb": 0.546, "bytes": 2201}
+{"name": "Final table, 4 left, 15bb average, chip leader in the big blind", "key": "icm4_a1866864451e64ac", "nodes": 149, "iterations": 1500, "seconds": 2.9, "mbb": 0.073, "bytes": 2196}
+{"name": "Final table, 4 left, 15bb average, short stack on the button", "key": "icm4_0e8e3584b30a20fe", "nodes": 158, "iterations": 1500, "seconds": 3.0, "mbb": 0.723, "bytes": 2609}
+{"name": "Final table, 4 left, 20bb average, chip leader in the big blind", "key": "icm4_8d8a70db977226da", "nodes": 158, "iterations": 1500, "seconds": 3.2, "mbb": 0.12, "bytes": 2725}
+{"name": "Final table, 4 left, 20bb average, short stack on the button", "key": "icm4_398677a9e422c7bd", "nodes": 182, "iterations": 1500, "seconds": 3.5, "mbb": 0.345, "bytes": 2290}
+{"name": "Final table, 4 left, 30bb average, short stack on the button", "key": "icm4_0be13167ec19a502", "nodes": 194, "iterations": 1500, "seconds": 3.7, "mbb": 0.459, "bytes": 2056}
+{"name": "Final table, 4 left, 30bb average, chip leader in the big blind", "key": "icm4_665f9a50c60d31ec", "nodes": 318, "iterations": 1500, "seconds": 6.5, "mbb": 0.356, "bytes": 2389}
+{"name": "Final table, 4 left, 40bb average, chip leader in the big blind", "key": "icm4_f8ed4c658a5c1581", "nodes": 345, "iterations": 1500, "seconds": 6.8, "mbb": 0.333, "bytes": 2457}
+{"name": "Final table, 4 left, 40bb average, short stack on the button", "key": "icm4_820acb102209f44c", "nodes": 363, "iterations": 1500, "seconds": 6.3, "mbb": 0.486, "bytes": 3413}
+{"name": "Final table, 5 left, 10bb average, equal stacks, flat payouts", "key": "icm5_61a558e74525dfd0", "nodes": 390, "iterations": 1500, "seconds": 7.4, "mbb": 0.159, "bytes": 3032}
+{"name": "Final table, 5 left, 10bb average, chip leader on the button, flat payouts", "key": "icm5_24c20dbd7b98292b", "nodes": 378, "iterations": 1500, "seconds": 6.5, "mbb": 0.165, "bytes": 2418}
+{"name": "Final table, 5 left, 15bb average, equal stacks, flat payouts", "key": "icm5_85895b2c0e237889", "nodes": 390, "iterations": 1500, "seconds": 7.5, "mbb": 0.35, "bytes": 3249}
+{"name": "Final table, 5 left, 10bb average, short stack in the big blind, flat payouts", "key": "icm5_42f922e2454c9829", "nodes": 528, "iterations": 1500, "seconds": 10.1, "mbb": 0.878, "bytes": 7505}
+{"name": "Final table, 5 left, 15bb average, chip leader on the button, flat payouts", "key": "icm5_9193fb0dc2990b38", "nodes": 599, "iterations": 1500, "seconds": 11.5, "mbb": 0.244, "bytes": 3765}
+{"name": "Final table, 5 left, 15bb average, short stack in the big blind, flat payouts", "key": "icm5_4ddfbffeb3337048", "nodes": 528, "iterations": 1500, "seconds": 10.3, "mbb": 0.807, "bytes": 5764}
+{"name": "Final table, 5 left, 20bb average, chip leader on the button, flat payouts", "key": "icm5_ba5a395d4f6535ca", "nodes": 599, "iterations": 1500, "seconds": 11.6, "mbb": 0.376, "bytes": 3809}
+{"name": "Final table, 5 left, 20bb average, equal stacks, flat payouts", "key": "icm5_c5cf2635a214f280", "nodes": 599, "iterations": 1500, "seconds": 11.7, "mbb": 0.695, "bytes": 4468}
+{"name": "Final table, 5 left, 30bb average, equal stacks, flat payouts", "key": "icm5_65cabeb61a59a806", "nodes": 666, "iterations": 1500, "seconds": 12.2, "mbb": 0.625, "bytes": 4379}
+{"name": "Final table, 5 left, 20bb average, short stack in the big blind, flat payouts", "key": "icm5_ef644798573016a6", "nodes": 863, "iterations": 1500, "seconds": 17.5, "mbb": 1.118, "bytes": 8302}
+{"name": "Final table, 5 left, 30bb average, chip leader on the button, flat payouts", "key": "icm5_1a80b00912e1fee8", "nodes": 825, "iterations": 1500, "seconds": 16.5, "mbb": 0.547, "bytes": 5405}
+{"name": "Final table, 5 left, 30bb average, short stack in the big blind, flat payouts", "key": "icm5_dd7c5f3e7e2fe2e2", "nodes": 1059, "iterations": 1500, "seconds": 21.7, "mbb": 0.817, "bytes": 7839}
+{"name": "Final table, 5 left, 40bb average, equal stacks, flat payouts", "key": "icm5_88be7697cb0f5cdb", "nodes": 963, "iterations": 1500, "seconds": 16.1, "mbb": 0.676, "bytes": 6667}
+{"name": "Final table, 5 left, 40bb average, chip leader on the button, flat payouts", "key": "icm5_9135c2c33fb79de7", "nodes": 779, "iterations": 1500, "seconds": 11.5, "mbb": 0.563, "bytes": 4758}
+{"name": "Final table, 5 left, 10bb average, equal stacks, standard payouts", "key": "icm5_9d4e41edc6dce262", "nodes": 390, "iterations": 1500, "seconds": 6.5, "mbb": 0.144, "bytes": 3174}
+{"name": "Final table, 5 left, 10bb average, chip leader on the button, standard payouts", "key": "icm5_fbe1da6e22e0380e", "nodes": 378, "iterations": 1500, "seconds": 7.5, "mbb": 0.168, "bytes": 2537}
+{"name": "Final table, 5 left, 40bb average, short stack in the big blind, flat payouts", "key": "icm5_b12bac6b5cfd24aa", "nodes": 1552, "iterations": 1500, "seconds": 28.5, "mbb": 0.616, "bytes": 10353}
+{"name": "Final table, 5 left, 10bb average, short stack in the big blind, standard payouts", "key": "icm5_0758c006002b64bd", "nodes": 528, "iterations": 1500, "seconds": 9.9, "mbb": 0.666, "bytes": 6858}
+{"name": "Final table, 5 left, 15bb average, equal stacks, standard payouts", "key": "icm5_65a3604f9d3fb575", "nodes": 390, "iterations": 1500, "seconds": 6.2, "mbb": 0.345, "bytes": 3426}
+{"name": "Final table, 5 left, 15bb average, chip leader on the button, standard payouts", "key": "icm5_cfb4dd7b003a221b", "nodes": 599, "iterations": 1500, "seconds": 10.5, "mbb": 0.242, "bytes": 3373}
+{"name": "Final table, 5 left, 15bb average, short stack in the big blind, standard payouts", "key": "icm5_6c31ee3aa607d5fb", "nodes": 528, "iterations": 1500, "seconds": 10.6, "mbb": 0.748, "bytes": 5737}
+{"name": "Final table, 5 left, 20bb average, equal stacks, standard payouts", "key": "icm5_bfe443a6bd321e1f", "nodes": 599, "iterations": 1500, "seconds": 13.1, "mbb": 0.737, "bytes": 4462}
+{"name": "Final table, 5 left, 20bb average, chip leader on the button, standard payouts", "key": "icm5_f3403c785c75073b", "nodes": 599, "iterations": 1500, "seconds": 12.7, "mbb": 0.441, "bytes": 4358}
+{"name": "Final table, 5 left, 30bb average, equal stacks, standard payouts", "key": "icm5_23e9823881a65d44", "nodes": 666, "iterations": 1500, "seconds": 13.2, "mbb": 0.674, "bytes": 4331}
+{"name": "Final table, 5 left, 20bb average, short stack in the big blind, standard payouts", "key": "icm5_72b796075ccdcf32", "nodes": 863, "iterations": 1500, "seconds": 18.7, "mbb": 1.191, "bytes": 7351}
+{"name": "Final table, 5 left, 30bb average, chip leader on the button, standard payouts", "key": "icm5_79de7654c94a413c", "nodes": 825, "iterations": 1500, "seconds": 17.3, "mbb": 0.596, "bytes": 5217}
+{"name": "Final table, 5 left, 30bb average, short stack in the big blind, standard payouts", "key": "icm5_07d1c3b5760f4599", "nodes": 1059, "iterations": 1500, "seconds": 23.1, "mbb": 0.78, "bytes": 7817}
+{"name": "Final table, 5 left, 40bb average, equal stacks, standard payouts", "key": "icm5_5c2ad6d2726c12d9", "nodes": 963, "iterations": 1500, "seconds": 18.9, "mbb": 0.798, "bytes": 6520}
+{"name": "Final table, 5 left, 40bb average, chip leader on the button, standard payouts", "key": "icm5_b022e3d7e1c26661", "nodes": 779, "iterations": 1500, "seconds": 15.3, "mbb": 0.606, "bytes": 4762}
+{"name": "Final table, 5 left, 10bb average, equal stacks, top-heavy payouts", "key": "icm5_d8e79dd838253c51", "nodes": 390, "iterations": 1500, "seconds": 8.4, "mbb": 0.137, "bytes": 3125}
+{"name": "Final table, 5 left, 10bb average, chip leader on the button, top-heavy payouts", "key": "icm5_c69cb8d54e728068", "nodes": 378, "iterations": 1500, "seconds": 7.0, "mbb": 0.196, "bytes": 2478}
+{"name": "Final table, 5 left, 10bb average, short stack in the big blind, top-heavy payouts", "key": "icm5_1cef4161cda3695d", "nodes": 528, "iterations": 1500, "seconds": 11.0, "mbb": 0.573, "bytes": 6239}
+{"name": "Final table, 5 left, 40bb average, short stack in the big blind, standard payouts", "key": "icm5_417d6ec3f0729e99", "nodes": 1552, "iterations": 1500, "seconds": 34.1, "mbb": 0.659, "bytes": 10601}
+{"name": "Final table, 5 left, 15bb average, equal stacks, top-heavy payouts", "key": "icm5_05a8dae9d99ff649", "nodes": 390, "iterations": 1500, "seconds": 8.2, "mbb": 0.288, "bytes": 3282}
+{"name": "Final table, 5 left, 15bb average, chip leader on the button, top-heavy payouts", "key": "icm5_c38d83a01fc16203", "nodes": 599, "iterations": 1500, "seconds": 12.0, "mbb": 0.232, "bytes": 3366}
+{"name": "Final table, 5 left, 15bb average, short stack in the big blind, top-heavy payouts", "key": "icm5_5804a4650421e740", "nodes": 528, "iterations": 1500, "seconds": 10.5, "mbb": 0.654, "bytes": 5822}
+{"name": "Final table, 5 left, 20bb average, equal stacks, top-heavy payouts", "key": "icm5_eb70ef424a67c4b4", "nodes": 599, "iterations": 1500, "seconds": 11.8, "mbb": 0.579, "bytes": 4525}
+{"name": "Final table, 5 left, 20bb average, chip leader on the button, top-heavy payouts", "key": "icm5_05fb63f31cd8a66c", "nodes": 599, "iterations": 1500, "seconds": 11.7, "mbb": 0.405, "bytes": 4155}
+{"name": "Final table, 5 left, 30bb average, equal stacks, top-heavy payouts", "key": "icm5_cbe6f0cbe4221904", "nodes": 666, "iterations": 1500, "seconds": 12.2, "mbb": 0.631, "bytes": 4377}
+{"name": "Final table, 5 left, 20bb average, short stack in the big blind, top-heavy payouts", "key": "icm5_e97f810be6210a5c", "nodes": 863, "iterations": 1500, "seconds": 17.4, "mbb": 1.018, "bytes": 7790}
+{"name": "Final table, 5 left, 30bb average, chip leader on the button, top-heavy payouts", "key": "icm5_8acf1668d241bcc6", "nodes": 825, "iterations": 1500, "seconds": 18.1, "mbb": 0.6, "bytes": 5184}
+{"name": "Final table, 5 left, 30bb average, short stack in the big blind, top-heavy payouts", "key": "icm5_a28b460cf6d80921", "nodes": 1059, "iterations": 1500, "seconds": 23.7, "mbb": 0.617, "bytes": 8030}
+{"name": "Final table, 5 left, 40bb average, equal stacks, top-heavy payouts", "key": "icm5_e0afb8c1ad7188b8", "nodes": 963, "iterations": 1500, "seconds": 19.2, "mbb": 0.749, "bytes": 6763}
+{"name": "Final table, 5 left, 40bb average, chip leader on the button, top-heavy payouts", "key": "icm5_7fa8e7ed606b135e", "nodes": 779, "iterations": 1500, "seconds": 15.5, "mbb": 0.576, "bytes": 4792}
+{"name": "Final table, 5 left, 10bb average, chip leader in the big blind", "key": "icm5_5549ced7617d16d7", "nodes": 384, "iterations": 1500, "seconds": 7.3, "mbb": 0.05, "bytes": 3564}
+{"name": "Final table, 5 left, 10bb average, short stack on the button", "key": "icm5_512c8246e2c5bc6c", "nodes": 504, "iterations": 1500, "seconds": 10.5, "mbb": 0.682, "bytes": 3764}
+{"name": "Final table, 5 left, 15bb average, chip leader in the big blind", "key": "icm5_587948ecb18e9708", "nodes": 393, "iterations": 1500, "seconds": 8.1, "mbb": 0.141, "bytes": 4069}
+{"name": "Final table, 5 left, 40bb average, short stack in the big blind, top-heavy payouts", "key": "icm5_9525e0b40f222abb", "nodes": 1552, "iterations": 1500, "seconds": 33.0, "mbb": 0.647, "bytes": 10203}
+{"name": "Final table, 5 left, 15bb average, short stack on the button", "key": "icm5_9557f1698e0fb5ce", "nodes": 504, "iterations": 1500, "seconds": 8.9, "mbb": 0.597, "bytes": 3975}
+{"name": "Final table, 5 left, 20bb average, chip leader in the big blind", "key": "icm5_db777f9b44a62d08", "nodes": 498, "iterations": 1500, "seconds": 8.0, "mbb": 0.314, "bytes": 3864}
+{"name": "Final table, 5 left, 20bb average, short stack on the button", "key": "icm5_0191d0ab4e851195", "nodes": 719, "iterations": 1500, "seconds": 12.5, "mbb": 0.505, "bytes": 5278}
+{"name": "Final table, 5 left, 30bb average, chip leader in the big blind", "key": "icm5_e485981a69ab0562", "nodes": 947, "iterations": 1500, "seconds": 16.7, "mbb": 0.612, "bytes": 5140}
+{"name": "Final table, 5 left, 30bb average, short stack on the button", "key": "icm5_158945efa5eca2f6", "nodes": 725, "iterations": 1500, "seconds": 12.4, "mbb": 0.461, "bytes": 4991}
+{"name": "Final table, 5 left, 40bb average, chip leader in the big blind", "key": "icm5_c32245ae4e40d397", "nodes": 1254, "iterations": 1500, "seconds": 22.2, "mbb": 0.601, "bytes": 7066}
+{"name": "Final table, 5 left, 40bb average, short stack on the button", "key": "icm5_cca2461700482bf2", "nodes": 1327, "iterations": 1500, "seconds": 24.6, "mbb": 0.601, "bytes": 9176}
+{"name": "Final table, 6 left, 10bb average, equal stacks, flat payouts", "key": "icm6_cfcf660e31f0c807", "nodes": 924, "iterations": 1500, "seconds": 24.6, "mbb": 0.152, "bytes": 5367}
+{"name": "Final table, 6 left, 10bb average, chip leader on the button, flat payouts", "key": "icm6_6fe437f5bf9e0a55", "nodes": 1062, "iterations": 1500, "seconds": 31.8, "mbb": 0.17, "bytes": 5695}
+{"name": "Final table, 6 left, 10bb average, short stack in the big blind, flat payouts", "key": "icm6_2c89a26585a6d1ad", "nodes": 1248, "iterations": 1500, "seconds": 33.2, "mbb": 0.651, "bytes": 12424}
+{"name": "Final table, 6 left, 15bb average, equal stacks, flat payouts", "key": "icm6_fef19ca717d93078", "nodes": 924, "iterations": 1500, "seconds": 22.3, "mbb": 0.355, "bytes": 5338}
+{"name": "Final table, 6 left, 15bb average, chip leader on the button, flat payouts", "key": "icm6_07b436fa3e3cf60e", "nodes": 1407, "iterations": 1500, "seconds": 35.3, "mbb": 0.285, "bytes": 6095}
+{"name": "Final table, 6 left, 15bb average, short stack in the big blind, flat payouts", "key": "icm6_7f16fdebce8ba359", "nodes": 1248, "iterations": 1500, "seconds": 32.0, "mbb": 0.718, "bytes": 9995}
+{"name": "Final table, 6 left, 20bb average, equal stacks, flat payouts", "key": "icm6_889e31e18c484078", "nodes": 1525, "iterations": 1500, "seconds": 34.8, "mbb": 0.744, "bytes": 8186}
+{"name": "Final table, 6 left, 20bb average, chip leader on the button, flat payouts", "key": "icm6_6528b97e49a19ea9", "nodes": 1638, "iterations": 1500, "seconds": 36.0, "mbb": 0.462, "bytes": 8277}
+{"name": "Final table, 6 left, 30bb average, equal stacks, flat payouts", "key": "icm6_8b0770dfded118f2", "nodes": 2008, "iterations": 1500, "seconds": 36.8, "mbb": 0.77, "bytes": 9582}
+{"name": "Final table, 6 left, 20bb average, short stack in the big blind, flat payouts", "key": "icm6_8bb61d9087d03720", "nodes": 2155, "iterations": 1500, "seconds": 44.5, "mbb": 1.118, "bytes": 17814}
+{"name": "Final table, 6 left, 30bb average, chip leader on the button, flat payouts", "key": "icm6_4241b7aa84bb7eae", "nodes": 2434, "iterations": 1500, "seconds": 51.3, "mbb": 0.703, "bytes": 12146}
+{"name": "Final table, 6 left, 30bb average, short stack in the big blind, flat payouts", "key": "icm6_c4a12c165f65c78b", "nodes": 3338, "iterations": 1500, "seconds": 72.9, "mbb": 0.848, "bytes": 21693}
+{"name": "Final table, 6 left, 40bb average, equal stacks, flat payouts", "key": "icm6_e245862ceeba4da5", "nodes": 2763, "iterations": 1500, "seconds": 52.2, "mbb": 0.863, "bytes": 15250}
+{"name": "Final table, 6 left, 40bb average, chip leader on the button, flat payouts", "key": "icm6_bfa0e2debef4a7b7", "nodes": 3122, "iterations": 1500, "seconds": 60.4, "mbb": 0.679, "bytes": 14633}
+{"name": "Final table, 6 left, 10bb average, equal stacks, standard payouts", "key": "icm6_ddcb6b8baea48bcb", "nodes": 924, "iterations": 1500, "seconds": 17.5, "mbb": 0.158, "bytes": 5305}
+{"name": "Final table, 6 left, 10bb average, chip leader on the button, standard payouts", "key": "icm6_c621ec51bfe50829", "nodes": 1062, "iterations": 1500, "seconds": 20.7, "mbb": 0.19, "bytes": 5490}
+{"name": "Final table, 6 left, 10bb average, short stack in the big blind, standard payouts", "key": "icm6_75c90cd12581fa95", "nodes": 1248, "iterations": 1500, "seconds": 24.5, "mbb": 0.603, "bytes": 11915}
+{"name": "Final table, 6 left, 40bb average, short stack in the big blind, flat payouts", "key": "icm6_fde2760f350bf75f", "nodes": 5002, "iterations": 1500, "seconds": 107.7, "mbb": 0.738, "bytes": 30984}
+{"name": "Final table, 6 left, 15bb average, equal stacks, standard payouts", "key": "icm6_5664092c8d5bc83d", "nodes": 924, "iterations": 1500, "seconds": 16.7, "mbb": 0.363, "bytes": 5497}
+{"name": "Final table, 6 left, 15bb average, chip leader on the button, standard payouts", "key": "icm6_1eb9aadcf1fb8468", "nodes": 1407, "iterations": 1500, "seconds": 25.5, "mbb": 0.303, "bytes": 6423}
+{"name": "Final table, 6 left, 15bb average, short stack in the big blind, standard payouts", "key": "icm6_e6982dbaf2a95879", "nodes": 1248, "iterations": 1500, "seconds": 22.9, "mbb": 0.71, "bytes": 11020}
+{"name": "Final table, 6 left, 20bb average, equal stacks, standard payouts", "key": "icm6_1e6ede694d5dd433", "nodes": 1525, "iterations": 1500, "seconds": 28.1, "mbb": 0.721, "bytes": 8398}
+{"name": "Final table, 6 left, 20bb average, chip leader on the button, standard payouts", "key": "icm6_72ff25aaefb3a66f", "nodes": 1638, "iterations": 1500, "seconds": 29.3, "mbb": 0.459, "bytes": 7850}
+{"name": "Final table, 6 left, 20bb average, short stack in the big blind, standard payouts", "key": "icm6_ff9681fd673f319e", "nodes": 2155, "iterations": 1500, "seconds": 42.1, "mbb": 1.016, "bytes": 16225}
+{"name": "Final table, 6 left, 30bb average, equal stacks, standard payouts", "key": "icm6_f0ffff4c82b18bff", "nodes": 2008, "iterations": 1500, "seconds": 35.0, "mbb": 0.785, "bytes": 9703}
+{"name": "Final table, 6 left, 30bb average, chip leader on the button, standard payouts", "key": "icm6_5605f230ce4db41d", "nodes": 2434, "iterations": 1500, "seconds": 48.5, "mbb": 0.749, "bytes": 11669}
+{"name": "Final table, 6 left, 30bb average, short stack in the big blind, standard payouts", "key": "icm6_9c9ad2c131d34340", "nodes": 3338, "iterations": 1500, "seconds": 69.0, "mbb": 0.812, "bytes": 20505}
+{"name": "Final table, 6 left, 40bb average, equal stacks, standard payouts", "key": "icm6_cfd3cc5ae9466246", "nodes": 2763, "iterations": 1500, "seconds": 49.7, "mbb": 0.955, "bytes": 14892}
+{"name": "Final table, 6 left, 40bb average, chip leader on the button, standard payouts", "key": "icm6_ead7a4f298af7f46", "nodes": 3122, "iterations": 1500, "seconds": 57.7, "mbb": 0.759, "bytes": 14537}
+{"name": "Final table, 6 left, 10bb average, equal stacks, top-heavy payouts", "key": "icm6_98188a970cd1638c", "nodes": 924, "iterations": 1500, "seconds": 16.6, "mbb": 0.116, "bytes": 5508}
+{"name": "Final table, 6 left, 10bb average, chip leader on the button, top-heavy payouts", "key": "icm6_d5e71dc8d316091c", "nodes": 1062, "iterations": 1500, "seconds": 20.7, "mbb": 0.178, "bytes": 5503}
+{"name": "Final table, 6 left, 10bb average, short stack in the big blind, top-heavy payouts", "key": "icm6_5ac9aa86a777c0ad", "nodes": 1248, "iterations": 1500, "seconds": 23.7, "mbb": 0.419, "bytes": 11468}
+{"name": "Final table, 6 left, 40bb average, short stack in the big blind, standard payouts", "key": "icm6_61023ee4d7695acf", "nodes": 5002, "iterations": 1500, "seconds": 103.5, "mbb": 0.81, "bytes": 30207}
+{"name": "Final table, 6 left, 15bb average, equal stacks, top-heavy payouts", "key": "icm6_f2cf05de54c9ab4b", "nodes": 924, "iterations": 1500, "seconds": 16.2, "mbb": 0.289, "bytes": 5564}
+{"name": "Final table, 6 left, 15bb average, chip leader on the button, top-heavy payouts", "key": "icm6_01b3157796142ff1", "nodes": 1407, "iterations": 1500, "seconds": 24.5, "mbb": 0.233, "bytes": 6342}
+{"name": "Final table, 6 left, 15bb average, short stack in the big blind, top-heavy payouts", "key": "icm6_abae81ce68578713", "nodes": 1248, "iterations": 1500, "seconds": 22.3, "mbb": 0.632, "bytes": 9720}
+{"name": "Final table, 6 left, 20bb average, equal stacks, top-heavy payouts", "key": "icm6_4fc0034563654550", "nodes": 1525, "iterations": 1500, "seconds": 28.4, "mbb": 0.528, "bytes": 8612}
+{"name": "Final table, 6 left, 20bb average, chip leader on the button, top-heavy payouts", "key": "icm6_49ce73394404855f", "nodes": 1638, "iterations": 1500, "seconds": 29.6, "mbb": 0.319, "bytes": 8600}
+{"name": "Final table, 6 left, 30bb average, equal stacks, top-heavy payouts", "key": "icm6_4e8e5870e81f77b4", "nodes": 2008, "iterations": 1500, "seconds": 37.5, "mbb": 0.793, "bytes": 10600}
+{"name": "Final table, 6 left, 20bb average, short stack in the big blind, top-heavy payouts", "key": "icm6_ef7dcdfb7d3e9e80", "nodes": 2155, "iterations": 1500, "seconds": 45.5, "mbb": 0.894, "bytes": 15513}
+{"name": "Final table, 6 left, 30bb average, chip leader on the button, top-heavy payouts", "key": "icm6_56612851763b8578", "nodes": 2434, "iterations": 1500, "seconds": 50.7, "mbb": 0.66, "bytes": 12167}
+{"name": "Final table, 6 left, 30bb average, short stack in the big blind, top-heavy payouts", "key": "icm6_ec8f1362991bceb5", "nodes": 3338, "iterations": 1500, "seconds": 74.7, "mbb": 0.748, "bytes": 20197}
+{"name": "Final table, 6 left, 40bb average, equal stacks, top-heavy payouts", "key": "icm6_bed7748ae8085262", "nodes": 2763, "iterations": 1500, "seconds": 57.3, "mbb": 0.954, "bytes": 14668}
+{"name": "Final table, 6 left, 40bb average, chip leader on the button, top-heavy payouts", "key": "icm6_6cfbbff04889a307", "nodes": 3122, "iterations": 1500, "seconds": 64.8, "mbb": 0.742, "bytes": 15766}
+{"name": "Final table, 6 left, 10bb average, chip leader in the big blind", "key": "icm6_4ce9283bf649a081", "nodes": 924, "iterations": 1500, "seconds": 18.9, "mbb": 0.06, "bytes": 6014}
+{"name": "Final table, 6 left, 10bb average, short stack on the button", "key": "icm6_236a1eb11f96effb", "nodes": 1401, "iterations": 1500, "seconds": 29.2, "mbb": 0.67, "bytes": 9519}
+{"name": "Final table, 6 left, 15bb average, chip leader in the big blind", "key": "icm6_035d1747a5537141", "nodes": 927, "iterations": 1500, "seconds": 20.5, "mbb": 0.19, "bytes": 5965}
+{"name": "Final table, 6 left, 40bb average, short stack in the big blind, top-heavy payouts", "key": "icm6_90e436142dd42bad", "nodes": 5002, "iterations": 1500, "seconds": 114.5, "mbb": 0.791, "bytes": 30409}
+{"name": "Final table, 6 left, 15bb average, short stack on the button", "key": "icm6_44f0462ec69c4223", "nodes": 1401, "iterations": 1500, "seconds": 31.1, "mbb": 0.617, "bytes": 7385}
+{"name": "Final table, 6 left, 20bb average, chip leader in the big blind", "key": "icm6_69cdf9c92725ee22", "nodes": 1099, "iterations": 1500, "seconds": 23.3, "mbb": 0.436, "bytes": 5926}
+{"name": "Final table, 6 left, 30bb average, chip leader in the big blind", "key": "icm6_685fce334fb42572", "nodes": 2276, "iterations": 1500, "seconds": 53.3, "mbb": 0.788, "bytes": 10233}
+{"name": "Final table, 6 left, 20bb average, short stack on the button", "key": "icm6_14cacd68819cc77b", "nodes": 2296, "iterations": 1500, "seconds": 56.7, "mbb": 0.545, "bytes": 13118}
+{"name": "Final table, 6 left, 30bb average, short stack on the button", "key": "icm6_26496ee38a7ceb48", "nodes": 2691, "iterations": 1500, "seconds": 57.5, "mbb": 0.531, "bytes": 14261}
+{"name": "Final table, 6 left, 40bb average, chip leader in the big blind", "key": "icm6_a70f7d957490b4e8", "nodes": 3903, "iterations": 1500, "seconds": 79.5, "mbb": 0.872, "bytes": 18964}
+{"name": "Final table, 7 left, 10bb average, equal stacks, flat payouts", "key": "icm7_743590b5f0bceaa1", "nodes": 632, "iterations": 1500, "seconds": 14.0, "mbb": 0.066, "bytes": 4405}
+{"name": "Final table, 7 left, 10bb average, chip leader on the button, flat payouts", "key": "icm7_7686489750c3570f", "nodes": 638, "iterations": 1500, "seconds": 13.2, "mbb": 0.108, "bytes": 3354}
+{"name": "Final table, 7 left, 10bb average, short stack in the big blind, flat payouts", "key": "icm7_6c21c1bf2df7f076", "nodes": 716, "iterations": 1500, "seconds": 14.2, "mbb": 0.176, "bytes": 7976}
+{"name": "Final table, 7 left, 15bb average, equal stacks, flat payouts", "key": "icm7_b30869726f393892", "nodes": 632, "iterations": 1500, "seconds": 12.6, "mbb": 0.051, "bytes": 4454}
+{"name": "Final table, 6 left, 40bb average, short stack on the button", "key": "icm6_a30078a02f813dd7", "nodes": 4328, "iterations": 1500, "seconds": 83.5, "mbb": 0.723, "bytes": 24990}
+{"name": "Final table, 7 left, 15bb average, chip leader on the button, flat payouts", "key": "icm7_c1fc518e2b6376df", "nodes": 740, "iterations": 1500, "seconds": 13.8, "mbb": 0.066, "bytes": 4530}
+{"name": "Final table, 7 left, 15bb average, short stack in the big blind, flat payouts", "key": "icm7_99ab719f0435050a", "nodes": 716, "iterations": 1500, "seconds": 13.2, "mbb": 0.174, "bytes": 7057}
+{"name": "Final table, 7 left, 20bb average, equal stacks, flat payouts", "key": "icm7_d4c98b5275e27edd", "nodes": 662, "iterations": 1500, "seconds": 13.7, "mbb": 0.035, "bytes": 4928}
+{"name": "Final table, 7 left, 20bb average, chip leader on the button, flat payouts", "key": "icm7_60809cfa963c68cb", "nodes": 740, "iterations": 1500, "seconds": 15.1, "mbb": 0.057, "bytes": 5011}
+{"name": "Final table, 7 left, 20bb average, short stack in the big blind, flat payouts", "key": "icm7_422bd48903f123e6", "nodes": 746, "iterations": 1500, "seconds": 15.4, "mbb": 0.103, "bytes": 6655}
+{"name": "Final table, 7 left, 30bb average, equal stacks, flat payouts", "key": "icm7_80e58048d821053f", "nodes": 672, "iterations": 1500, "seconds": 12.9, "mbb": 0.036, "bytes": 5288}
+{"name": "Final table, 7 left, 30bb average, chip leader on the button, flat payouts", "key": "icm7_a2b0f7c388a3b11d", "nodes": 758, "iterations": 1500, "seconds": 15.1, "mbb": 0.04, "bytes": 5590}
+{"name": "Final table, 7 left, 30bb average, short stack in the big blind, flat payouts", "key": "icm7_b2978b24ac011175", "nodes": 780, "iterations": 1500, "seconds": 16.2, "mbb": 0.046, "bytes": 6513}
+{"name": "Final table, 7 left, 40bb average, chip leader on the button, flat payouts", "key": "icm7_a47820f3b49452d5", "nodes": 708, "iterations": 1500, "seconds": 15.0, "mbb": 0.025, "bytes": 5870}
+{"name": "Final table, 7 left, 40bb average, equal stacks, flat payouts", "key": "icm7_b3f84d824e4b6c88", "nodes": 1102, "iterations": 1500, "seconds": 22.2, "mbb": 0.044, "bytes": 9382}
+{"name": "Final table, 7 left, 10bb average, equal stacks, standard payouts", "key": "icm7_9a127157b4a90b11", "nodes": 632, "iterations": 1500, "seconds": 13.5, "mbb": 0.08, "bytes": 4779}
+{"name": "Final table, 7 left, 40bb average, short stack in the big blind, flat payouts", "key": "icm7_45eae55607bfab70", "nodes": 970, "iterations": 1500, "seconds": 21.4, "mbb": 0.025, "bytes": 7791}
+{"name": "Final table, 7 left, 10bb average, chip leader on the button, standard payouts", "key": "icm7_981887127470f462", "nodes": 638, "iterations": 1500, "seconds": 12.8, "mbb": 0.109, "bytes": 4010}
+{"name": "Final table, 7 left, 10bb average, short stack in the big blind, standard payouts", "key": "icm7_7d88bdae009bca80", "nodes": 716, "iterations": 1500, "seconds": 13.9, "mbb": 0.169, "bytes": 7934}
+{"name": "Final table, 7 left, 15bb average, equal stacks, standard payouts", "key": "icm7_10a0238c566ed9ce", "nodes": 632, "iterations": 1500, "seconds": 11.6, "mbb": 0.058, "bytes": 4424}
+{"name": "Final table, 7 left, 15bb average, chip leader on the button, standard payouts", "key": "icm7_d92f70705f785956", "nodes": 740, "iterations": 1500, "seconds": 13.5, "mbb": 0.073, "bytes": 4742}
+{"name": "Final table, 7 left, 15bb average, short stack in the big blind, standard payouts", "key": "icm7_7021a4ad84c6462b", "nodes": 716, "iterations": 1500, "seconds": 13.0, "mbb": 0.157, "bytes": 6824}
+{"name": "Final table, 7 left, 20bb average, equal stacks, standard payouts", "key": "icm7_32ad2e2b1f05d813", "nodes": 662, "iterations": 1500, "seconds": 12.5, "mbb": 0.041, "bytes": 5063}
+{"name": "Final table, 7 left, 20bb average, chip leader on the button, standard payouts", "key": "icm7_278fbe4681657718", "nodes": 740, "iterations": 1500, "seconds": 13.8, "mbb": 0.058, "bytes": 5072}
+{"name": "Final table, 7 left, 20bb average, short stack in the big blind, standard payouts", "key": "icm7_5a729151ccc0d060", "nodes": 746, "iterations": 1500, "seconds": 14.8, "mbb": 0.092, "bytes": 6366}
+{"name": "Final table, 7 left, 30bb average, equal stacks, standard payouts", "key": "icm7_a6b3c8de7641981c", "nodes": 672, "iterations": 1500, "seconds": 12.6, "mbb": 0.034, "bytes": 5135}
+{"name": "Final table, 7 left, 30bb average, chip leader on the button, standard payouts", "key": "icm7_f9340dba7e0d8c31", "nodes": 758, "iterations": 1500, "seconds": 15.9, "mbb": 0.044, "bytes": 5695}
+{"name": "Final table, 7 left, 30bb average, short stack in the big blind, standard payouts", "key": "icm7_e2060e3498c66636", "nodes": 780, "iterations": 1500, "seconds": 17.4, "mbb": 0.035, "bytes": 6553}
+{"name": "Final table, 7 left, 40bb average, chip leader on the button, standard payouts", "key": "icm7_715308e46a297d92", "nodes": 708, "iterations": 1500, "seconds": 14.6, "mbb": 0.031, "bytes": 5972}
+{"name": "Final table, 7 left, 40bb average, equal stacks, standard payouts", "key": "icm7_9f6db716c81871f4", "nodes": 1102, "iterations": 1500, "seconds": 21.9, "mbb": 0.04, "bytes": 9039}
+{"name": "Final table, 7 left, 10bb average, equal stacks, top-heavy payouts", "key": "icm7_e91e80fc77340353", "nodes": 632, "iterations": 1500, "seconds": 13.2, "mbb": 0.064, "bytes": 4866}
+{"name": "Final table, 7 left, 40bb average, short stack in the big blind, standard payouts", "key": "icm7_ae93accd33a550a3", "nodes": 970, "iterations": 1500, "seconds": 21.7, "mbb": 0.04, "bytes": 7665}
+{"name": "Final table, 7 left, 10bb average, chip leader on the button, top-heavy payouts", "key": "icm7_4793a91e7ebc0046", "nodes": 638, "iterations": 1500, "seconds": 14.5, "mbb": 0.088, "bytes": 3903}
+{"name": "Final table, 7 left, 10bb average, short stack in the big blind, top-heavy payouts", "key": "icm7_ff9825a08eb3fe19", "nodes": 716, "iterations": 1500, "seconds": 16.0, "mbb": 0.152, "bytes": 6641}
+{"name": "Final table, 7 left, 15bb average, equal stacks, top-heavy payouts", "key": "icm7_6aebc31db4e1192d", "nodes": 632, "iterations": 1500, "seconds": 14.2, "mbb": 0.166, "bytes": 5823}
+{"name": "Final table, 7 left, 15bb average, chip leader on the button, top-heavy payouts", "key": "icm7_644300d34dc656b9", "nodes": 740, "iterations": 1500, "seconds": 16.8, "mbb": 0.08, "bytes": 5227}
+{"name": "Final table, 7 left, 15bb average, short stack in the big blind, top-heavy payouts", "key": "icm7_dbf064d7050bf1f6", "nodes": 716, "iterations": 1500, "seconds": 16.3, "mbb": 0.141, "bytes": 6920}
+{"name": "Final table, 7 left, 20bb average, equal stacks, top-heavy payouts", "key": "icm7_d7c16fc05aa13c96", "nodes": 662, "iterations": 1500, "seconds": 15.1, "mbb": 0.046, "bytes": 5565}
+{"name": "Final table, 7 left, 20bb average, chip leader on the button, top-heavy payouts", "key": "icm7_e9340017db6e0a5f", "nodes": 740, "iterations": 1500, "seconds": 16.5, "mbb": 0.047, "bytes": 5637}
+{"name": "Final table, 7 left, 20bb average, short stack in the big blind, top-heavy payouts", "key": "icm7_b7a4dac47938c874", "nodes": 746, "iterations": 1500, "seconds": 17.6, "mbb": 0.06, "bytes": 6104}
+{"name": "Final table, 7 left, 30bb average, equal stacks, top-heavy payouts", "key": "icm7_94051163c69861ce", "nodes": 672, "iterations": 1500, "seconds": 14.8, "mbb": 0.038, "bytes": 5480}
+{"name": "Final table, 7 left, 30bb average, chip leader on the button, top-heavy payouts", "key": "icm7_6af7101412975e9b", "nodes": 758, "iterations": 1500, "seconds": 17.8, "mbb": 0.043, "bytes": 5530}
+{"name": "Final table, 7 left, 30bb average, short stack in the big blind, top-heavy payouts", "key": "icm7_be7d5a8a5dfdb7c5", "nodes": 780, "iterations": 1500, "seconds": 18.6, "mbb": 0.04, "bytes": 6388}
+{"name": "Final table, 7 left, 40bb average, chip leader on the button, top-heavy payouts", "key": "icm7_316050e0b61c9814", "nodes": 708, "iterations": 1500, "seconds": 14.3, "mbb": 0.027, "bytes": 5751}
+{"name": "Final table, 7 left, 40bb average, equal stacks, top-heavy payouts", "key": "icm7_a35b35bfdb534c80", "nodes": 1102, "iterations": 1500, "seconds": 21.3, "mbb": 0.037, "bytes": 8821}
+{"name": "Final table, 7 left, 10bb average, chip leader in the big blind", "key": "icm7_df2cc024886f976f", "nodes": 632, "iterations": 1500, "seconds": 13.6, "mbb": 0.079, "bytes": 5103}
+{"name": "Final table, 7 left, 40bb average, short stack in the big blind, top-heavy payouts", "key": "icm7_67fb450074988218", "nodes": 970, "iterations": 1500, "seconds": 21.5, "mbb": 0.033, "bytes": 7599}
+{"name": "Final table, 7 left, 10bb average, short stack on the button", "key": "icm7_7246031b27085e44", "nodes": 653, "iterations": 1500, "seconds": 14.0, "mbb": 0.477, "bytes": 5662}
+{"name": "Final table, 7 left, 15bb average, chip leader in the big blind", "key": "icm7_461284109bb7c351", "nodes": 635, "iterations": 1500, "seconds": 13.3, "mbb": 0.086, "bytes": 5929}
+{"name": "Final table, 7 left, 15bb average, short stack on the button", "key": "icm7_60567fd1be3850ca", "nodes": 653, "iterations": 1500, "seconds": 13.5, "mbb": 0.227, "bytes": 5304}
+{"name": "Final table, 7 left, 20bb average, chip leader in the big blind", "key": "icm7_c25048d8b2d83d67", "nodes": 890, "iterations": 1500, "seconds": 18.4, "mbb": 0.038, "bytes": 5363}
+{"name": "Final table, 7 left, 20bb average, short stack on the button", "key": "icm7_d7d35542121f29ae", "nodes": 691, "iterations": 1500, "seconds": 15.2, "mbb": 0.112, "bytes": 6318}
+{"name": "Final table, 7 left, 30bb average, chip leader in the big blind", "key": "icm7_a671ca8baf2c52b0", "nodes": 920, "iterations": 1500, "seconds": 20.9, "mbb": 0.019, "bytes": 6552}
+{"name": "Final table, 7 left, 30bb average, short stack on the button", "key": "icm7_6455cf0970d0cc83", "nodes": 636, "iterations": 1500, "seconds": 14.4, "mbb": 0.027, "bytes": 5043}
+{"name": "Final table, 7 left, 40bb average, chip leader in the big blind", "key": "icm7_4f4bdd22076213f5", "nodes": 945, "iterations": 1500, "seconds": 21.6, "mbb": 0.036, "bytes": 7978}
+{"name": "Final table, 7 left, 40bb average, short stack on the button", "key": "icm7_c21f970dc26e6616", "nodes": 1114, "iterations": 1500, "seconds": 25.9, "mbb": 0.038, "bytes": 8062}
+{"name": "Final table, 8 left, 10bb average, equal stacks, flat payouts", "key": "icm8_fbc3487a4174171d", "nodes": 985, "iterations": 1500, "seconds": 25.4, "mbb": 0.068, "bytes": 6186}
+{"name": "Final table, 8 left, 10bb average, chip leader on the button, flat payouts", "key": "icm8_757e3104ddfe7bf8", "nodes": 994, "iterations": 1500, "seconds": 25.0, "mbb": 0.094, "bytes": 5559}
+{"name": "Final table, 8 left, 10bb average, short stack in the big blind, flat payouts", "key": "icm8_e4a08e7f3e6093b8", "nodes": 1105, "iterations": 1500, "seconds": 27.8, "mbb": 0.138, "bytes": 9643}
+{"name": "Final table, 8 left, 15bb average, equal stacks, flat payouts", "key": "icm8_498fe31d30c1690a", "nodes": 985, "iterations": 1500, "seconds": 24.3, "mbb": 0.08, "bytes": 7424}
+{"name": "Final table, 8 left, 15bb average, chip leader on the button, flat payouts", "key": "icm8_28e09720231e3e76", "nodes": 1160, "iterations": 1500, "seconds": 24.7, "mbb": 0.07, "bytes": 6555}
+{"name": "Final table, 8 left, 15bb average, short stack in the big blind, flat payouts", "key": "icm8_01f65f128288126d", "nodes": 1105, "iterations": 1500, "seconds": 23.8, "mbb": 0.191, "bytes": 9700}
+{"name": "Final table, 8 left, 20bb average, equal stacks, flat payouts", "key": "icm8_f67d4523a14ffc38", "nodes": 1030, "iterations": 1500, "seconds": 22.0, "mbb": 0.042, "bytes": 7507}
+{"name": "Final table, 8 left, 20bb average, chip leader on the button, flat payouts", "key": "icm8_96a2f6549b6edc6b", "nodes": 1160, "iterations": 1500, "seconds": 24.2, "mbb": 0.045, "bytes": 7285}
+{"name": "Final table, 8 left, 30bb average, equal stacks, flat payouts", "key": "icm8_d3d5906843d2c04d", "nodes": 1108, "iterations": 1500, "seconds": 22.4, "mbb": 0.049, "bytes": 8756}
+{"name": "Final table, 8 left, 20bb average, short stack in the big blind, flat payouts", "key": "icm8_22e4e84f2bd5d93e", "nodes": 1150, "iterations": 1500, "seconds": 25.9, "mbb": 0.064, "bytes": 9378}
+{"name": "Final table, 8 left, 30bb average, chip leader on the button, flat payouts", "key": "icm8_82b3b312d65d0307", "nodes": 1105, "iterations": 1500, "seconds": 21.5, "mbb": 0.053, "bytes": 8244}
+{"name": "Final table, 8 left, 30bb average, short stack in the big blind, flat payouts", "key": "icm8_7a5c3723729813a5", "nodes": 1255, "iterations": 1500, "seconds": 27.2, "mbb": 0.046, "bytes": 9909}
+{"name": "Final table, 8 left, 40bb average, chip leader on the button, flat payouts", "key": "icm8_af04699adebf9b04", "nodes": 1150, "iterations": 1500, "seconds": 23.0, "mbb": 0.041, "bytes": 8746}
+{"name": "Final table, 8 left, 40bb average, equal stacks, flat payouts", "key": "icm8_50cc3799f7169161", "nodes": 1720, "iterations": 1500, "seconds": 33.4, "mbb": 0.037, "bytes": 12273}
+{"name": "Final table, 8 left, 10bb average, equal stacks, standard payouts", "key": "icm8_3a797e9fcc183b01", "nodes": 985, "iterations": 1500, "seconds": 20.9, "mbb": 0.063, "bytes": 6519}
+{"name": "Final table, 8 left, 40bb average, short stack in the big blind, flat payouts", "key": "icm8_81f4110435dba66b", "nodes": 1540, "iterations": 1500, "seconds": 33.5, "mbb": 0.037, "bytes": 11260}
+{"name": "Final table, 8 left, 10bb average, chip leader on the button, standard payouts", "key": "icm8_ef1fba58be77bcc6", "nodes": 994, "iterations": 1500, "seconds": 21.4, "mbb": 0.094, "bytes": 6120}
+{"name": "Final table, 8 left, 10bb average, short stack in the big blind, standard payouts", "key": "icm8_639efaf856f6b15b", "nodes": 1105, "iterations": 1500, "seconds": 23.2, "mbb": 0.174, "bytes": 10700}
+{"name": "Final table, 8 left, 15bb average, equal stacks, standard payouts", "key": "icm8_7b1aba2e0073d46d", "nodes": 985, "iterations": 1500, "seconds": 20.4, "mbb": 0.083, "bytes": 7471}
+{"name": "Final table, 8 left, 15bb average, chip leader on the button, standard payouts", "key": "icm8_ae6736143ee1eba8", "nodes": 1160, "iterations": 1500, "seconds": 24.1, "mbb": 0.122, "bytes": 8073}
+{"name": "Final table, 8 left, 15bb average, short stack in the big blind, standard payouts", "key": "icm8_e7deac48ff6f1795", "nodes": 1105, "iterations": 1500, "seconds": 23.2, "mbb": 0.211, "bytes": 10208}
+{"name": "Final table, 8 left, 20bb average, equal stacks, standard payouts", "key": "icm8_37a0beaa790f4cf6", "nodes": 1030, "iterations": 1500, "seconds": 22.8, "mbb": 0.059, "bytes": 8449}
+{"name": "Final table, 8 left, 20bb average, chip leader on the button, standard payouts", "key": "icm8_7d50783cf3e3023e", "nodes": 1160, "iterations": 1500, "seconds": 25.0, "mbb": 0.049, "bytes": 7684}
+{"name": "Final table, 8 left, 20bb average, short stack in the big blind, standard payouts", "key": "icm8_d2af0e36dda4cda3", "nodes": 1150, "iterations": 1500, "seconds": 24.6, "mbb": 0.058, "bytes": 9131}
+{"name": "Final table, 8 left, 30bb average, equal stacks, standard payouts", "key": "icm8_b00f9e9479ea5e0a", "nodes": 1108, "iterations": 1500, "seconds": 21.2, "mbb": 0.062, "bytes": 8879}
+{"name": "Final table, 8 left, 30bb average, chip leader on the button, standard payouts", "key": "icm8_43d3d3fcbbaf5e51", "nodes": 1105, "iterations": 1500, "seconds": 20.9, "mbb": 0.067, "bytes": 8999}
+{"name": "Final table, 8 left, 30bb average, short stack in the big blind, standard payouts", "key": "icm8_de62e131f896779e", "nodes": 1255, "iterations": 1500, "seconds": 26.9, "mbb": 0.044, "bytes": 9638}
+{"name": "Final table, 8 left, 40bb average, equal stacks, standard payouts", "key": "icm8_16c2e9188a7dff18", "nodes": 1720, "iterations": 1500, "seconds": 34.0, "mbb": 0.053, "bytes": 13150}
+{"name": "Final table, 8 left, 40bb average, chip leader on the button, standard payouts", "key": "icm8_e7b5c300e8bb35ca", "nodes": 1150, "iterations": 1500, "seconds": 23.3, "mbb": 0.051, "bytes": 8957}
+{"name": "Final table, 8 left, 10bb average, equal stacks, top-heavy payouts", "key": "icm8_69189173981bc962", "nodes": 985, "iterations": 1500, "seconds": 20.9, "mbb": 0.051, "bytes": 6683}
+{"name": "Final table, 8 left, 40bb average, short stack in the big blind, standard payouts", "key": "icm8_c2d1ccb5ebae81fa", "nodes": 1540, "iterations": 1500, "seconds": 33.1, "mbb": 0.046, "bytes": 10976}
+{"name": "Final table, 8 left, 10bb average, chip leader on the button, top-heavy payouts", "key": "icm8_0284acf695eed4e5", "nodes": 994, "iterations": 1500, "seconds": 21.0, "mbb": 0.098, "bytes": 6226}
+{"name": "Final table, 8 left, 10bb average, short stack in the big blind, top-heavy payouts", "key": "icm8_1e47ba8c10a508f4", "nodes": 1105, "iterations": 1500, "seconds": 23.5, "mbb": 0.132, "bytes": 9174}
+{"name": "Final table, 8 left, 15bb average, equal stacks, top-heavy payouts", "key": "icm8_40318a83fa51a966", "nodes": 985, "iterations": 1500, "seconds": 20.9, "mbb": 0.125, "bytes": 7139}
+{"name": "Final table, 8 left, 15bb average, chip leader on the button, top-heavy payouts", "key": "icm8_bc21aeb2d5a6de87", "nodes": 1160, "iterations": 1500, "seconds": 25.4, "mbb": 0.078, "bytes": 7730}
+{"name": "Final table, 8 left, 15bb average, short stack in the big blind, top-heavy payouts", "key": "icm8_e36b06adeb67cab3", "nodes": 1105, "iterations": 1500, "seconds": 24.6, "mbb": 0.185, "bytes": 9776}
+{"name": "Final table, 8 left, 20bb average, equal stacks, top-heavy payouts", "key": "icm8_c6c91038dede4658", "nodes": 1030, "iterations": 1500, "seconds": 22.3, "mbb": 0.057, "bytes": 8676}
+{"name": "Final table, 8 left, 20bb average, chip leader on the button, top-heavy payouts", "key": "icm8_0a573df126ffe69e", "nodes": 1160, "iterations": 1500, "seconds": 24.2, "mbb": 0.056, "bytes": 8047}
+{"name": "Final table, 8 left, 20bb average, short stack in the big blind, top-heavy payouts", "key": "icm8_a1d924a8265d3ed5", "nodes": 1150, "iterations": 1500, "seconds": 24.5, "mbb": 0.057, "bytes": 9287}
+{"name": "Final table, 8 left, 30bb average, equal stacks, top-heavy payouts", "key": "icm8_5644a1326196d679", "nodes": 1108, "iterations": 1500, "seconds": 23.7, "mbb": 0.057, "bytes": 8775}
+{"name": "Final table, 8 left, 30bb average, chip leader on the button, top-heavy payouts", "key": "icm8_605addd557a8d8ad", "nodes": 1105, "iterations": 1500, "seconds": 26.9, "mbb": 0.065, "bytes": 9181}
+{"name": "Final table, 8 left, 30bb average, short stack in the big blind, top-heavy payouts", "key": "icm8_073ca69a55e9b452", "nodes": 1255, "iterations": 1500, "seconds": 34.2, "mbb": 0.04, "bytes": 9130}
+{"name": "Final table, 8 left, 40bb average, equal stacks, top-heavy payouts", "key": "icm8_369be6f325075538", "nodes": 1720, "iterations": 1500, "seconds": 41.9, "mbb": 0.043, "bytes": 12585}
+{"name": "Final table, 8 left, 40bb average, chip leader on the button, top-heavy payouts", "key": "icm8_427f0ba2735298b6", "nodes": 1150, "iterations": 1500, "seconds": 28.4, "mbb": 0.047, "bytes": 8970}
+{"name": "Final table, 8 left, 10bb average, chip leader in the big blind", "key": "icm8_413e4b0358f3db71", "nodes": 985, "iterations": 1500, "seconds": 26.6, "mbb": 0.066, "bytes": 6901}
+{"name": "Final table, 8 left, 40bb average, short stack in the big blind, top-heavy payouts", "key": "icm8_be6833344ef43015", "nodes": 1540, "iterations": 1500, "seconds": 42.1, "mbb": 0.045, "bytes": 10961}
+{"name": "Final table, 8 left, 10bb average, short stack on the button", "key": "icm8_f6faf37a2b584d1b", "nodes": 1030, "iterations": 1500, "seconds": 27.8, "mbb": 0.43, "bytes": 7004}
+{"name": "Final table, 8 left, 15bb average, chip leader in the big blind", "key": "icm8_3df118a896bd29d2", "nodes": 988, "iterations": 1500, "seconds": 26.7, "mbb": 0.105, "bytes": 8037}
+{"name": "Final table, 8 left, 15bb average, short stack on the button", "key": "icm8_424c8e0fc782b5f9", "nodes": 1030, "iterations": 1500, "seconds": 28.2, "mbb": 0.25, "bytes": 7189}
+{"name": "Final table, 8 left, 20bb average, chip leader in the big blind", "key": "icm8_e7d83149eca488c1", "nodes": 1342, "iterations": 1500, "seconds": 35.4, "mbb": 0.036, "bytes": 7124}
+{"name": "Final table, 8 left, 20bb average, short stack on the button", "key": "icm8_5f97baf226877e1d", "nodes": 1080, "iterations": 1500, "seconds": 28.5, "mbb": 0.154, "bytes": 9956}
+{"name": "Final table, 8 left, 30bb average, chip leader in the big blind", "key": "icm8_dae7c58690596844", "nodes": 1459, "iterations": 1500, "seconds": 35.0, "mbb": 0.033, "bytes": 10504}
+{"name": "Final table, 8 left, 30bb average, short stack on the button", "key": "icm8_00af7f4bbfe7ce99", "nodes": 1035, "iterations": 1500, "seconds": 25.3, "mbb": 0.037, "bytes": 7960}
+{"name": "Final table, 8 left, 40bb average, chip leader in the big blind", "key": "icm8_8d2e0d30a0cb9a12", "nodes": 1483, "iterations": 1500, "seconds": 37.3, "mbb": 0.037, "bytes": 11998}
+{"name": "Final table, 8 left, 40bb average, short stack on the button", "key": "icm8_ec32fb997e2aa61d", "nodes": 1713, "iterations": 1500, "seconds": 43.1, "mbb": 0.038, "bytes": 11218}
+{"name": "Final table, 9 left, 10bb average, equal stacks, flat payouts", "key": "icm9_80ac77806fa9b8b5", "nodes": 1464, "iterations": 1500, "seconds": 42.9, "mbb": 0.052, "bytes": 7921}
+{"name": "Final table, 9 left, 10bb average, chip leader on the button, flat payouts", "key": "icm9_eaae4c82a816c71c", "nodes": 1476, "iterations": 1500, "seconds": 44.1, "mbb": 0.075, "bytes": 7078}
+{"name": "Final table, 9 left, 10bb average, short stack in the big blind, flat payouts", "key": "icm9_eca0fceb47f3097f", "nodes": 1626, "iterations": 1500, "seconds": 47.7, "mbb": 0.123, "bytes": 11860}
+{"name": "Final table, 9 left, 15bb average, equal stacks, flat payouts", "key": "icm9_045cae9891ee51f7", "nodes": 1464, "iterations": 1500, "seconds": 42.1, "mbb": 0.132, "bytes": 10063}
+{"name": "Final table, 9 left, 15bb average, chip leader on the button, flat payouts", "key": "icm9_b8aebe96fde71596", "nodes": 1722, "iterations": 1500, "seconds": 50.1, "mbb": 0.056, "bytes": 9172}
+{"name": "Final table, 9 left, 15bb average, short stack in the big blind, flat payouts", "key": "icm9_7c32cc833c101682", "nodes": 1626, "iterations": 1500, "seconds": 47.9, "mbb": 0.081, "bytes": 10153}
+{"name": "Final table, 9 left, 20bb average, equal stacks, flat payouts", "key": "icm9_d6195284a6250f5f", "nodes": 1527, "iterations": 1500, "seconds": 45.0, "mbb": 0.056, "bytes": 11276}
+{"name": "Final table, 9 left, 20bb average, chip leader on the button, flat payouts", "key": "icm9_c9a23538a1b5709b", "nodes": 1722, "iterations": 1500, "seconds": 50.1, "mbb": 0.042, "bytes": 10126}
+{"name": "Final table, 9 left, 20bb average, short stack in the big blind, flat payouts", "key": "icm9_1714f8cd8573a740", "nodes": 1689, "iterations": 1500, "seconds": 51.0, "mbb": 0.05, "bytes": 12457}
+{"name": "Final table, 9 left, 30bb average, equal stacks, flat payouts", "key": "icm9_0d1be58e2bae90dc", "nodes": 1716, "iterations": 1500, "seconds": 44.9, "mbb": 0.062, "bytes": 12993}
+{"name": "Final table, 9 left, 30bb average, chip leader on the button, flat payouts", "key": "icm9_ee347a2983dc94ea", "nodes": 1713, "iterations": 1500, "seconds": 43.4, "mbb": 0.06, "bytes": 12488}
+{"name": "Final table, 9 left, 30bb average, short stack in the big blind, flat payouts", "key": "icm9_061af67d4357e66e", "nodes": 1908, "iterations": 1500, "seconds": 54.9, "mbb": 0.054, "bytes": 13546}
+{"name": "Final table, 9 left, 40bb average, chip leader on the button, flat payouts", "key": "icm9_4f2ea43d65128a7a", "nodes": 1764, "iterations": 1500, "seconds": 48.0, "mbb": 0.055, "bytes": 12899}
+{"name": "Final table, 9 left, 40bb average, equal stacks, flat payouts", "key": "icm9_aec2280a695eafff", "nodes": 2542, "iterations": 1500, "seconds": 68.4, "mbb": 0.044, "bytes": 16893}
+{"name": "Final table, 9 left, 10bb average, equal stacks, standard payouts", "key": "icm9_140b61aca7901e50", "nodes": 1464, "iterations": 1500, "seconds": 42.7, "mbb": 0.054, "bytes": 8248}
+{"name": "Final table, 9 left, 40bb average, short stack in the big blind, flat payouts", "key": "icm9_357a11e74c030b56", "nodes": 2244, "iterations": 1500, "seconds": 66.2, "mbb": 0.056, "bytes": 15157}
+{"name": "Final table, 9 left, 10bb average, chip leader on the button, standard payouts", "key": "icm9_54a115e44be03e1e", "nodes": 1476, "iterations": 1500, "seconds": 44.2, "mbb": 0.078, "bytes": 7965}
+{"name": "Final table, 9 left, 10bb average, short stack in the big blind, standard payouts", "key": "icm9_f41cfd4b2eb42aab", "nodes": 1626, "iterations": 1500, "seconds": 46.3, "mbb": 0.146, "bytes": 11578}
+{"name": "Final table, 9 left, 15bb average, equal stacks, standard payouts", "key": "icm9_74141a3fbcee6889", "nodes": 1464, "iterations": 1500, "seconds": 41.8, "mbb": 0.044, "bytes": 8564}
+{"name": "Final table, 9 left, 15bb average, chip leader on the button, standard payouts", "key": "icm9_092fa4688415f586", "nodes": 1722, "iterations": 1500, "seconds": 49.9, "mbb": 0.053, "bytes": 9600}
+{"name": "Final table, 9 left, 15bb average, short stack in the big blind, standard payouts", "key": "icm9_33215f925d348b3c", "nodes": 1626, "iterations": 1500, "seconds": 47.2, "mbb": 0.146, "bytes": 12029}
+{"name": "Final table, 9 left, 20bb average, equal stacks, standard payouts", "key": "icm9_0a7db7e4cac954e8", "nodes": 1527, "iterations": 1500, "seconds": 45.5, "mbb": 0.063, "bytes": 12570}
+{"name": "Final table, 9 left, 20bb average, chip leader on the button, standard payouts", "key": "icm9_40bbecb0299f88cb", "nodes": 1722, "iterations": 1500, "seconds": 50.0, "mbb": 0.041, "bytes": 10144}
+{"name": "Final table, 9 left, 20bb average, short stack in the big blind, standard payouts", "key": "icm9_fe9e87bd64ea2e82", "nodes": 1689, "iterations": 1500, "seconds": 50.4, "mbb": 0.055, "bytes": 12138}
+{"name": "Final table, 9 left, 30bb average, equal stacks, standard payouts", "key": "icm9_fa3312373b8aed38", "nodes": 1716, "iterations": 1500, "seconds": 44.5, "mbb": 0.056, "bytes": 12455}
+{"name": "Final table, 9 left, 30bb average, chip leader on the button, standard payouts", "key": "icm9_6919b78cce83eb2a", "nodes": 1713, "iterations": 1500, "seconds": 42.7, "mbb": 0.055, "bytes": 12347}
+{"name": "Final table, 9 left, 30bb average, short stack in the big blind, standard payouts", "key": "icm9_4a955c1a6e38fe6f", "nodes": 1908, "iterations": 1500, "seconds": 54.8, "mbb": 0.049, "bytes": 13143}
+{"name": "Final table, 9 left, 40bb average, equal stacks, standard payouts", "key": "icm9_64fa9d8e976196b5", "nodes": 2542, "iterations": 1500, "seconds": 68.3, "mbb": 0.051, "bytes": 16745}
+{"name": "Final table, 9 left, 40bb average, chip leader on the button, standard payouts", "key": "icm9_2c0e414415e46185", "nodes": 1764, "iterations": 1500, "seconds": 47.3, "mbb": 0.046, "bytes": 12562}
+{"name": "Final table, 9 left, 10bb average, equal stacks, top-heavy payouts", "key": "icm9_de7cf02b9ad885db", "nodes": 1464, "iterations": 1500, "seconds": 43.7, "mbb": 0.055, "bytes": 8413}
+{"name": "Final table, 9 left, 40bb average, short stack in the big blind, standard payouts", "key": "icm9_531d16afa9bb1ef2", "nodes": 2244, "iterations": 1500, "seconds": 66.0, "mbb": 0.058, "bytes": 14440}
+{"name": "Final table, 9 left, 10bb average, chip leader on the button, top-heavy payouts", "key": "icm9_cff54ca56ca62143", "nodes": 1476, "iterations": 1500, "seconds": 42.3, "mbb": 0.081, "bytes": 8000}
+{"name": "Final table, 9 left, 10bb average, short stack in the big blind, top-heavy payouts", "key": "icm9_23c28fca0ea6afc9", "nodes": 1626, "iterations": 1500, "seconds": 43.9, "mbb": 0.148, "bytes": 11589}
+{"name": "Final table, 9 left, 15bb average, equal stacks, top-heavy payouts", "key": "icm9_8490b621d47b0d53", "nodes": 1464, "iterations": 1500, "seconds": 37.1, "mbb": 0.052, "bytes": 8964}
+{"name": "Final table, 9 left, 15bb average, chip leader on the button, top-heavy payouts", "key": "icm9_e30161b1984eb3f2", "nodes": 1722, "iterations": 1500, "seconds": 47.0, "mbb": 0.052, "bytes": 9369}
+{"name": "Final table, 9 left, 15bb average, short stack in the big blind, top-heavy payouts", "key": "icm9_96ed532db98a7614", "nodes": 1626, "iterations": 1500, "seconds": 47.4, "mbb": 0.221, "bytes": 12744}
+{"name": "Final table, 9 left, 20bb average, equal stacks, top-heavy payouts", "key": "icm9_375f51b037e2f3bb", "nodes": 1527, "iterations": 1500, "seconds": 45.1, "mbb": 0.079, "bytes": 12795}
+{"name": "Final table, 9 left, 20bb average, chip leader on the button, top-heavy payouts", "key": "icm9_566eaf590f1edf0b", "nodes": 1722, "iterations": 1500, "seconds": 50.1, "mbb": 0.05, "bytes": 10798}
+{"name": "Final table, 9 left, 20bb average, short stack in the big blind, top-heavy payouts", "key": "icm9_3e9965f1c455a496", "nodes": 1689, "iterations": 1500, "seconds": 50.7, "mbb": 0.059, "bytes": 12487}
+{"name": "Final table, 9 left, 30bb average, equal stacks, top-heavy payouts", "key": "icm9_cb4fde7e2ab2421d", "nodes": 1716, "iterations": 1500, "seconds": 45.3, "mbb": 0.059, "bytes": 11892}
+{"name": "Final table, 9 left, 30bb average, chip leader on the button, top-heavy payouts", "key": "icm9_a6c507fe48f82f30", "nodes": 1713, "iterations": 1500, "seconds": 45.5, "mbb": 0.063, "bytes": 12542}
+{"name": "Final table, 9 left, 30bb average, short stack in the big blind, top-heavy payouts", "key": "icm9_77909763594a25b9", "nodes": 1908, "iterations": 1500, "seconds": 55.9, "mbb": 0.05, "bytes": 12956}
+{"name": "Final table, 9 left, 40bb average, equal stacks, top-heavy payouts", "key": "icm9_67395f52ed88e389", "nodes": 2542, "iterations": 1500, "seconds": 68.0, "mbb": 0.057, "bytes": 16983}
+{"name": "Final table, 9 left, 40bb average, chip leader on the button, top-heavy payouts", "key": "icm9_7d2c1a308e1ac89f", "nodes": 1764, "iterations": 1500, "seconds": 47.3, "mbb": 0.044, "bytes": 12520}
+{"name": "Final table, 9 left, 10bb average, chip leader in the big blind", "key": "icm9_61ab0dc5e8929884", "nodes": 1464, "iterations": 1500, "seconds": 43.1, "mbb": 0.052, "bytes": 8568}
+{"name": "Final table, 9 left, 40bb average, short stack in the big blind, top-heavy payouts", "key": "icm9_4122d8b4bf208e69", "nodes": 2244, "iterations": 1500, "seconds": 65.8, "mbb": 0.058, "bytes": 14690}
+{"name": "Final table, 9 left, 10bb average, short stack on the button", "key": "icm9_0828ea26b2c5bbb4", "nodes": 1539, "iterations": 1500, "seconds": 44.1, "mbb": 0.353, "bytes": 9059}
+{"name": "Final table, 9 left, 15bb average, chip leader in the big blind", "key": "icm9_1204d567575f6e14", "nodes": 1467, "iterations": 1500, "seconds": 41.9, "mbb": 0.104, "bytes": 10087}
+{"name": "Final table, 9 left, 15bb average, short stack on the button", "key": "icm9_cc39e50e7acb7c41", "nodes": 1539, "iterations": 1500, "seconds": 45.2, "mbb": 0.17, "bytes": 8836}
+{"name": "Final table, 9 left, 20bb average, chip leader in the big blind", "key": "icm9_61868301ded5ee42", "nodes": 1936, "iterations": 1500, "seconds": 56.2, "mbb": 0.036, "bytes": 9556}
+{"name": "Final table, 9 left, 20bb average, short stack on the button", "key": "icm9_2edbe7dffd026746", "nodes": 1604, "iterations": 1500, "seconds": 48.0, "mbb": 0.105, "bytes": 12918}
+{"name": "Final table, 9 left, 30bb average, chip leader in the big blind", "key": "icm9_f93023d08089c13b", "nodes": 2182, "iterations": 1500, "seconds": 57.8, "mbb": 0.039, "bytes": 13709}
+{"name": "Final table, 9 left, 30bb average, short stack on the button", "key": "icm9_29e438cdecc715f6", "nodes": 1596, "iterations": 1500, "seconds": 42.4, "mbb": 0.036, "bytes": 10688}
+{"name": "Final table, 9 left, 40bb average, chip leader in the big blind", "key": "icm9_663eb37e871ee5f5", "nodes": 2209, "iterations": 1500, "seconds": 57.9, "mbb": 0.039, "bytes": 15785}
+{"name": "Satellite, 2 seats for 3 left, 10bb average, equal stacks", "key": "icm3_a3563ca976ae23bd", "nodes": 54, "iterations": 1500, "seconds": 1.3, "mbb": 0.015, "bytes": 904}
+{"name": "Satellite, 2 seats for 3 left, 10bb average, chip leader on the button", "key": "icm3_b3c7d43970841f30", "nodes": 42, "iterations": 1500, "seconds": 1.0, "mbb": 0.001, "bytes": 573}
+{"name": "Satellite, 2 seats for 3 left, 10bb average, short stack in the big blind", "key": "icm3_8e5a6e1501beaa04", "nodes": 54, "iterations": 1500, "seconds": 1.3, "mbb": 0.002, "bytes": 1191}
+{"name": "Satellite, 2 seats for 3 left, 15bb average, equal stacks", "key": "icm3_39e5db9b39cf02b1", "nodes": 54, "iterations": 1500, "seconds": 1.3, "mbb": 0.03, "bytes": 1053}
+{"name": "Satellite, 2 seats for 3 left, 15bb average, chip leader on the button", "key": "icm3_8838105d93d2b37b", "nodes": 42, "iterations": 1500, "seconds": 1.0, "mbb": 0.001, "bytes": 558}
+{"name": "Satellite, 2 seats for 3 left, 15bb average, short stack in the big blind", "key": "icm3_6eb9e1f5b6d2707f", "nodes": 54, "iterations": 1500, "seconds": 1.3, "mbb": 0.054, "bytes": 644}
+{"name": "Satellite, 2 seats for 3 left, 25bb average, equal stacks", "key": "icm3_14c4d2ac16d13a07", "nodes": 54, "iterations": 1500, "seconds": 1.3, "mbb": 1.689, "bytes": 2173}
+{"name": "Satellite, 2 seats for 3 left, 25bb average, chip leader on the button", "key": "icm3_ee41f00ecf3950a5", "nodes": 54, "iterations": 1500, "seconds": 1.3, "mbb": 0.043, "bytes": 652}
+{"name": "Satellite, 2 seats for 3 left, 25bb average, short stack in the big blind", "key": "icm3_ec19dbab2dfffc6c", "nodes": 58, "iterations": 1500, "seconds": 1.4, "mbb": 0.047, "bytes": 1031}
+{"name": "Final table, 9 left, 40bb average, short stack on the button", "key": "icm9_b3e8e2506bb5603c", "nodes": 2464, "iterations": 1500, "seconds": 61.3, "mbb": 0.039, "bytes": 14424}
+{"name": "Satellite, 3 seats for 4 left, 10bb average, equal stacks", "key": "icm4_fb05f23d9d8d1e90", "nodes": 149, "iterations": 1500, "seconds": 3.1, "mbb": 0.007, "bytes": 2378}
+{"name": "Satellite, 3 seats for 4 left, 10bb average, chip leader on the button", "key": "icm4_b74e91a88bf89c84", "nodes": 137, "iterations": 1500, "seconds": 2.5, "mbb": 0.008, "bytes": 1560}
+{"name": "Satellite, 3 seats for 4 left, 10bb average, short stack in the big blind", "key": "icm4_7cba85699afc311f", "nodes": 188, "iterations": 1500, "seconds": 3.5, "mbb": 0.009, "bytes": 2284}
+{"name": "Satellite, 3 seats for 4 left, 15bb average, equal stacks", "key": "icm4_a5eb2718a5ab37de", "nodes": 149, "iterations": 1500, "seconds": 2.9, "mbb": 0.01, "bytes": 1787}
+{"name": "Satellite, 3 seats for 4 left, 15bb average, chip leader on the button", "key": "icm4_7df997ee0d314983", "nodes": 197, "iterations": 1500, "seconds": 3.6, "mbb": 0.011, "bytes": 2181}
+{"name": "Satellite, 3 seats for 4 left, 15bb average, short stack in the big blind", "key": "icm4_8490d4788f710350", "nodes": 188, "iterations": 1500, "seconds": 3.6, "mbb": 0.0, "bytes": 2421}
+{"name": "Satellite, 3 seats for 4 left, 25bb average, equal stacks", "key": "icm4_abd7b96fc1927363", "nodes": 197, "iterations": 1500, "seconds": 3.6, "mbb": 0.01, "bytes": 1295}
+{"name": "Satellite, 3 seats for 4 left, 25bb average, chip leader on the button", "key": "icm4_67ee89319f92e272", "nodes": 197, "iterations": 1500, "seconds": 3.7, "mbb": 0.036, "bytes": 2935}
+{"name": "Satellite, 3 seats for 4 left, 25bb average, short stack in the big blind", "key": "icm4_d64ae949bf029950", "nodes": 254, "iterations": 1500, "seconds": 4.7, "mbb": 0.248, "bytes": 1641}
+{"name": "Satellite, 2 seats for 4 left, 10bb average, equal stacks", "key": "icm4_409b14887bd58801", "nodes": 149, "iterations": 1500, "seconds": 2.8, "mbb": 0.095, "bytes": 1859}
+{"name": "Satellite, 2 seats for 4 left, 10bb average, chip leader on the button", "key": "icm4_065047c641593950", "nodes": 137, "iterations": 1500, "seconds": 2.5, "mbb": 0.237, "bytes": 2077}
+{"name": "Satellite, 2 seats for 4 left, 10bb average, short stack in the big blind", "key": "icm4_3215607392ec902d", "nodes": 188, "iterations": 1500, "seconds": 3.5, "mbb": 0.603, "bytes": 2897}
+{"name": "Satellite, 2 seats for 4 left, 15bb average, equal stacks", "key": "icm4_46c990ba54dc53ee", "nodes": 149, "iterations": 1500, "seconds": 2.8, "mbb": 0.346, "bytes": 2307}
+{"name": "Satellite, 2 seats for 4 left, 15bb average, chip leader on the button", "key": "icm4_7345e3e872602f9a", "nodes": 197, "iterations": 1500, "seconds": 3.4, "mbb": 0.187, "bytes": 1888}
+{"name": "Satellite, 2 seats for 4 left, 15bb average, short stack in the big blind", "key": "icm4_931e0b9765f1d4b6", "nodes": 188, "iterations": 1500, "seconds": 3.4, "mbb": 0.965, "bytes": 2070}
+{"name": "Satellite, 2 seats for 4 left, 25bb average, equal stacks", "key": "icm4_21f51a9db7275fc3", "nodes": 197, "iterations": 1500, "seconds": 3.5, "mbb": 0.771, "bytes": 2025}
+{"name": "Satellite, 2 seats for 4 left, 25bb average, chip leader on the button", "key": "icm4_b769f8cdb404e52d", "nodes": 197, "iterations": 1500, "seconds": 3.6, "mbb": 0.572, "bytes": 2521}
+{"name": "Satellite, 2 seats for 4 left, 25bb average, short stack in the big blind", "key": "icm4_74a48af9c672d486", "nodes": 254, "iterations": 1500, "seconds": 4.9, "mbb": 1.641, "bytes": 2529}
+{"name": "Satellite, 4 seats for 5 left, 10bb average, equal stacks", "key": "icm5_5774696831f394a2", "nodes": 390, "iterations": 1500, "seconds": 7.5, "mbb": 0.002, "bytes": 3299}
+{"name": "Satellite, 4 seats for 5 left, 10bb average, chip leader on the button", "key": "icm5_10ba6a003b611089", "nodes": 378, "iterations": 1500, "seconds": 6.6, "mbb": 0.804, "bytes": 3655}
+{"name": "Satellite, 4 seats for 5 left, 10bb average, short stack in the big blind", "key": "icm5_9bfe3c5f76197507", "nodes": 528, "iterations": 1500, "seconds": 9.6, "mbb": 0.002, "bytes": 6693}
+{"name": "Satellite, 4 seats for 5 left, 15bb average, equal stacks", "key": "icm5_4eb50a1b50f55349", "nodes": 390, "iterations": 1500, "seconds": 7.3, "mbb": 0.003, "bytes": 3208}
+{"name": "Satellite, 4 seats for 5 left, 15bb average, short stack in the big blind", "key": "icm5_04badedcf65d71a2", "nodes": 528, "iterations": 1500, "seconds": 9.8, "mbb": 0.0, "bytes": 6916}
+{"name": "Satellite, 4 seats for 5 left, 15bb average, chip leader on the button", "key": "icm5_32561f7cacc6f62e", "nodes": 599, "iterations": 1500, "seconds": 11.1, "mbb": 0.511, "bytes": 4139}
+{"name": "Satellite, 4 seats for 5 left, 25bb average, equal stacks", "key": "icm5_0027900928cc14c4", "nodes": 599, "iterations": 1500, "seconds": 11.4, "mbb": 0.157, "bytes": 4971}
+{"name": "Satellite, 4 seats for 5 left, 25bb average, chip leader on the button", "key": "icm5_671eb1add91b76ea", "nodes": 599, "iterations": 1500, "seconds": 11.3, "mbb": 0.391, "bytes": 4431}
+{"name": "Satellite, 3 seats for 5 left, 10bb average, equal stacks", "key": "icm5_29476e4e2984db45", "nodes": 390, "iterations": 1500, "seconds": 7.6, "mbb": 0.122, "bytes": 3278}
+{"name": "Satellite, 3 seats for 5 left, 10bb average, chip leader on the button", "key": "icm5_f016c2ba7d2a2418", "nodes": 378, "iterations": 1500, "seconds": 6.6, "mbb": 0.118, "bytes": 2528}
+{"name": "Satellite, 4 seats for 5 left, 25bb average, short stack in the big blind", "key": "icm5_0ff3cc9af5015319", "nodes": 904, "iterations": 1500, "seconds": 17.0, "mbb": 0.002, "bytes": 7014}
+{"name": "Satellite, 3 seats for 5 left, 15bb average, equal stacks", "key": "icm5_ba981c4fc3e96254", "nodes": 390, "iterations": 1500, "seconds": 6.5, "mbb": 0.21, "bytes": 3810}
+{"name": "Satellite, 3 seats for 5 left, 10bb average, short stack in the big blind", "key": "icm5_955683c8c50a67df", "nodes": 528, "iterations": 1500, "seconds": 8.8, "mbb": 0.039, "bytes": 3346}
+{"name": "Satellite, 3 seats for 5 left, 15bb average, short stack in the big blind", "key": "icm5_d54de2d835e8f1ff", "nodes": 528, "iterations": 1500, "seconds": 8.6, "mbb": 0.095, "bytes": 2715}
+{"name": "Satellite, 3 seats for 5 left, 15bb average, chip leader on the button", "key": "icm5_46a42bbc8040b6e7", "nodes": 599, "iterations": 1500, "seconds": 9.5, "mbb": 0.116, "bytes": 4806}
+{"name": "Satellite, 3 seats for 5 left, 25bb average, equal stacks", "key": "icm5_a8b71bbf53622eeb", "nodes": 599, "iterations": 1500, "seconds": 9.6, "mbb": 0.481, "bytes": 5147}
+{"name": "Satellite, 3 seats for 5 left, 25bb average, chip leader on the button", "key": "icm5_89a2d02822dd1524", "nodes": 599, "iterations": 1500, "seconds": 9.4, "mbb": 0.605, "bytes": 5276}
+{"name": "Satellite, 3 seats for 5 left, 25bb average, short stack in the big blind", "key": "icm5_5b1b69626beedf19", "nodes": 904, "iterations": 1500, "seconds": 14.9, "mbb": 1.157, "bytes": 6158}
+{"name": "Satellite, 5 seats for 6 left, 10bb average, equal stacks", "key": "icm6_52b860352b8509e1", "nodes": 924, "iterations": 1500, "seconds": 16.1, "mbb": 0.0, "bytes": 8438}
+{"name": "Satellite, 5 seats for 6 left, 10bb average, chip leader on the button", "key": "icm6_13ba435659855d5d", "nodes": 1062, "iterations": 1500, "seconds": 19.0, "mbb": 0.674, "bytes": 9370}
+{"name": "Satellite, 5 seats for 6 left, 10bb average, short stack in the big blind", "key": "icm6_91e96a12794f77a3", "nodes": 1248, "iterations": 1500, "seconds": 22.3, "mbb": 0.0, "bytes": 11302}
+{"name": "Satellite, 5 seats for 6 left, 15bb average, equal stacks", "key": "icm6_3c2ec7458668dadf", "nodes": 924, "iterations": 1500, "seconds": 16.3, "mbb": 0.0, "bytes": 5895}
+{"name": "Satellite, 5 seats for 6 left, 15bb average, chip leader on the button", "key": "icm6_aba9679c9cf75af2", "nodes": 1407, "iterations": 1500, "seconds": 25.9, "mbb": 0.926, "bytes": 7354}
+{"name": "Satellite, 5 seats for 6 left, 15bb average, short stack in the big blind", "key": "icm6_93dc169af0ee0dc7", "nodes": 1248, "iterations": 1500, "seconds": 23.3, "mbb": 0.0, "bytes": 10234}
+{"name": "Satellite, 5 seats for 6 left, 25bb average, equal stacks", "key": "icm6_972bb4461bb64bfd", "nodes": 1525, "iterations": 1500, "seconds": 29.5, "mbb": 0.004, "bytes": 11984}
+{"name": "Satellite, 5 seats for 6 left, 25bb average, chip leader on the button", "key": "icm6_c8ff5c31cd6d853b", "nodes": 2434, "iterations": 1500, "seconds": 49.7, "mbb": 0.919, "bytes": 12834}
+{"name": "Satellite, 4 seats for 6 left, 10bb average, equal stacks", "key": "icm6_8b702a895e21508e", "nodes": 924, "iterations": 1500, "seconds": 17.1, "mbb": 0.021, "bytes": 5055}
+{"name": "Satellite, 5 seats for 6 left, 25bb average, short stack in the big blind", "key": "icm6_2c4098605eb81185", "nodes": 2510, "iterations": 1500, "seconds": 50.8, "mbb": 0.001, "bytes": 12570}
+{"name": "Satellite, 4 seats for 6 left, 10bb average, chip leader on the button", "key": "icm6_2fe1c98a2c857873", "nodes": 1062, "iterations": 1500, "seconds": 19.2, "mbb": 0.056, "bytes": 5466}
+{"name": "Satellite, 4 seats for 6 left, 10bb average, short stack in the big blind", "key": "icm6_d77ef28467af69fb", "nodes": 1248, "iterations": 1500, "seconds": 22.5, "mbb": 0.02, "bytes": 5798}
+{"name": "Satellite, 4 seats for 6 left, 15bb average, equal stacks", "key": "icm6_46e8b04ae8d240b9", "nodes": 924, "iterations": 1500, "seconds": 16.5, "mbb": 0.035, "bytes": 4360}
+{"name": "Satellite, 4 seats for 6 left, 15bb average, chip leader on the button", "key": "icm6_f07ee638df1a37e8", "nodes": 1407, "iterations": 1500, "seconds": 25.7, "mbb": 0.063, "bytes": 8353}
+{"name": "Satellite, 4 seats for 6 left, 15bb average, short stack in the big blind", "key": "icm6_4be973dc549ab1c3", "nodes": 1248, "iterations": 1500, "seconds": 23.3, "mbb": 0.052, "bytes": 4775}
+{"name": "Satellite, 4 seats for 6 left, 25bb average, equal stacks", "key": "icm6_0d50f58a362a290e", "nodes": 1525, "iterations": 1500, "seconds": 29.4, "mbb": 0.231, "bytes": 7972}
+{"name": "Satellite, 4 seats for 6 left, 25bb average, chip leader on the button", "key": "icm6_0364cb710bd1a1e1", "nodes": 2434, "iterations": 1500, "seconds": 48.6, "mbb": 0.198, "bytes": 13781}
+{"name": "Satellite, 6 seats for 7 left, 10bb average, equal stacks", "key": "icm7_a98d4a6dc1bcb46b", "nodes": 632, "iterations": 1500, "seconds": 12.9, "mbb": 0.0, "bytes": 6594}
+{"name": "Satellite, 4 seats for 6 left, 25bb average, short stack in the big blind", "key": "icm6_ee5b31fa7a5b4b94", "nodes": 2510, "iterations": 1500, "seconds": 50.5, "mbb": 0.857, "bytes": 9804}
+{"name": "Satellite, 6 seats for 7 left, 10bb average, chip leader on the button", "key": "icm7_f7024d6b1abd8c83", "nodes": 638, "iterations": 1500, "seconds": 12.6, "mbb": 0.0, "bytes": 8437}
+{"name": "Satellite, 6 seats for 7 left, 15bb average, equal stacks", "key": "icm7_8541c1d65d8ad0f2", "nodes": 632, "iterations": 1500, "seconds": 12.0, "mbb": 0.0, "bytes": 8652}
+{"name": "Satellite, 6 seats for 7 left, 10bb average, short stack in the big blind", "key": "icm7_5ee5b767601e5876", "nodes": 716, "iterations": 1500, "seconds": 13.2, "mbb": 0.001, "bytes": 4540}
+{"name": "Satellite, 6 seats for 7 left, 15bb average, short stack in the big blind", "key": "icm7_2afb1a1733826bcc", "nodes": 716, "iterations": 1500, "seconds": 13.4, "mbb": 0.001, "bytes": 4499}
+{"name": "Satellite, 6 seats for 7 left, 15bb average, chip leader on the button", "key": "icm7_f29aaa390337a8bd", "nodes": 740, "iterations": 1500, "seconds": 14.0, "mbb": 0.0, "bytes": 12357}
+{"name": "Satellite, 6 seats for 7 left, 25bb average, equal stacks", "key": "icm7_d737595cf91767f2", "nodes": 662, "iterations": 1500, "seconds": 12.8, "mbb": 0.0, "bytes": 8801}
+{"name": "Satellite, 6 seats for 7 left, 25bb average, chip leader on the button", "key": "icm7_2ed0ec8b6dcf7a02", "nodes": 758, "iterations": 1500, "seconds": 14.7, "mbb": 0.009, "bytes": 6852}
+{"name": "Satellite, 6 seats for 7 left, 25bb average, short stack in the big blind", "key": "icm7_5d05a8ca5ee0a8d5", "nodes": 762, "iterations": 1500, "seconds": 15.2, "mbb": 0.001, "bytes": 3609}
+{"name": "Satellite, 5 seats for 7 left, 10bb average, equal stacks", "key": "icm7_bd706cc31487b5e9", "nodes": 632, "iterations": 1500, "seconds": 12.5, "mbb": 0.011, "bytes": 3943}
+{"name": "Satellite, 5 seats for 7 left, 10bb average, chip leader on the button", "key": "icm7_b54d179030eb65e3", "nodes": 638, "iterations": 1500, "seconds": 12.3, "mbb": 0.027, "bytes": 4021}
+{"name": "Satellite, 5 seats for 7 left, 10bb average, short stack in the big blind", "key": "icm7_35b4a7a98455d375", "nodes": 716, "iterations": 1500, "seconds": 13.5, "mbb": 0.018, "bytes": 5208}
+{"name": "Satellite, 5 seats for 7 left, 15bb average, equal stacks", "key": "icm7_c6845e2394cd754d", "nodes": 632, "iterations": 1500, "seconds": 12.3, "mbb": 0.016, "bytes": 3865}
+{"name": "Satellite, 5 seats for 7 left, 15bb average, chip leader on the button", "key": "icm7_c57b66fe327c9000", "nodes": 740, "iterations": 1500, "seconds": 14.5, "mbb": 0.038, "bytes": 6211}
+{"name": "Satellite, 5 seats for 7 left, 15bb average, short stack in the big blind", "key": "icm7_5960319463ed0aee", "nodes": 716, "iterations": 1500, "seconds": 14.0, "mbb": 0.013, "bytes": 3067}
+{"name": "Satellite, 5 seats for 7 left, 25bb average, equal stacks", "key": "icm7_f18b03f59a957b67", "nodes": 662, "iterations": 1500, "seconds": 13.3, "mbb": 0.036, "bytes": 5481}
+{"name": "Satellite, 5 seats for 7 left, 25bb average, chip leader on the button", "key": "icm7_86ec157c651f2be1", "nodes": 758, "iterations": 1500, "seconds": 15.1, "mbb": 0.042, "bytes": 5817}
+{"name": "Satellite, 5 seats for 7 left, 25bb average, short stack in the big blind", "key": "icm7_ac07580d409a3f62", "nodes": 762, "iterations": 1500, "seconds": 15.3, "mbb": 0.03, "bytes": 4432}
+{"name": "Satellite, 7 seats for 8 left, 10bb average, equal stacks", "key": "icm8_59b3149298116df8", "nodes": 985, "iterations": 1500, "seconds": 22.4, "mbb": 0.0, "bytes": 8735}
+{"name": "Satellite, 7 seats for 8 left, 10bb average, chip leader on the button", "key": "icm8_79d69a61445af13d", "nodes": 994, "iterations": 1500, "seconds": 22.7, "mbb": 0.0, "bytes": 8034}
+{"name": "Satellite, 7 seats for 8 left, 10bb average, short stack in the big blind", "key": "icm8_46546d72780a0fc0", "nodes": 1105, "iterations": 1500, "seconds": 24.6, "mbb": 0.001, "bytes": 6660}
+{"name": "Satellite, 7 seats for 8 left, 15bb average, equal stacks", "key": "icm8_c9b86c7eeaecadcc", "nodes": 985, "iterations": 1500, "seconds": 21.9, "mbb": 0.0, "bytes": 10571}
+{"name": "Satellite, 7 seats for 8 left, 15bb average, short stack in the big blind", "key": "icm8_afe6c35f3f74a755", "nodes": 1105, "iterations": 1500, "seconds": 25.2, "mbb": 0.0, "bytes": 5884}
+{"name": "Satellite, 7 seats for 8 left, 15bb average, chip leader on the button", "key": "icm8_098ae1b4f7ab4aae", "nodes": 1160, "iterations": 1500, "seconds": 26.2, "mbb": 0.0, "bytes": 11732}
+{"name": "Satellite, 7 seats for 8 left, 25bb average, equal stacks", "key": "icm8_228c4cce72f22b0b", "nodes": 1030, "iterations": 1500, "seconds": 24.0, "mbb": 0.0, "bytes": 13671}
+{"name": "Satellite, 7 seats for 8 left, 25bb average, chip leader on the button", "key": "icm8_cc12d5e643617d32", "nodes": 1190, "iterations": 1500, "seconds": 27.1, "mbb": 0.0, "bytes": 13203}
+{"name": "Satellite, 6 seats for 8 left, 10bb average, equal stacks", "key": "icm8_747bb4da91cf10bf", "nodes": 985, "iterations": 1500, "seconds": 22.3, "mbb": 0.012, "bytes": 5597}
+{"name": "Satellite, 7 seats for 8 left, 25bb average, short stack in the big blind", "key": "icm8_783d5195361d56c5", "nodes": 1234, "iterations": 1500, "seconds": 27.4, "mbb": 0.0, "bytes": 2595}
+{"name": "Satellite, 6 seats for 8 left, 10bb average, chip leader on the button", "key": "icm8_6b6ffdaddf17f24a", "nodes": 994, "iterations": 1500, "seconds": 22.5, "mbb": 0.015, "bytes": 5129}
+{"name": "Satellite, 6 seats for 8 left, 10bb average, short stack in the big blind", "key": "icm8_097ac6579dcf88b0", "nodes": 1105, "iterations": 1500, "seconds": 24.6, "mbb": 0.001, "bytes": 7519}
+{"name": "Satellite, 6 seats for 8 left, 15bb average, equal stacks", "key": "icm8_893222664270238e", "nodes": 985, "iterations": 1500, "seconds": 22.4, "mbb": 0.009, "bytes": 4993}
+{"name": "Satellite, 6 seats for 8 left, 15bb average, chip leader on the button", "key": "icm8_ae246cd33464570f", "nodes": 1160, "iterations": 1500, "seconds": 26.2, "mbb": 0.013, "bytes": 7343}
+{"name": "Satellite, 6 seats for 8 left, 15bb average, short stack in the big blind", "key": "icm8_a58a0fc78d37f5e1", "nodes": 1105, "iterations": 1500, "seconds": 25.2, "mbb": 0.013, "bytes": 3974}
+{"name": "Satellite, 6 seats for 8 left, 25bb average, equal stacks", "key": "icm8_f32c8926d8e4f8a6", "nodes": 1030, "iterations": 1500, "seconds": 23.9, "mbb": 0.053, "bytes": 7214}
+{"name": "Satellite, 6 seats for 8 left, 25bb average, chip leader on the button", "key": "icm8_9c68e9cb42cdcdb9", "nodes": 1190, "iterations": 1500, "seconds": 27.1, "mbb": 0.042, "bytes": 9074}
+{"name": "Satellite, 6 seats for 8 left, 25bb average, short stack in the big blind", "key": "icm8_7df799d341124d35", "nodes": 1234, "iterations": 1500, "seconds": 28.3, "mbb": 0.025, "bytes": 6993}
+{"name": "Satellite, 8 seats for 9 left, 10bb average, equal stacks", "key": "icm9_a228c462fdabcaea", "nodes": 1464, "iterations": 1500, "seconds": 36.2, "mbb": 0.0, "bytes": 9566}
+{"name": "Satellite, 8 seats for 9 left, 10bb average, chip leader on the button", "key": "icm9_a0fc8b248b67ca11", "nodes": 1476, "iterations": 1500, "seconds": 36.7, "mbb": 0.0, "bytes": 10211}
+{"name": "Satellite, 8 seats for 9 left, 10bb average, short stack in the big blind", "key": "icm9_ca0f9693de7df9e0", "nodes": 1626, "iterations": 1500, "seconds": 39.9, "mbb": 0.001, "bytes": 6516}
+{"name": "Satellite, 8 seats for 9 left, 15bb average, equal stacks", "key": "icm9_9953b08adf32fe1a", "nodes": 1464, "iterations": 1500, "seconds": 36.0, "mbb": 0.0, "bytes": 15390}
+{"name": "Satellite, 8 seats for 9 left, 15bb average, chip leader on the button", "key": "icm9_667b3894128c12df", "nodes": 1722, "iterations": 1500, "seconds": 42.2, "mbb": 0.0, "bytes": 15159}
+{"name": "Satellite, 8 seats for 9 left, 15bb average, short stack in the big blind", "key": "icm9_30648a4c3b28943b", "nodes": 1626, "iterations": 1500, "seconds": 40.2, "mbb": 0.0, "bytes": 7243}
+{"name": "Satellite, 8 seats for 9 left, 25bb average, equal stacks", "key": "icm9_d1fdd473a504373a", "nodes": 1527, "iterations": 1500, "seconds": 38.4, "mbb": 0.0, "bytes": 17160}
+{"name": "Satellite, 8 seats for 9 left, 25bb average, chip leader on the button", "key": "icm9_6db127c1a7a94e0f", "nodes": 1767, "iterations": 1500, "seconds": 44.0, "mbb": 0.0, "bytes": 19175}
+{"name": "Satellite, 7 seats for 9 left, 10bb average, equal stacks", "key": "icm9_1560009b151b66e7", "nodes": 1464, "iterations": 1500, "seconds": 36.7, "mbb": 0.005, "bytes": 7446}
+{"name": "Satellite, 8 seats for 9 left, 25bb average, short stack in the big blind", "key": "icm9_63a41dd3491cb845", "nodes": 1884, "iterations": 1500, "seconds": 46.5, "mbb": 0.001, "bytes": 3776}
+{"name": "Satellite, 7 seats for 9 left, 10bb average, chip leader on the button", "key": "icm9_f30ec2415b0a4fef", "nodes": 1476, "iterations": 1500, "seconds": 37.3, "mbb": 0.014, "bytes": 7797}
+{"name": "Satellite, 7 seats for 9 left, 10bb average, short stack in the big blind", "key": "icm9_942be2574b67b042", "nodes": 1626, "iterations": 1500, "seconds": 40.4, "mbb": 0.001, "bytes": 9182}
+{"name": "Satellite, 7 seats for 9 left, 15bb average, equal stacks", "key": "icm9_533c6190492cfaeb", "nodes": 1464, "iterations": 1500, "seconds": 35.7, "mbb": 0.048, "bytes": 7841}
+{"name": "Satellite, 7 seats for 9 left, 15bb average, chip leader on the button", "key": "icm9_3caa90c14f97c127", "nodes": 1722, "iterations": 1500, "seconds": 41.7, "mbb": 0.012, "bytes": 10225}
+{"name": "Satellite, 7 seats for 9 left, 15bb average, short stack in the big blind", "key": "icm9_4469a8c39a3d50c9", "nodes": 1626, "iterations": 1500, "seconds": 40.4, "mbb": 0.014, "bytes": 9371}
+{"name": "Satellite, 7 seats for 9 left, 25bb average, equal stacks", "key": "icm9_a2a7856f5ab1f239", "nodes": 1527, "iterations": 1500, "seconds": 38.8, "mbb": 0.022, "bytes": 10932}
+{"name": "Satellite, 7 seats for 9 left, 25bb average, chip leader on the button", "key": "icm9_641e4c862079b32b", "nodes": 1767, "iterations": 1500, "seconds": 43.7, "mbb": 0.041, "bytes": 12030}
+{"name": "Heads-up, chip EV", "key": "icm2_0ead085bf950cb84", "nodes": 22, "iterations": 1500, "seconds": 0.5, "mbb": 0.093, "bytes": 658}
+{"name": "Three left, chip EV", "key": "icm3_4614482baeb9cc19", "nodes": 78, "iterations": 1500, "seconds": 1.5, "mbb": 4.724, "bytes": 1178}
+{"name": "Final table, 3 left, 10bb average, equal stacks, chip EV", "key": "icm3_213c4b67413c57c0", "nodes": 54, "iterations": 1500, "seconds": 1.2, "mbb": 1.226, "bytes": 1315}
+{"name": "Final table, 3 left, 10bb average, chip leader on the button, chip EV", "key": "icm3_3b77d0c57610a11e", "nodes": 42, "iterations": 1500, "seconds": 1.0, "mbb": 1.533, "bytes": 688}
+{"name": "Final table, 3 left, 10bb average, short stack in the big blind, chip EV", "key": "icm3_930d3ba464a19cdb", "nodes": 54, "iterations": 1500, "seconds": 1.2, "mbb": 10.159, "bytes": 814}
+{"name": "Final table, 3 left, 15bb average, equal stacks, chip EV", "key": "icm3_9f150a11f3ae206d", "nodes": 54, "iterations": 1500, "seconds": 1.1, "mbb": 0.975, "bytes": 975}
+{"name": "Satellite, 7 seats for 9 left, 25bb average, short stack in the big blind", "key": "icm9_a5a43c2d396cfe90", "nodes": 1884, "iterations": 1500, "seconds": 45.0, "mbb": 0.023, "bytes": 9268}
+{"name": "Final table, 3 left, 15bb average, chip leader on the button, chip EV", "key": "icm3_6acfe86a1e4949c7", "nodes": 42, "iterations": 1500, "seconds": 0.9, "mbb": 0.938, "bytes": 900}
+{"name": "Final table, 3 left, 15bb average, short stack in the big blind, chip EV", "key": "icm3_e4ac261bdf239548", "nodes": 54, "iterations": 1500, "seconds": 1.1, "mbb": 7.653, "bytes": 822}
+{"name": "Final table, 3 left, 20bb average, equal stacks, chip EV", "key": "icm3_adf5d94e6d884947", "nodes": 54, "iterations": 1500, "seconds": 1.1, "mbb": 0.445, "bytes": 929}
+{"name": "Final table, 3 left, 20bb average, chip leader on the button, chip EV", "key": "icm3_cd5fae90956c10c2", "nodes": 54, "iterations": 1500, "seconds": 1.1, "mbb": 1.226, "bytes": 1315}
+{"name": "Final table, 3 left, 20bb average, short stack in the big blind, chip EV", "key": "icm3_bde7473e583a68de", "nodes": 47, "iterations": 1500, "seconds": 1.0, "mbb": 6.665, "bytes": 809}
+{"name": "Final table, 3 left, 30bb average, equal stacks, chip EV", "key": "icm3_a5458326e8ce0ce3", "nodes": 47, "iterations": 1500, "seconds": 1.1, "mbb": 0.411, "bytes": 756}
+{"name": "Final table, 3 left, 30bb average, chip leader on the button, chip EV", "key": "icm3_a5b9bd043a29bd98", "nodes": 54, "iterations": 1500, "seconds": 1.1, "mbb": 0.975, "bytes": 975}
+{"name": "Final table, 3 left, 30bb average, short stack in the big blind, chip EV", "key": "icm3_a045db9a9387ced6", "nodes": 61, "iterations": 1500, "seconds": 1.3, "mbb": 12.106, "bytes": 1189}
+{"name": "Final table, 3 left, 40bb average, equal stacks, chip EV", "key": "icm3_f77b37ec5abe25e5", "nodes": 82, "iterations": 1500, "seconds": 1.5, "mbb": 0.479, "bytes": 1008}
+{"name": "Final table, 3 left, 40bb average, chip leader on the button, chip EV", "key": "icm3_9060efa0b9d91486", "nodes": 54, "iterations": 1500, "seconds": 1.1, "mbb": 0.445, "bytes": 929}
+{"name": "Final table, 3 left, 40bb average, short stack in the big blind, chip EV", "key": "icm3_6eff9d7e61a1495b", "nodes": 78, "iterations": 1500, "seconds": 1.5, "mbb": 6.394, "bytes": 1223}
+{"name": "Sit & go bubble, chip EV", "key": "icm4_389eb843030df103", "nodes": 202, "iterations": 1500, "seconds": 3.3, "mbb": 4.728, "bytes": 2593}
+{"name": "Final table, 4 left, 10bb average, equal stacks, chip EV", "key": "icm4_8b9c03a05a665c9f", "nodes": 149, "iterations": 1500, "seconds": 2.5, "mbb": 2.073, "bytes": 2340}
+{"name": "Final table, 4 left, 10bb average, chip leader on the button, chip EV", "key": "icm4_a4040f69880a8da4", "nodes": 137, "iterations": 1500, "seconds": 2.2, "mbb": 2.45, "bytes": 1843}
+{"name": "Final table, 4 left, 10bb average, short stack in the big blind, chip EV", "key": "icm4_b671a9ab5cd741f7", "nodes": 188, "iterations": 1500, "seconds": 3.2, "mbb": 10.004, "bytes": 2148}
+{"name": "Final table, 4 left, 15bb average, equal stacks, chip EV", "key": "icm4_d3f453c2445d2793", "nodes": 149, "iterations": 1500, "seconds": 2.7, "mbb": 0.977, "bytes": 1839}
+{"name": "Final table, 4 left, 15bb average, chip leader on the button, chip EV", "key": "icm4_1f78c0a53f5581fb", "nodes": 197, "iterations": 1500, "seconds": 3.4, "mbb": 2.128, "bytes": 2076}
+{"name": "Final table, 4 left, 15bb average, short stack in the big blind, chip EV", "key": "icm4_1ffeef78abae37f1", "nodes": 188, "iterations": 1500, "seconds": 3.3, "mbb": 7.345, "bytes": 2303}
+{"name": "Final table, 4 left, 20bb average, equal stacks, chip EV", "key": "icm4_cbfb96a1d604c1d1", "nodes": 197, "iterations": 1500, "seconds": 3.3, "mbb": 1.273, "bytes": 1823}
+{"name": "Final table, 4 left, 20bb average, chip leader on the button, chip EV", "key": "icm4_e695addaf908c394", "nodes": 197, "iterations": 1500, "seconds": 3.2, "mbb": 1.857, "bytes": 2152}
+{"name": "Final table, 4 left, 30bb average, equal stacks, chip EV", "key": "icm4_65bd41b6a0022fc1", "nodes": 176, "iterations": 1500, "seconds": 2.9, "mbb": 1.222, "bytes": 1590}
+{"name": "Final table, 4 left, 20bb average, short stack in the big blind, chip EV", "key": "icm4_1f38a54fd52655d2", "nodes": 269, "iterations": 1500, "seconds": 4.3, "mbb": 10.002, "bytes": 2746}
+{"name": "Final table, 4 left, 30bb average, chip leader on the button, chip EV", "key": "icm4_624800efcd3d3939", "nodes": 197, "iterations": 1500, "seconds": 3.3, "mbb": 1.273, "bytes": 1823}
+{"name": "Final table, 4 left, 30bb average, short stack in the big blind, chip EV", "key": "icm4_3c87bd050c16cad2", "nodes": 267, "iterations": 1500, "seconds": 4.5, "mbb": 12.426, "bytes": 2766}
+{"name": "Final table, 4 left, 40bb average, chip leader on the button, chip EV", "key": "icm4_a1a1cda57153d32a", "nodes": 176, "iterations": 1500, "seconds": 3.0, "mbb": 1.075, "bytes": 1569}
+{"name": "Final table, 4 left, 40bb average, equal stacks, chip EV", "key": "icm4_bcc750cb9e851d03", "nodes": 310, "iterations": 1500, "seconds": 4.7, "mbb": 1.788, "bytes": 2649}
+{"name": "Final table, 4 left, 40bb average, short stack in the big blind, chip EV", "key": "icm4_18cf8f1b26739626", "nodes": 401, "iterations": 1500, "seconds": 6.9, "mbb": 6.237, "bytes": 3520}
+{"name": "Final table, 5 left, 10bb average, equal stacks, chip EV", "key": "icm5_929099aa049d2f75", "nodes": 390, "iterations": 1500, "seconds": 6.5, "mbb": 2.081, "bytes": 3619}
+{"name": "Final-table bubble, chip EV", "key": "icm5_185e299a29f3523d", "nodes": 895, "iterations": 1500, "seconds": 14.3, "mbb": 5.843, "bytes": 6524}
+{"name": "Final table, 5 left, 10bb average, chip leader on the button, chip EV", "key": "icm5_ff912d76b5a369e7", "nodes": 378, "iterations": 1500, "seconds": 5.5, "mbb": 2.582, "bytes": 2821}
+{"name": "Final table, 5 left, 10bb average, short stack in the big blind, chip EV", "key": "icm5_e902423ef80ebdf4", "nodes": 528, "iterations": 1500, "seconds": 8.2, "mbb": 6.587, "bytes": 2633}
+{"name": "Final table, 5 left, 15bb average, equal stacks, chip EV", "key": "icm5_5f61d8b1f3bb6082", "nodes": 390, "iterations": 1500, "seconds": 6.3, "mbb": 0.935, "bytes": 3203}
+{"name": "Final table, 5 left, 15bb average, chip leader on the button, chip EV", "key": "icm5_d8b05396fab2829a", "nodes": 599, "iterations": 1500, "seconds": 9.5, "mbb": 2.061, "bytes": 4135}
+{"name": "Final table, 5 left, 15bb average, short stack in the big blind, chip EV", "key": "icm5_99cd3de2e3451926", "nodes": 528, "iterations": 1500, "seconds": 8.4, "mbb": 5.642, "bytes": 3928}
+{"name": "Final table, 5 left, 20bb average, equal stacks, chip EV", "key": "icm5_5b16342263acd50f", "nodes": 599, "iterations": 1500, "seconds": 9.5, "mbb": 1.653, "bytes": 3835}
+{"name": "Final table, 5 left, 20bb average, chip leader on the button, chip EV", "key": "icm5_5ad30cd2dc7f4dba", "nodes": 599, "iterations": 1500, "seconds": 9.6, "mbb": 1.476, "bytes": 3847}
+{"name": "Final table, 5 left, 30bb average, equal stacks, chip EV", "key": "icm5_3345a12009c7711d", "nodes": 666, "iterations": 1500, "seconds": 10.4, "mbb": 1.637, "bytes": 4483}
+{"name": "Final table, 5 left, 20bb average, short stack in the big blind, chip EV", "key": "icm5_ebe37ba354da91dd", "nodes": 863, "iterations": 1500, "seconds": 14.3, "mbb": 9.783, "bytes": 5805}
+{"name": "Final table, 5 left, 30bb average, chip leader on the button, chip EV", "key": "icm5_340e954f8bcdfdf7", "nodes": 825, "iterations": 1500, "seconds": 13.7, "mbb": 1.705, "bytes": 4440}
+{"name": "Final table, 5 left, 30bb average, short stack in the big blind, chip EV", "key": "icm5_e39b822cb7641ac3", "nodes": 1059, "iterations": 1500, "seconds": 17.8, "mbb": 10.15, "bytes": 6304}
+{"name": "Final table, 5 left, 40bb average, equal stacks, chip EV", "key": "icm5_1aa1b7a73399799d", "nodes": 963, "iterations": 1500, "seconds": 14.4, "mbb": 2.142, "bytes": 5690}
+{"name": "Final table, 5 left, 40bb average, chip leader on the button, chip EV", "key": "icm5_d47f7d1f6d910b5a", "nodes": 779, "iterations": 1500, "seconds": 11.7, "mbb": 1.684, "bytes": 3958}
+{"name": "Final table, 5 left, 40bb average, short stack in the big blind, chip EV", "key": "icm5_b93a733910c67fb1", "nodes": 1552, "iterations": 1500, "seconds": 29.5, "mbb": 5.39, "bytes": 8373}
+{"name": "Final table, 6 left, 10bb average, equal stacks, chip EV", "key": "icm6_10e2838d88d87640", "nodes": 924, "iterations": 1500, "seconds": 18.2, "mbb": 1.733, "bytes": 5405}
+{"name": "Final table, 6 left, 10bb average, chip leader on the button, chip EV", "key": "icm6_06b5dbca7ed521d6", "nodes": 1062, "iterations": 1500, "seconds": 21.6, "mbb": 2.295, "bytes": 5113}
+{"name": "Final table, 6 left, 10bb average, short stack in the big blind, chip EV", "key": "icm6_88b0607f39a2839a", "nodes": 1248, "iterations": 1500, "seconds": 25.2, "mbb": 5.777, "bytes": 3308}
+{"name": "Final table, 6 left, 15bb average, equal stacks, chip EV", "key": "icm6_121f4519a4501c0c", "nodes": 924, "iterations": 1500, "seconds": 18.3, "mbb": 0.834, "bytes": 6194}
+{"name": "Final table, 6 left, 15bb average, chip leader on the button, chip EV", "key": "icm6_ba89110a39fd8b08", "nodes": 1407, "iterations": 1500, "seconds": 29.4, "mbb": 1.594, "bytes": 6629}
+{"name": "Sit & go, 6 players, chip EV", "key": "icm6_3f55a6c8b842b97a", "nodes": 7542, "iterations": 1500, "seconds": 145.7, "mbb": 1.009, "bytes": 38341}
+{"name": "Final table, 6 left, 15bb average, short stack in the big blind, chip EV", "key": "icm6_e96700c9606cf246", "nodes": 1248, "iterations": 1500, "seconds": 23.7, "mbb": 3.744, "bytes": 5795}
+{"name": "Final table, 6 left, 20bb average, equal stacks, chip EV", "key": "icm6_4a01b66d2b8c2c64", "nodes": 1525, "iterations": 1500, "seconds": 29.9, "mbb": 1.767, "bytes": 7582}
+{"name": "Final table, 6 left, 20bb average, chip leader on the button, chip EV", "key": "icm6_277cc828bdfc3f77", "nodes": 1638, "iterations": 1500, "seconds": 32.3, "mbb": 1.608, "bytes": 7319}
+{"name": "Final table, 6 left, 20bb average, short stack in the big blind, chip EV", "key": "icm6_d668f839acfb80e9", "nodes": 2155, "iterations": 1500, "seconds": 45.3, "mbb": 8.424, "bytes": 10758}
+{"name": "Final table, 6 left, 30bb average, equal stacks, chip EV", "key": "icm6_eef9b2d4e9a532f7", "nodes": 2008, "iterations": 1500, "seconds": 37.3, "mbb": 1.887, "bytes": 7347}
+{"name": "Final table, 6 left, 30bb average, chip leader on the button, chip EV", "key": "icm6_1a51cede099852de", "nodes": 2434, "iterations": 1500, "seconds": 51.8, "mbb": 1.91, "bytes": 9360}
+{"name": "Final table, 6 left, 30bb average, short stack in the big blind, chip EV", "key": "icm6_0310d118d5e46191", "nodes": 3338, "iterations": 1500, "seconds": 73.6, "mbb": 7.934, "bytes": 14130}
+{"name": "Final table, 6 left, 40bb average, equal stacks, chip EV", "key": "icm6_f4b19304e58642e0", "nodes": 2763, "iterations": 1500, "seconds": 53.3, "mbb": 2.521, "bytes": 12095}
+{"name": "Final table, 6 left, 40bb average, chip leader on the button, chip EV", "key": "icm6_9bf12ed12dad408f", "nodes": 3122, "iterations": 1500, "seconds": 62.2, "mbb": 2.44, "bytes": 10079}
+{"name": "Final table, 7 left, 10bb average, equal stacks, chip EV", "key": "icm7_56d7eee02a400262", "nodes": 632, "iterations": 1500, "seconds": 13.1, "mbb": 1.361, "bytes": 3206}
+{"name": "Final table, 7 left, 10bb average, chip leader on the button, chip EV", "key": "icm7_9e7f9caf4cd1ac8f", "nodes": 638, "iterations": 1500, "seconds": 14.0, "mbb": 1.922, "bytes": 3302}
+{"name": "Final table, 7 left, 10bb average, short stack in the big blind, chip EV", "key": "icm7_f006a7f9bf9426a0", "nodes": 716, "iterations": 1500, "seconds": 14.9, "mbb": 4.517, "bytes": 5021}
+{"name": "Final table, 7 left, 15bb average, equal stacks, chip EV", "key": "icm7_448e0932c3f6a51e", "nodes": 632, "iterations": 1500, "seconds": 13.3, "mbb": 0.577, "bytes": 3781}
+{"name": "Final table, 6 left, 40bb average, short stack in the big blind, chip EV", "key": "icm6_ae8e825d3a354311", "nodes": 5002, "iterations": 1500, "seconds": 108.5, "mbb": 4.975, "bytes": 16688}
+{"name": "Final table, 7 left, 15bb average, chip leader on the button, chip EV", "key": "icm7_f6f442adb59f81fa", "nodes": 740, "iterations": 1500, "seconds": 14.4, "mbb": 0.961, "bytes": 4314}
+{"name": "Final table, 7 left, 15bb average, short stack in the big blind, chip EV", "key": "icm7_81effd20dcdf5788", "nodes": 716, "iterations": 1500, "seconds": 13.8, "mbb": 1.579, "bytes": 5807}
+{"name": "Final table, 7 left, 20bb average, equal stacks, chip EV", "key": "icm7_d16d2976bd369595", "nodes": 662, "iterations": 1500, "seconds": 13.1, "mbb": 0.192, "bytes": 4606}
+{"name": "Final table, 7 left, 20bb average, chip leader on the button, chip EV", "key": "icm7_9cd1820b20f78c43", "nodes": 740, "iterations": 1500, "seconds": 14.5, "mbb": 0.41, "bytes": 4781}
+{"name": "Final table, 7 left, 20bb average, short stack in the big blind, chip EV", "key": "icm7_e7d55afd0d34a421", "nodes": 746, "iterations": 1500, "seconds": 15.1, "mbb": 3.218, "bytes": 6333}
+{"name": "Final table, 7 left, 30bb average, equal stacks, chip EV", "key": "icm7_8213a923fd751cdf", "nodes": 672, "iterations": 1500, "seconds": 12.3, "mbb": 0.112, "bytes": 4273}
+{"name": "Final table, 7 left, 30bb average, chip leader on the button, chip EV", "key": "icm7_3f41cc3ebd132401", "nodes": 758, "iterations": 1500, "seconds": 15.0, "mbb": 0.155, "bytes": 5661}
+{"name": "Final table, 7 left, 30bb average, short stack in the big blind, chip EV", "key": "icm7_d64d109c5f7f7a3d", "nodes": 780, "iterations": 1500, "seconds": 15.8, "mbb": 3.809, "bytes": 6978}
+{"name": "Final table, 7 left, 40bb average, chip leader on the button, chip EV", "key": "icm7_1ef749a41836d591", "nodes": 708, "iterations": 1500, "seconds": 13.5, "mbb": 0.147, "bytes": 4838}
+{"name": "Final table, 7 left, 40bb average, equal stacks, chip EV", "key": "icm7_497faaa206ffb662", "nodes": 1102, "iterations": 1500, "seconds": 20.0, "mbb": 0.247, "bytes": 7053}
+{"name": "Final table, 7 left, 40bb average, short stack in the big blind, chip EV", "key": "icm7_390ff8cb87c8f48b", "nodes": 970, "iterations": 1500, "seconds": 20.8, "mbb": 1.315, "bytes": 7565}
+{"name": "Early, chip EV", "key": "icm8_d1303b46838cbd2c", "nodes": 2148, "iterations": 1500, "seconds": 45.3, "mbb": 0.277, "bytes": 15989}
+{"name": "Bubble, chip EV", "key": "icm8_fe2f08b4393d5045", "nodes": 1310, "iterations": 1500, "seconds": 30.3, "mbb": 1.741, "bytes": 8580}
+{"name": "Final table, 8 left, 10bb average, equal stacks, chip EV", "key": "icm8_e9f713a32b93a864", "nodes": 985, "iterations": 1500, "seconds": 21.7, "mbb": 1.156, "bytes": 4593}
+{"name": "Final table, 8 left, 10bb average, chip leader on the button, chip EV", "key": "icm8_3d8d23f1864cf66a", "nodes": 994, "iterations": 1500, "seconds": 22.0, "mbb": 1.531, "bytes": 4368}
+{"name": "Final table, 8 left, 15bb average, equal stacks, chip EV", "key": "icm8_34a210e574623d6a", "nodes": 985, "iterations": 1500, "seconds": 22.4, "mbb": 0.415, "bytes": 5433}
+{"name": "Final table, 8 left, 10bb average, short stack in the big blind, chip EV", "key": "icm8_b9a4d75e46ea28c6", "nodes": 1105, "iterations": 1500, "seconds": 24.8, "mbb": 3.547, "bytes": 7295}
+{"name": "Final table, 8 left, 15bb average, short stack in the big blind, chip EV", "key": "icm8_4d088253082c9ccc", "nodes": 1105, "iterations": 1500, "seconds": 24.9, "mbb": 1.429, "bytes": 8459}
+{"name": "Final table, 8 left, 15bb average, chip leader on the button, chip EV", "key": "icm8_84bbe93af92f875a", "nodes": 1160, "iterations": 1500, "seconds": 25.6, "mbb": 0.758, "bytes": 6168}
+{"name": "Final table, 8 left, 20bb average, equal stacks, chip EV", "key": "icm8_18c1871e9a7c4422", "nodes": 1030, "iterations": 1500, "seconds": 23.5, "mbb": 0.167, "bytes": 6216}
+{"name": "Final table, 8 left, 20bb average, chip leader on the button, chip EV", "key": "icm8_3be970228c5ed94c", "nodes": 1160, "iterations": 1500, "seconds": 25.7, "mbb": 0.308, "bytes": 7348}
+{"name": "Final table, 8 left, 30bb average, equal stacks, chip EV", "key": "icm8_397cc2f2ca07c2ad", "nodes": 1108, "iterations": 1500, "seconds": 24.7, "mbb": 0.095, "bytes": 5938}
+{"name": "Final table, 8 left, 20bb average, short stack in the big blind, chip EV", "key": "icm8_e5b6b6fff5bb2cd5", "nodes": 1150, "iterations": 1500, "seconds": 28.3, "mbb": 2.829, "bytes": 9120}
+{"name": "Final table, 8 left, 30bb average, chip leader on the button, chip EV", "key": "icm8_0b5c9b47f4e04838", "nodes": 1105, "iterations": 1500, "seconds": 23.4, "mbb": 0.121, "bytes": 5681}
+{"name": "Final table, 8 left, 30bb average, short stack in the big blind, chip EV", "key": "icm8_73c504ae8fe534e5", "nodes": 1255, "iterations": 1500, "seconds": 29.9, "mbb": 3.062, "bytes": 9465}
+{"name": "Final table, 8 left, 40bb average, chip leader on the button, chip EV", "key": "icm8_4eaefac2336efedd", "nodes": 1150, "iterations": 1500, "seconds": 24.9, "mbb": 0.13, "bytes": 6998}
+{"name": "Final table, 8 left, 40bb average, equal stacks, chip EV", "key": "icm8_89ecb7b243801ef1", "nodes": 1720, "iterations": 1500, "seconds": 36.6, "mbb": 0.199, "bytes": 10153}
+{"name": "Final table, 8 left, 40bb average, short stack in the big blind, chip EV", "key": "icm8_ae65ea4a8a0a6a97", "nodes": 1540, "iterations": 1500, "seconds": 37.8, "mbb": 1.132, "bytes": 11196}
+{"name": "Final table, chip EV", "key": "icm9_13b8f189de58c0d3", "nodes": 2096, "iterations": 1500, "seconds": 53.0, "mbb": 1.376, "bytes": 13392}
+{"name": "Final table, 9 left, 10bb average, equal stacks, chip EV", "key": "icm9_60e131755a4b13f3", "nodes": 1464, "iterations": 1500, "seconds": 36.9, "mbb": 0.819, "bytes": 6425}
+{"name": "Sit & go, 9 players, chip EV", "key": "icm9_49dbd94707ad1dd7", "nodes": 3318, "iterations": 1500, "seconds": 76.1, "mbb": 0.111, "bytes": 22677}
+{"name": "Final table, 9 left, 10bb average, chip leader on the button, chip EV", "key": "icm9_c6d63c0ca08590a1", "nodes": 1476, "iterations": 1500, "seconds": 36.4, "mbb": 0.997, "bytes": 6130}
+{"name": "Final table, 9 left, 10bb average, short stack in the big blind, chip EV", "key": "icm9_f17a57c21ef9bfba", "nodes": 1626, "iterations": 1500, "seconds": 39.6, "mbb": 2.463, "bytes": 10794}
+{"name": "Final table, 9 left, 15bb average, equal stacks, chip EV", "key": "icm9_4c5a0420c5875076", "nodes": 1464, "iterations": 1500, "seconds": 35.8, "mbb": 0.308, "bytes": 8176}
+{"name": "Final table, 9 left, 15bb average, chip leader on the button, chip EV", "key": "icm9_517588d2af9bcd55", "nodes": 1722, "iterations": 1500, "seconds": 41.9, "mbb": 0.489, "bytes": 8179}
+{"name": "Final table, 9 left, 15bb average, short stack in the big blind, chip EV", "key": "icm9_e272706dba55b884", "nodes": 1626, "iterations": 1500, "seconds": 39.8, "mbb": 1.042, "bytes": 11996}
+{"name": "Final table, 9 left, 20bb average, equal stacks, chip EV", "key": "icm9_40c32472ac680b80", "nodes": 1527, "iterations": 1500, "seconds": 38.0, "mbb": 0.112, "bytes": 8063}
+{"name": "Final table, 9 left, 20bb average, chip leader on the button, chip EV", "key": "icm9_7f2ab8036d33945e", "nodes": 1722, "iterations": 1500, "seconds": 42.3, "mbb": 0.191, "bytes": 10004}
+{"name": "Final table, 9 left, 20bb average, short stack in the big blind, chip EV", "key": "icm9_634b267b978573de", "nodes": 1689, "iterations": 1500, "seconds": 44.7, "mbb": 2.016, "bytes": 11830}
+{"name": "Final table, 9 left, 30bb average, equal stacks, chip EV", "key": "icm9_8aa6a2c8dcd3d3c1", "nodes": 1716, "iterations": 1500, "seconds": 41.4, "mbb": 0.088, "bytes": 8413}
+{"name": "Final table, 9 left, 30bb average, chip leader on the button, chip EV", "key": "icm9_ba9c889de1352ff3", "nodes": 1713, "iterations": 1500, "seconds": 40.9, "mbb": 0.094, "bytes": 8072}
+{"name": "Final table, 9 left, 30bb average, short stack in the big blind, chip EV", "key": "icm9_e5798a18d26cf9a7", "nodes": 1908, "iterations": 1500, "seconds": 50.5, "mbb": 2.282, "bytes": 12838}
+{"name": "Final table, 9 left, 40bb average, equal stacks, chip EV", "key": "icm9_4710dedd89d634f5", "nodes": 2542, "iterations": 1500, "seconds": 60.1, "mbb": 0.159, "bytes": 14011}
+{"name": "Final table, 9 left, 40bb average, chip leader on the button, chip EV", "key": "icm9_4bd1015867e8e4a0", "nodes": 1764, "iterations": 1500, "seconds": 41.2, "mbb": 0.105, "bytes": 9442}
+{"name": "Final table, 9 left, 40bb average, short stack in the big blind, chip EV", "key": "icm9_7fab183664659770", "nodes": 2244, "iterations": 1500, "seconds": 46.2, "mbb": 0.917, "bytes": 14082}
