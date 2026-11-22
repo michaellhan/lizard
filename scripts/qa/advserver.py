@@ -3,7 +3,7 @@
 It mirrors solver/gto/static/worker.js as scripts/pyodide/worker-edits.mjs publishes it:
 - the startup imports in the worker's order: gto.advisor, gto.solver, gto.flop_library first (the worker's "imports"
   stage), then the edited line: engine.pf_stored, engine.pf_icm_study, engine.tree_depth, engine.pf_charts,
-  engine.bunching, engine.mw_near, engine.mw_quick, engine.size_match, then `from gto.advisor import Advisor`;
+  engine.bunching, engine.mw_near, engine.hu_near, engine.mw_quick, engine.size_match, then `from gto.advisor import Advisor`;
 - the two advisors ('fast', 'accurate') with the worker's Config, root sizes, warm_from, spare_prior, hu_settled,
   expl_target, first_look, the multiway street configs, mw_nway_max and the shared solve cache, in the THREADED variant
   (setup.threads >= 4, which a cross-origin isolated desktop browser gets) unless QA_THREADED=0;
@@ -72,6 +72,7 @@ import engine.tree_depth  # noqa: E402,F401
 import engine.pf_charts  # noqa: E402,F401
 import engine.bunching  # noqa: E402,F401
 import engine.mw_near  # noqa: E402,F401
+import engine.hu_near  # noqa: E402,F401
 import engine.mw_quick  # noqa: E402,F401
 import engine.size_match  # noqa: E402,F401
 from gto.advisor import Advisor, MW_FAST_STREETS, MW4_FAST_STREETS  # noqa: E402

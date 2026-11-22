@@ -281,11 +281,11 @@ describe("a move the solve never makes", () => {
     expect(untrainedMoves(U.utg40.solve)).toEqual([]);
     for (const n of Object.values(NODES)) expect(untrainedMoves(n)).toEqual([]);
   });
-  it("grades a chart 3-bet with AA by the chart, not as a 12.8bb Blunder, and says why", () => {
+  it("grades a chart 3-bet with AA by the chart, not as a 12.5bb Blunder, and says why", () => {
     // (by the solve's numbers it was: -7.495 against the call's +5.284 in a 4bb pot)
     const aa = U.hj40.solve.grid!.cells.AA!;
     const bySolve = gradeMix(aa.ev!.map((ev, i) => ({ action: U.hj40.solve.grid!.actions[i]!, freq: aa.f[i]!, ev })), 4, 0, "preflop-solve");
-    expect([bySolve.verdict, bySolve.loss]).toEqual(["Blunder", expect.closeTo(12.779, 3)]);
+    expect([bySolve.verdict, bySolve.loss]).toEqual(["Blunder", expect.closeTo(12.548, 3)]);
     const h = hand(U.hj40);
     const { on, d } = choose(h, U.hj40, "raise");
     expect(on.pfWhy).toBe("The solve never plays raise 7.5bb here, so its EV for it is untrained: it has even AA losing 7.5bb by it.");
@@ -305,7 +305,7 @@ describe("a move the solve never makes", () => {
     expect(on.provenance.source).toBe("preflop-solve");
     expect(d.grade!.byEv).toBe(true);
     expect(d.grade!.verdict).toBe("Blunder");
-    expect(d.grade!.loss).toBeCloseTo(5.88, 6);
+    expect(d.grade!.loss).toBeCloseTo(5.817, 6);
   });
   it("still grades a spot whose rare move is a learned one by the solve", () => {
     const h = hand(U.trap50);

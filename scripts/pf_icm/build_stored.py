@@ -95,13 +95,23 @@ def index() -> None:
     print(f"KEYS: {len(m)} stored games")
 
 
+def key_of(req: dict) -> str:
+    """The game's key as the worker computes it now (its flop model's tag included, pf_icm.FLOP_MODEL_TAG)."""
+    from engine import pf_icm_study as IS
+    from gto.advisor import Advisor
+    spec, why = IS.spec_of(Advisor(), {**req, "bb": 1.0, "street": "preflop", "board": ""})
+    return spec.key if spec is not None else ""
+
+
 def have(name: str) -> bool:
-    """A game built already: its manifest entry and its file (the file's key is the game's: a changed game rebuilds)."""
+    """A game built already: its manifest entry and its file, under the key the game has now (a changed game, or the
+    same game on other equities or calibration, rebuilds)."""
     e = next((e for e in manifest() if e["name"] == name), None)
     if e is None or not Path(ST.DIR, e["key"] + ".bin").exists():
         return False
     stage = next(s for s in ST.ALL if s[0] == name)
-    return e["request"] == ST.request(stage)
+    req = ST.request(stage)
+    return e["request"] == req and e["key"] == key_of(req)
 
 
 if __name__ == "__main__":

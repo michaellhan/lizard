@@ -36,7 +36,7 @@ from . import pf_model as M
 from .pf_offpath import OffPathValues
 
 MODEL = "calibrated class-level model"       # in every answer (pf_model) and the provenance label
-MODEL_TAG = "lz3"                           # key prefix: a change to the model or its calibration bumps it
+MODEL_TAG = "lz4"                           # key prefix: a change to the model or its calibration bumps it
 MAX_PLAYERS = 9
 STACK_RANGE = (5.0, 250.0)                  # a seat's stack, bb (the deepest at least 10)
 STORED_PLAYERS = (2, 3, 4, 5, 6)
@@ -155,7 +155,7 @@ class Spec:
 
     @property
     def key(self) -> str:
-        """File-name-safe: 'lz3_6max_100bb', 'lz3_6max_100bb_r5c3', 'lz3_6max_s100-35-220-60-15-100_a0.1'..."""
+        """File-name-safe: 'lz4_6max_100bb', 'lz4_6max_100bb_r5c3', 'lz4_6max_s100-35-220-60-15-100_a0.1'..."""
         k = f"{MODEL_TAG}_{self.players}max_"
         k += f"{self.stacks[0]:g}bb" if self.equal else "s" + "-".join(f"{s:g}" for s in self.seat_stacks())
         if self.ante:

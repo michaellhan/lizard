@@ -140,7 +140,10 @@ class PushFold(unittest.TestCase):
                 jam = freq(g, s, [], "all-in")
                 pf = PC.push_fold(np.ones(1326), np.ones(1326), st, 0.5, 1.0, 1.5, 1, iters=2500)
                 pfc = np.bincount(CLASS_OF, weights=pf, minlength=169) / N_IN
-                self.assertAlmostEqual(share(jam), share(pfc), delta=0.005)
+                # one class at the jammer's indifference may be mixed differently by the two methods, up to its weight
+                # (an offsuit class is 0.9% of hands): on the exact equity table at 5bb, 96o 16% here and 75% in
+                # push_fold, both converged (the same at 10,000 iterations), 0.54 points of the range
+                self.assertAlmostEqual(share(jam), share(pfc), delta=0.01)
                 self.assertLess(share(np.abs(jam - pfc)), 0.01)
 
     def test_bubble_matches_the_advisors_equilibrium_in_the_same_game(self):

@@ -3075,3 +3075,80 @@ re-check of Quick grades at Fast (section 29) is not part of these runs, which a
 is two decisions. The times are native; Quick stops on a time budget, so in a slower browser it runs fewer iterations
 and may part from Fast more often than this. Library flops agree by construction (both read the same entry) and are
 counted only in the bracketed totals.
+
+## 31. The class equity table enumerated exactly; preflop model lz4 (2026-11-22)
+
+Section 26 left one cause open: the 169x169 all-in equity table between hand classes (`solver/gto/pf_equity.py`) was
+3,000 random boards. It feeds the charts' heads-up and multiway re-pricing (`pf_classes.equity_vs`, the control
+variates' target), push/fold, Lizard's class-level preflop solver (`engine/pf_solve.py`) and the tournament solver
+(`engine/pf_icm.py`).
+
+**The table.** `solver/scripts/build_preflop_equity.py exact` (declared in `solver/UPSTREAM.json`) sums every board: the
+134,459 boards distinct up to a relabelling of the suits, each weighted by the number of boards it stands for. A
+relabelling maps each class onto itself, so a class pair's sum is the same on all of them (a single combo pair's is not,
+and the builder checks the class sums of live boards, C(48,5) per pair of combos that don't share a card). About 7
+minutes. Checked by brute force over all 1,712,304 boards of the remaining cards: AKs vs QQ 46.049% and T9o vs 87s
+62.121%, both equal to the table. Known values: AA vs KK 81.95% (old table 82.31), AKo vs QQ 43.24% (42.71). The old
+table was off by 0.68 points RMS and 2.44 at most.
+
+**The model, lz4.** The calibrated flop values (`engine/pf_calib.py`) are unchanged; the stored grid (132 games,
+`engine/pf/lz4_*.bin`) was re-solved on the new table: 10,966 s, mean 0.51 mbb/hand a seat (lz3 0.56), the highest the
+6-max 40bb game at the charts' 3bet size, 1.507 (1.524). Against the published 6-max 100bb solves at their rake
+(`scripts/pf/calibrate.py eval`, 700 iterations, the same parameters): 1.96 points, 5 of 26 spots out, 11 of 15 hand facts
+off, 1 hand out of order facing a 3bet; the same run on the old table reproduces lz3's 2.01, 6, 11 and 3. Held-out error
+not measured again. First-in raises at 6-max 100bb move by at most 1 point (the SB 48.6 -> 47.9% without rake).
+
+**Hand order facing a 3bet** (`engine/pf_order.py`, stored 6-max 100bb): 2 out of order without rake (lz3 3) and 7 at 5%
+capped at 3bb (lz3 4), none of them pairs. All 9 are suited aces from A7s to ATs facing a blind's 3bet, choosing between
+a 4bet bluff and a fold whose EVs are within 0.1bb (raked, HJ vs the BB: A7s 4bets 99% at +0.07bb, A8s 55% at +0.03, A9s
+51% at -0.01). That is a choice among near-indifferent bluffs, which the class-level model plays one way per class where
+a solve mixes; the test's bound (`test_pf_engine.py` `MAX_OUT_OF_ORDER`) is 7 now, with that reason beside it.
+
+**The charts' multiway calls** (section 26's sweep, true dominance, today's code with each table): 18 cases on the old
+table, 17 on the exact one. The K5s/K4s cases (the BB over an open and a small-blind call) are gone. What remains is not
+the table's: the SB over a UTG open and a call, without rake, folds JTs and calls J9s 24% on the old table and 33% on the
+new, and calls Q9s over QTs; the chart and its no-rake move (`gto/pf_norake.py`) do that on either table.
+
+**The charts against the published spots** (`solver/tests/preflop_refs.py`, through the re-priced advice): on the exact
+table the big blind defends 0.5-1.1 points more against every open (BB vs UTG folds 75.6%, was 76.3%; published 78.6%),
+and the mean error over the certain references goes from 0.96 to 1.14 points. Two shares now sit past their tolerance by
+under half a point (BB vs UTG open 3.04 points off within 3; BTN open vs SB 3bet 4.35 within 4), and the raked BB's Q9o
+against a button open continues 52% (was 33%; published 27%, bound 50%), at the edge of the re-pricing's ramp. The
+re-pricing is quantile-based (`Advisor._priced`): nothing in it was fitted to the old table's numbers that could be
+re-fitted alone, so it is left as it is and the test names these three (`test_gto.py` `OVER`, the Q9o bound 0.55).
+
+**Tests whose numbers came from the old table** (each with its reason beside it): the push/fold and tree solvers part on
+one class at 5bb heads-up (96o mixed 16% against 75%, both converged; bound 1 point of the range, as the test's second
+check); at 40bb the button jams one marginal suited ace among near-equal ones (A7s now, A8s before; at most one of
+A7s-A9s); `3bp_bb_btn`'s A2o past the range's edge is 2.1 points of flop share over A3o (1.5 before, the gap 2); the
+chart nodes feeding library spots hold 24 inversions (the 200bb big blind's weakest suited hands); upstream's t^8
+averaging is compared with t^3 at 200 iterations (at 120 it sits on a bump of the new game's descent); its 2-way game
+reaches 0.64 mbb at 600 iterations (bound 0.7, was 0.6); the off-path fill takes the 20bb SB's AJo jam-call gap from
+0.505 to 0.332bb (0.02bb past the noise; the grade stops at Inaccuracy, the chart calling).
+
+**The tournament presets** (`engine/pf_icm/*.bin`, 115 games) were solved again on the new table under keys tagged `cal2`
+(`pf_icm.FLOP_MODEL_TAG`, `MODEL_DIGEST` 7ab4dad9426f). `scripts/pf_icm/build_stored.py all --missing` had skipped every
+game, as it compared each game's request and not its key; it now compares the key too.
+
+**The published library spots.** The new table moves the 200bb big blind's range at its edge (K5o, 83s, T2s, 93s,
+74o, K3s, J8s), so all four published 200bb spots (srp BTN, CO and SB vs BB, the BB's 3bet of the BTN; built
+2026-11-13 to 16) no longer match the fingerprints the library finds them by; no other heads-up spot moved. Each
+range moved 0.0-1.2% of its weight (range_dist 0.000-0.024; each spot's two sum to 0.0015, 0.0028, 0.0223 and 0.0239),
+and every built range holds all of today's. Rebuilding them is the depths build's 200bb batch, about 18 hours on a
+heavy slot at 1.5 GB a worker (over the 1 GB a process the gtosolver builds leave). Instead `engine/hu_near.py` serves
+such a spot as built, as `engine/mw_near.py` serves the 3-way spots: today's ranges of the spot's own line read its
+entries through upstream's own borrowing (`flop_approx.near_exact`, within its bars `NEAR_EXACT_COVER` 0.97 and
+`NEAR_EXACT_DIST` 0.6), labelled approximate with the difference ("this spot as built on the charts of 2026-11-16, which
+have changed since: BB's range differs from this pot's by 1.2% of its weight"). The built ranges are
+`engine/hu_built.py`, recomputed at eca8152 by `scripts/library/hu_built_ranges.py` and checked against the published
+fingerprints. The four 3-way spots, already served as built, moved again and stay inside `mw_near.NEAR_DIST`;
+`scripts/library/published_fps.json` says why for all eight.
+
+**Not rebuilt here.**
+- The four 200bb library spots (above): served as built until the 200bb batch is rebuilt.
+- `solver/gto/pf_norake_data.py` (the no-rake move, `MODEL = 'lz3'`) is from lz3's solves; its builder isn't in this
+  repo. It moves the charts by no-rake/raked ratios, which the table's error enters on both sides.
+- The format charts' moves (`gto/pf_format_data.py`) and upstream's two stored files (`gto/static/pf/`) are from solves
+  on the old table; upstream's model grid (`engine/pf/` without a tag) is no longer reached (cash goes to
+  `engine/pf_solve.py`, tournaments to `engine/pf_icm_study.py`).
+- Sections 18.8 to 18.11 measured grades on the lz3 grid and were not measured again.

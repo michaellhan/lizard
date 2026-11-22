@@ -49,8 +49,9 @@ COMBOS = {c: 6 if len(c) == 2 else 4 if c.endswith("s") else 12 for c in CLASSES
 FOLDS = lambda *ps: [{"pos": p, "action": "fold"} for p in ps]  # noqa: E731
 # the chart nodes feeding a published spot, over the walk below: their continue inversions (repairing them would move
 # 26 of the 57 spots' ranges, 22 of the library's 53 fingerprints). A repair or chart change that lowers it should lower
-# this too.
-FED_INVERSIONS = 22
+# this too. On the exact equity table (2026-11-22) 24: the big blind's 200bb defence over a UTG or HJ open adds the
+# weakest suited hands' (82s over 83s, 92s over 93s, T2s over T3s), at the margin of its re-priced calls.
+FED_INVERSIONS = 24
 
 
 PC = None
@@ -253,7 +254,7 @@ class HandOrder(unittest.TestCase):
         now = {a["action"]: a["freq"] for a in ADV.advise(ask)["actions"]}
         with unrepaired():
             old = {a["action"]: a["freq"] for a in ADV.advise(ask)["actions"]}
-        self.assertGreater(old["all-in"], 0.8)
+        self.assertGreater(old["all-in"], 0.7)      # 83.4% on the 3,000-board equity table, 76.4% on the exact one
         self.assertAlmostEqual(now["all-in"], old["all-in"], delta=0.01)
 
     def test_a_hand_only_a_repair_brings_plays_the_charts_answer(self):
@@ -528,7 +529,11 @@ class LibrarySpots(unittest.TestCase):
         self.assertEqual(have - set(PC.PUBLISHED), set())      # (the list also holds FORMAT_SPOTS not built yet)
         now = self.ranges()
         fp = {s["id"]: list(s["fp"]) for s in idx["spots"]}
-        bad = [sid for sid, (r0, r1, _, _) in now.items() if sid in fp and [FL.range_fp(r0), FL.range_fp(r1)] != fp[sid]]
+        # (a spot the charts moved on purpose is served as built: engine/hu_near.py, its built ranges in
+        # engine/hu_built.py, which must reproduce the index's; scripts/library/test_published_fps.py holds it near)
+        from engine import hu_built
+        bad = [sid for sid, (r0, r1, _, _) in now.items() if sid in fp and [FL.range_fp(r0), FL.range_fp(r1)] != fp[sid]
+               and list(hu_built.SPOTS.get(sid, {}).get("fp") or ()) != fp[sid]]
         self.assertEqual(bad, [])
 
 

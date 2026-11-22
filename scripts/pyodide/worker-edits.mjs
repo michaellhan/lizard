@@ -91,9 +91,12 @@ const EDITS = [
     // start rather than left to the rules. engine/mw_quick.py: a quick answer's 3-way street behind a bet is narrowed
     // through a short solve rather than the rules, its 3-way flop answer is marked approximate (the small game), and its
     // solves are kept apart from Fast's. After bunching, so mw_near wraps bunching's wrap of Advisor._advise_at and
-    // mw_quick wraps mw_near's (this edit runs on that one's output).
+    // mw_quick wraps mw_near's (this edit runs on that one's output). engine/hu_near.py: the same for a heads-up pot
+    // whose ranges are what a published spot's preflop line gives today, near the ranges it was built on (the lz4 equity
+    // table moved the four 200bb spots on 2026-11-22), read through upstream's own borrowing (flop_approx.near_exact);
+    // it wraps flop_approx and flop_library, nothing the others hold.
     from: "import engine.bunching; from gto.advisor import Advisor;",
-    to: "import engine.bunching; import engine.mw_near; import engine.mw_quick; from gto.advisor import Advisor;",
+    to: "import engine.bunching; import engine.mw_near; import engine.hu_near; import engine.mw_quick; from gto.advisor import Advisor;",
   },
   {
     // engine/size_match.py: a bet of the tree's own amount for one of the street's sizes is read as that size, not

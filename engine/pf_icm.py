@@ -40,13 +40,14 @@ from gto.pf_classes import CLASSES, PAIR_COMPAT, equity_matrix
 K = len(CLASSES)
 JAM_OPEN = 25.0        # an unopened pot can be jammed beside the open from this effective stack (bb) or less
 # the flop model's tag, hashed into every game's key (pf_icm_study.Spec.key), so no stored file or browser keep mixes two
-# models' solves: "cal1" is engine/pf_model's calibrated model (2026-11-18; the keys before it had none: upstream's
-# pf_study.flop_model) on the equities (gto/pf_equity.py) and calibration (engine/pf_calib.py) whose digest is
-# MODEL_DIGEST, which the stored presets were solved on. Other equities or calibration key as "cal1-<their digest>", so
+# models' solves: "cal2" is engine/pf_model's calibrated model (2026-11-18, "cal1"; the keys before it had none:
+# upstream's pf_study.flop_model) on the exactly enumerated equities of 2026-11-22 (gto/pf_equity.py; "cal1" was the
+# 3,000-board table, digest 3b4b09a3b06f) and the calibration (engine/pf_calib.py) whose digest is
+# MODEL_DIGEST, which the stored presets were solved on. Other equities or calibration key as "cal2-<their digest>", so
 # every preset's key moves with them and test_pf_icm_stored fails until the presets are solved again
 # (scripts/pf_icm/build_stored.py all --missing) under the new keys; MODEL_DIGEST stays as it is. A change to pf_model's
-# code bumps "cal1" by hand (and MODEL_DIGEST to the digest then).
-MODEL_DIGEST = "3b4b09a3b06f"
+# code, or a table rebuilt on purpose, bumps the tag by hand (and MODEL_DIGEST to the digest then).
+MODEL_DIGEST = "7ab4dad9426f"
 
 
 def model_digest() -> str:
@@ -63,7 +64,7 @@ def model_digest() -> str:
     return h.hexdigest()[:12]
 
 
-FLOP_MODEL_TAG = "cal1" if model_digest() == MODEL_DIGEST else f"cal1-{model_digest()}"
+FLOP_MODEL_TAG = "cal2" if model_digest() == MODEL_DIGEST else f"cal2-{model_digest()}"
 EPS = 1e-9
 
 

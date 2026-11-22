@@ -39,12 +39,12 @@ class Stored(unittest.TestCase):
 
     def test_solved_on_the_flop_model_now(self):
         """The presets were solved on the equities and calibration whose digest is pf_icm.MODEL_DIGEST: other ones key
-        every game apart ("cal1-<digest>"), and the presets need solving again under those keys."""
+        every game apart ("cal2-<digest>"), and the presets need solving again under those keys."""
         from engine import pf_icm as I
         self.assertEqual(I.model_digest(), I.MODEL_DIGEST,
                          "the equities or the calibration changed: solve the presets again "
                          "(scripts/pf_icm/build_stored.py all --missing) and rewrite the manifest and KEYS")
-        self.assertEqual(I.FLOP_MODEL_TAG, "cal1")
+        self.assertEqual(I.FLOP_MODEL_TAG, "cal2")
 
     def test_the_final_table_set_is_every_count_depth_and_shape(self):
         ft = [s for s in ST.ALL if ST.set_of(s[0]).startswith("final")]

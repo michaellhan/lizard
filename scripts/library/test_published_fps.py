@@ -7,8 +7,10 @@ recomputes every published spot's fingerprints (scripts/library/published_fps.js
 indexes by scripts/library/published_fps.py) from today's code, with no library download: about a second.
 
 A spot listed "stale" (today's code knowingly gives other ranges) is held to its "now" fingerprints instead, so a further
-change still fails, and must still be served: a 3-way spot as built (engine/mw_near.py: engine/mw_built.py reproduces
-its published fingerprints and today's ranges are within NEAR_DIST / NEAR_COVER of them).
+change still fails, and must still be served as built: a 3-way spot through engine/mw_near.py (engine/mw_built.py
+reproduces its published fingerprints and today's ranges are within NEAR_DIST / NEAR_COVER of them), a heads-up one
+through engine/hu_near.py (engine/hu_built.py, within upstream's own borrowing bars flop_approx.NEAR_EXACT_DIST /
+NEAR_EXACT_COVER).
 
 Run: .venv/bin/python -m unittest discover -s scripts/library -p test_published_fps.py
 """
@@ -53,7 +55,8 @@ def today(sp):
         st = ML.spot_setup(sp["line"], **game)
         return st["seats"], [fl.range_fp(r) for r in st["ranges"]], st["pot"], st["stack"], st["ranges"]
     st = fl.spot_setup(sp["line"], **game)
-    return [st["oop"], st["ip"]], [fl.range_fp(st["full0"]), fl.range_fp(st["full1"])], st["pot"], st["stack"], None
+    return ([st["oop"], st["ip"]], [fl.range_fp(st["full0"]), fl.range_fp(st["full1"])], st["pot"], st["stack"],
+            [st["full0"], st["full1"]])
 
 
 class PublishedSpots(unittest.TestCase):
@@ -73,34 +76,38 @@ class PublishedSpots(unittest.TestCase):
                 self.assertAlmostEqual(pot, sp["pot"], places=2, msg=f"{sp['id']}: pot {pot}: {FIX}")
                 self.assertAlmostEqual(stack, sp["stack"], places=2, msg=f"{sp['id']}: stack {stack}: {FIX}")
 
-    def test_a_stale_3way_spot_is_served_as_built(self):
-        from engine import mw_built, mw_near
+    def test_a_stale_spot_is_served_as_built(self):
+        from engine import hu_built, mw_built, mw_near
+        files = {"mw": (mw_built, "mw_built", mw_near.NEAR_DIST, mw_near.NEAR_COVER),
+                 "hu": (hu_built, "hu_built", FA.NEAR_EXACT_DIST, FA.NEAR_EXACT_COVER)}
         for sp in [s for s in SPOTS if s.get("now")]:
             with self.subTest(spot=sp["id"]):
-                self.assertEqual(sp["kind"], "mw", f"{sp['id']}: only 3-way spots can be served as built: {FIX}")
-                built = mw_built.ranges(sp["id"])
-                self.assertIsNotNone(built, f"{sp['id']}: engine/mw_built.py doesn't hold it "
-                                            f"(scripts/library/mw_built_ranges.py): {FIX}")
+                mod, name, near_dist, near_cover = files[sp["kind"]]
+                built = mod.ranges(sp["id"])
+                self.assertIsNotNone(built, f"{sp['id']}: engine/{name}.py doesn't hold it "
+                                            f"(scripts/library/{name}_ranges.py): {FIX}")
                 self.assertEqual([fl.range_fp(r) for r in built], sp["fp"],
-                                 f"{sp['id']}: engine/mw_built.py's ranges aren't the published ones")
+                                 f"{sp['id']}: engine/{name}.py's ranges aren't the published ones")
                 _, _, _, _, now = today(sp)
                 dist = [FA.range_dist(np.asarray(x), y) for x, y in zip(now, built)]
                 cover = [FA.range_cover(np.asarray(x), y) for x, y in zip(now, built)]
-                self.assertLessEqual(sum(dist), mw_near.NEAR_DIST, f"{sp['id']}: today's ranges are {sum(dist):.3f} "
-                                                                   f"from the built ones: {FIX}")
-                self.assertGreaterEqual(min(cover), mw_near.NEAR_COVER, f"{sp['id']}: cover {cover}: {FIX}")
+                self.assertLessEqual(sum(dist), near_dist, f"{sp['id']}: today's ranges are {sum(dist):.3f} "
+                                                           f"from the built ones: {FIX}")
+                self.assertGreaterEqual(min(cover), near_cover, f"{sp['id']}: cover {cover}: {FIX}")
 
     def test_built_ranges_reproduce_their_index(self):
-        """engine/mw_built.py's spots are published ones, with their seats, pot and stack."""
-        from engine import mw_built
-        pub = {s["id"]: s for s in SPOTS if s["kind"] == "mw"}
-        for sid, b in mw_built.SPOTS.items():
+        """engine/mw_built.py's and engine/hu_built.py's spots are published ones, with their seats, pot and stack."""
+        from engine import hu_built, mw_built
+        built = [("mw", sid, b, mw_built.ranges(sid)) for sid, b in mw_built.SPOTS.items()] + \
+                [("hu", sid, b, hu_built.ranges(sid)) for sid, b in hu_built.SPOTS.items()]
+        for kind, sid, b, rs in built:
+            pub = {s["id"]: s for s in SPOTS if s["kind"] == kind}
             with self.subTest(spot=sid):
                 self.assertIn(sid, pub)
                 self.assertEqual(b["fp"], pub[sid]["fp"])
                 self.assertEqual(b["seats"], pub[sid]["seats"])
                 self.assertEqual((b["pot"], b["stack"]), (pub[sid]["pot"], pub[sid]["stack"]))
-                self.assertEqual([fl.range_fp(r) for r in mw_built.ranges(sid)], b["fp"])
+                self.assertEqual([fl.range_fp(r) for r in rs], b["fp"])
 
 
 if __name__ == "__main__":

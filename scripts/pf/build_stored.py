@@ -6,7 +6,7 @@ by pf_study.pack with the stored (quantized) strategy's exploitability in its he
     .venv/bin/python scripts/pf/build_stored.py --engine        # Lizard's preflop solver's grid (engine/pf_solve.py)
 
 Without --engine: upstream's class-level model's grid (engine/pf_stored.py, keys like 6max_100bb). With it: the grid of
-engine/pf_solve.py (its calibrated model, engine/pf_calib.py; keys like lz3_6max_100bb, logged to lz3_built.jsonl), the
+engine/pf_solve.py (its calibrated model, engine/pf_calib.py; keys like lz4_6max_100bb, logged to lz4_built.jsonl), the
 one the worker answers Study's, Practice's and Analyze's preflop solve from.
 
 One process, one thread (gto.native holds BLAS to one). A 6-max game takes about 3 minutes natively, fewer players far
