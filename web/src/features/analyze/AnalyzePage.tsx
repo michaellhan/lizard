@@ -72,6 +72,8 @@ interface Result {
 
 // PLO's Analyze comes in its own chunk, so no PLO code loads with Hold'em's
 const PloAnalyze = lazy(() => import("./PloAnalyze").then((m) => ({ default: m.PloAnalyze })));
+// and the screenshot reader in its own (the OCR loads only when a picture is read)
+const ScreenshotImport = lazy(() => import("./screenshot/ScreenshotImport").then((m) => ({ default: m.ScreenshotImport })));
 
 /** Analyze: Hold'em, or another game the link names (`game`, engine/registry.ts). */
 export function AnalyzePage(props: { rowLimit?: number } = {}) {
@@ -342,6 +344,16 @@ function ImportPanel({ onImported, setResult }: { onImported: () => void; setRes
   const [error, setError] = useState<string | null>(null);
   const [over, setOver] = useState(false);
   const folder = useRef<HTMLInputElement>(null);
+  // (a screenshot of a hand to a spot in Study: its own panel, opened by a link, ?from=screenshot)
+  const [params, setParams] = useSearchParams();
+  const shot = params.get("from") === "screenshot";
+  const showShot = (on: boolean) =>
+    setParams((p) => {
+      const q = new URLSearchParams(p);
+      if (on) q.set("from", "screenshot");
+      else q.delete("from");
+      return q;
+    });
   useEffect(() => {
     // (React has no prop for it)
     folder.current?.setAttribute("webkitdirectory", "");
@@ -413,6 +425,7 @@ function ImportPanel({ onImported, setResult }: { onImported: () => void; setRes
   };
 
   return (
+    <>
     <section aria-label="Import" className="space-y-2 panel p-3">
       <h2 className="text-lg font-semibold">Import hands</h2>
       <p className="text-xs text-muted">{HH_SITES.join(", ")} hand histories; Hold'em only.</p>
@@ -474,6 +487,9 @@ function ImportPanel({ onImported, setResult }: { onImported: () => void; setRes
           >
             Try sample hands
           </button>
+          <button type="button" aria-pressed={shot} onClick={() => showShot(!shot)} className="rounded border border-border px-3 py-1 hover:bg-surface-2">
+            From a screenshot…
+          </button>
         </div>
       </div>
       {busy && (
@@ -496,6 +512,12 @@ function ImportPanel({ onImported, setResult }: { onImported: () => void; setRes
       )}
       {classic && <ClassicResultLine r={classic} />}
     </section>
+    {shot && (
+      <Suspense fallback={<p className="text-sm text-muted">Loading the screenshot reader…</p>}>
+        <ScreenshotImport onClose={() => showShot(false)} />
+      </Suspense>
+    )}
+    </>
   );
 }
 

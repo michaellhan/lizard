@@ -1,6 +1,8 @@
 /// <reference types="vitest/config" />
 import { execFileSync } from "node:child_process";
-import { existsSync, readdirSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { createRequire } from "node:module";
+import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
@@ -72,9 +74,45 @@ function solverFiles(): Plugin {
   };
 }
 
+// Screenshot import's OCR (features/analyze/screenshot/ocr.ts): Tesseract.js's worker, its LSTM wasm cores (with and
+// without SIMD) and the English data, served from this site at ocr/<tesseract.js version>/, straight from the pinned
+// npm packages (none of it committed). Same-origin, so the page's COEP and CSP hold and nothing is fetched from a CDN.
+// Fetched only when a screenshot is read; the first script and the page chunks never import them.
+function ocrFiles(): Plugin {
+  const req = createRequire(import.meta.url);
+  const dir = (pkg: string) => dirname(req.resolve(`${pkg}/package.json`));
+  const version = (JSON.parse(readFileSync(`${dir("tesseract.js")}/package.json`, "utf8")) as { version: string }).version;
+  const files: Record<string, () => Buffer | string> = {
+    // (its source map isn't published: the comment would only ask for a missing file)
+    "worker.min.js": () => readFileSync(`${dir("tesseract.js")}/dist/worker.min.js`, "utf8").replace(/\n\/\/# sourceMappingURL=.*\s*$/, "\n"),
+    "tesseract-core-simd-lstm.wasm.js": () => readFileSync(`${dir("tesseract.js-core")}/tesseract-core-simd-lstm.wasm.js`),
+    "tesseract-core-lstm.wasm.js": () => readFileSync(`${dir("tesseract.js-core")}/tesseract-core-lstm.wasm.js`),
+    "eng.traineddata.gz": () => readFileSync(`${dir("@tesseract.js-data/eng")}/4.0.0_best_int/eng.traineddata.gz`),
+    "LICENSE-tesseract.js.md": () => readFileSync(`${dir("tesseract.js")}/LICENSE.md`),
+    "LICENSE-tesseract.js-core.txt": () => readFileSync(`${dir("tesseract.js-core")}/LICENSE`),
+  };
+  const at = `ocr/${version}/`;
+  return {
+    name: "lizard-ocr-files",
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        const path = decodeURIComponent((req.url ?? "").split("?")[0]!);
+        const name = path.startsWith(`${BASE}${at}`) ? path.slice(BASE.length + at.length) : "";
+        const file = files[name];
+        if (!file) return next();
+        res.setHeader("Content-Type", name.endsWith(".js") ? "text/javascript" : name.endsWith(".gz") ? "application/gzip" : "text/plain");
+        res.end(file());
+      });
+    },
+    generateBundle() {
+      for (const [name, file] of Object.entries(files)) this.emitFile({ type: "asset", fileName: at + name, source: file() });
+    },
+  };
+}
+
 export default defineConfig({
   base: BASE,
-  plugins: [react(), tailwindcss(), csp(), solverFiles()],
+  plugins: [react(), tailwindcss(), csp(), solverFiles(), ocrFiles()],
   resolve: {
     alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) },
   },

@@ -6472,3 +6472,55 @@ into, and fixed where it can be (ACCURACY 18.11):
 - **Left.** Rebuild the four 200bb library spots (the depths build's 200bb batch: ~18 hours on a heavy slot at 1.5 GB a
   worker), then rerun `hu_built_ranges.py` and `published_fps.py`. `solver/gto/pf_norake_data.py` (the no-rake move) is
   still from lz3's solves; its builder isn't in this repo.
+
+## 2026-11-22 — Screenshot import (W7): a picture of a hand to a spot, review only
+
+- **What.** Analyze → Import → From a screenshot (deep link `/analyze?tab=import&from=screenshot`, also linked from
+  Solve's heading) takes a picked, dropped or pasted picture of a hand that is over, or of a spot being studied, reads it
+  in the browser and fills a form: players, your seat, your cards, the board, the stack, the street, and the preflop line
+  (single-raised or 3-bet pot, opener and caller, sizes). Each field is marked "read from the image", "read from the
+  image: check it" (amber) or "not read: a default"; what wasn't read is listed in words. "Open in Study" and "Set up in
+  Solve" are the confirmation, by Study's own link format (`toSearch`, with `withMyHand` marking your cards). GTO Wizard's
+  October 2026 feature (`docs/research/02-gtowizard-inventory.md` §8, [B-oct26]).
+- **Ethical scope.** Review only (`IMPLEMENTATION_PLAN.md` §0): no screen capture, no window watching, no overlay, only a
+  picture the user hands over; the panel says so, and that the picture never leaves the browser. The browser test checks
+  that no request carries it.
+- **How it reads.** `web/src/features/analyze/screenshot/`: `image.ts` cuts the picture into one-colour regions;
+  `cards.ts` finds card faces, reads the corner index against 216 letter-shape templates (`templates.ts`, made by
+  `scripts/screenshot/make-fixtures.mjs templates` from six fonts in Chromium) and the suit by its colour (two- and
+  four-colour decks), and finds the dealer button; `numbers.ts` reads the blinds, pot and stacks from the OCR's lines
+  (currency, thousands and decimal commas, K/M, BB, the OCR's digit slips); `layout.ts` takes the board (the run nearest
+  the middle, one unread card allowed and said), your hand (the lowest pair) and the seats clockwise from the button;
+  `spot.ts` makes the form and the link. The OCR is Tesseract.js 7.0.0 (`ocr.ts`, pinned exactly; English data
+  `@tesseract.js-data/eng` 1.0.0 as a dev dependency), LSTM only, sparse text, Sauvola threshold. Its worker, both wasm
+  cores (SIMD or not) and the data are served from Lizard's own site at `ocr/7.0.0/` by `vite.config.ts`'s `ocrFiles`
+  (copied from `node_modules` at build, served by middleware in dev, licences beside them); the worker is made from its
+  URL, not a blob, so the page's CSP doesn't stop its wasm. About 7 MB fetched the first time a picture is read; once
+  loaded, a second picture reads with the network off (checked in the browser test); the data is kept in IndexedDB.
+- **Measured, on synthetic tables only** (drawn by `make-fixtures.mjs` in Chromium with fonts and suit shapes varied,
+  never a poker room's screenshot). 150 generated tables: hole and board cards 775/785 (98.7%; 100% in the templates'
+  fonts, 96.3% hole and 97.9% board in held-out fonts), the dealer button 150/150, the big blind 150/150, the pot 148/150,
+  seats counted 141/150, stacks by position 847/865 (97.9%), your position 148/150. The 12 committed fixtures
+  (`fixtures/`, 612 KB): 53/56 cards (held-out hole cards 5/8), every board and button, stacks by position 63/68. A wrong
+  card read is marked to check (confidence under 0.6) in every case seen. Two fixes came from that sweep and so flatter
+  it: the blinds rule that takes back a second currency sign the OCR read as 5, 8, %, § or & (the big blind went from
+  136/150 to 150/150), and the board's one-unread-card gap. Card scan 15–40 ms a table; OCR about 0.3 s a table in Node.
+- **Bundle.** First script 355.65 → 355.78 kB (routes.ts's new row name; limit 358.4 kB, 2.6 kB left, which was
+  already tight). Analyze's chunk +1.05 kB, Solve's +0.19 kB. New chunks loaded only on this feature: `ScreenshotImport`
+  89 kB (31 kB gzipped, mostly the templates) and tesseract.js's 17 kB. `dist/ocr/7.0.0/` adds 10.9 MB to the site (two
+  3.9 MB cores, of which a browser fetches one, the 2.95 MB data, the 111 kB worker).
+- **Decisions made unattended.** The entry is a panel under Analyze's Import (lazy, a deep link), with one small link in
+  Solve; the stack is yours against the deepest other seat as shown, always marked to check (stacks in a screenshot are
+  after the hand's bets); turn and river spots open with the earlier streets checked through, said in the form; without
+  your two cards, your seat is the one by a lone card or the lowest seat, marked to check; Tesseract's notes go to
+  `debug_file` /dev/null, so its "Estimating resolution" lines don't reach the console as errors (giving it a resolution
+  instead, 300, lost a tenth of the stacks on the sweep: 785/865); `ocr` was added to postbuild's reserved folder names.
+- **Tests.** `npm run typecheck` and `npm run lint` clean. Vitest: the new files (numbers 38, layout 10, spot 13,
+  cards 9, ocr 3, the component with a fake reader 6, accuracy 13 with 12 OCR cases skipped unless `LIZARD_SHOT_OCR=1`)
+  and all of Analyze, `src/app` and Solve: 42 files, 443 passed. `npm run build` passes (postbuild's first-script budget
+  and keyscan included). `npx playwright test e2e/screenshot.e2e.ts --project=desktop` passes (real Tesseract in Chromium on two fixtures, offline for the second, every OCR file from this origin, no request carrying the picture, no console error, on to Study). Also looked at on screen at 1440 and 390 px wide, with no sideways scroll. The OCR sweeps ran
+  through `slot.sh`.
+- **Matrix.** New row Screenshot import (Analysis): classic NOT IMPLEMENTED, Lizard PARTIAL (Analysis 3/4/0/2 and
+  5/4/0/0; total 72 rows, 12/42/5/13 and 50/16/4/2). PARTIAL until it is tried on real rooms' screenshots; sideways or
+  fanned cards, oldstyle figures and light tables read worse, and the betting isn't read.
+- Nothing under `solver/` changed; the gtosolver builds were left alone.

@@ -278,6 +278,11 @@ export function SolvePage({ kind = "cash" }: { kind?: "cash" | "tournament" }) {
       <div className="flex flex-wrap items-center gap-3">
         <h1 className="text-2xl font-semibold">{tour ? "Solve a tournament spot" : "Solve"}</h1>
         <KindSwitch tour={tour} cash={cashLink} tourney={tourneyLink} />
+        {!tour && (
+          <Link to="/analyze?tab=import&from=screenshot" className="text-sm text-muted underline hover:text-text">
+            From a screenshot
+          </Link>
+        )}
       </div>
 
       <form
