@@ -2501,7 +2501,23 @@ exact equity table and the calibration whose digest is `MODEL_DIGEST`; any other
   only those spots.
 - The 115 presets re-solved on main under `cal2` keep their keys, so only the 652 new spots were built.
 
-**The build** (`library-build/runs/w1_pf_icm_build.log`): BUILD_RESULTS
+**The build** (`library-build/runs/w1_pf_icm_build.log`): 652 spots built through slot.sh on 2026-11-22, 2 workers,
+14,755 s of solving (4.1 CPU hours), no failures, about 285 MB a process at most. With the 115 presets, all 767 are
+current under `cal2` keys, 5.24 MB in all.
+
+| Set | Built | Seconds | mbb/hand a seat (min to max, median) | Size |
+|---|---|---|---|---|
+| Final table (new) | 385 | 8,461 | 0.019 to 3.41, median 0.19 | 2,591 KB |
+| Bounty | 36 | 1,632 | 0.039 to 14.45, median 0.78 | 400 KB |
+| Satellite | 117 | 2,159 | 0 to 1.69, median 0.014 | 718 KB |
+| Chip EV | 114 | 2,502 | 0.088 to 12.43, median 1.56 | 687 KB |
+
+Prize-equity spots level off under 4 mbb/hand a seat (the highest, 3.41, is the top-heavy 3 left at 10bb with a short
+big blind). Chip-EV and bounty spots level off higher: a short big blind's three-way side pots set a floor the solver
+doesn't get under in its iterations, up to 12.4 in chips and 14.45 with bounties (Bubble, KO 0.4 a head). Even 14.45
+mbb is 1.4% of a big blind: under 1% of the smallest preflop pot (1.5bb), below the grade's Inaccuracy line of 2% of the
+pot (`grade.ts` `INACCURACY_PCT`). The tests hold prize-equity spots under 4 and chip-EV and bounty spots under 15
+(`test_pf_icm_stored.py`, `pfIcmBuilt.test.ts`).
 
 A slice on pf_engine's version before the switch, at 1,500 iterations (files not kept):
 

@@ -6682,3 +6682,42 @@ Every figure below is lz4's.
   model), EV-loss scoring stays PARTIAL. Notes updated with the lz4 figures.
 - Not done: no browser check of the Analyze note or the 5bet field, the 6-max limps-from-every-seat tree (about 2.1 GB)
   not solved, the straddle seat not in the form.
+
+## 2026-11-22 — Tournaments depth (W1): 767 stored ICM spots on cal2, room payout tables, tournament file facts
+
+- The stored tournament set grows from 115 spots to 767 (`engine/pf_icm_stored.py` `ALL`, `engine/pf_icm/sets.json`):
+  the 10 stages, 490 final-table spots (the 105 as before, the same 105 on WSOP Online's posted flat, standard and
+  top-heavy structures, and 70 with the chip leader in the big blind or the short stack on the button), 36 bounty spots
+  (KO and PKO on four stages, PKO 2.5 or 5 a head on 12 final-table spots), 117 satellite spots and 114 chip EV spots.
+- Built on `pf_icm`'s game with the exact equity table (`cal2`): 652 new spots through slot.sh, 2 workers, 14,755 s
+  (4.1 CPU hours), no failures, at most about 285 MB a process; all 767 current, 5.24 MB. Prize-equity spots under
+  3.41 mbb/hand a seat; chip EV and bounty spots up to 12.4 and 14.45 (a short big blind's three-way side pots), under
+  1% of the smallest preflop pot. ACCURACY 20.7 has the table by set.
+- Keys carry `pf_icm.FLOP_MODEL_TAG`, so a file solved on another equity table or calibration is never read.
+  `build_stored.py` counts an entry current only under the key its request's game has now, and `index` writes
+  `pfIcmBuilt.json` (the tag and the built spots), which is all the page matches.
+- Model decision: a cross-check plays the same tree on the cash grid's engine (`engine/pf_icm_calib.py`). On cal2 it
+  gives the same chip-EV answers as `pf_icm`'s game on four published references, first-in raising 0.29 points apart
+  on average (3.7 at most) on 22 prize-equity spots, at 1.8 times the time, so the stored set solves on `pf_icm`'s game
+  and the 115 presets re-solved on main keep their files. Fixed in the cross-check: pf_engine's prize-equity payoff gave
+  a three-way side pot the main winner can't take to the deeper stack every time; it is split evenly now (tests).
+- Practice and Analyze grade a tournament session set to any built spot by its solve, chip EV and satellites included;
+  the Tournaments page picks players left, average, shape, payout structure and game, and says when a combination isn't
+  stored.
+- Rooms' posted payout tables (`roomPayouts.ts`), each labelled "as posted by <room> on 2026-11-17" with its link:
+  WSOP Online's sit & go and MTT tables, BetMGM Poker's sit & go table and PlayNow (BCLC)'s. Ten other rooms were looked
+  for and left out (no standard table posted, or the page couldn't be read).
+- Tournament files: a summary gives the entrants and your finish, a hand history its first hand's seats in big blinds,
+  and the import and Solve's paste say that players left and other tables' stacks aren't in the file.
+- Bounty and mystery badges say what isn't modelled (bounty variance, the envelope draw's spread); no model changed.
+- FEATURE_MATRIX: ICM, chipEV, Satellites, KO/PKO, Mystery bounty, Payout structures, ICM final-table library, Real
+  tournament presets and import, MTT / final table and MTT notes updated; every grade unchanged (the chart still
+  answers outside the stored spots, and the solve is a class-level model).
+- Checked through slot.sh, one module at a time: test_pf_icm (20), test_pf_icm_stored (11, all 767 files read as Practice
+  asks) and test_tournament (8) pass; vitest for tournaments, practice, analyze, solve and provenance (90 files, 1,940
+  passed, 15 skipped); typecheck, lint and build clean.
+- Memory: test_pf_icm_stored peaks at 1.70 GB, over the 1 GB budget. The cause is the Bubble stage (8 at the table, a
+  108-player field, 115 prizes), on main before W1: building its game alone takes about 1.1 GB, in upstream
+  `solver/gto/icm.py`'s finishing-order layers (`_subsets`, one-hot tables), which stay byte-identical here.
+- Not done: players left and other tables' stacks can't be read from the files; four rooms' tables only; bounty spots
+  hold equal bounties only; no mystery-bounty spot stored; the Bubble stage's 1.1 GB game build (above).
