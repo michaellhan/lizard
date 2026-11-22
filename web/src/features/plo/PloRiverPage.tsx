@@ -415,7 +415,7 @@ export function PloSolver({ heading, initial = DEFAULT_SPOT, initialStop = DEFAU
           )}
         </div>
         <p className="text-xs text-muted">
-          Rake comes off every pot as the hand ends, paid by the winner.{isFlop || isTurn ? " A sample solves fewer next cards, picked by suit and rank, so a wider spot fits; it's a smaller game, labelled approximate." : ""}
+          Rake comes off every pot as the hand ends, paid by the winner.{isFlop || isTurn ? " A sample solves fewer next cards, spread over ranks and suits, so a wider spot fits; it's a smaller game, labelled approximate, and can be far from the full one." : ""}
         </p>
         {/* (the solver's stopping rules on the Solve button's row) */}
         <div className="flex flex-wrap items-end gap-3 text-sm">
@@ -574,7 +574,7 @@ export function sampleNote(r: RiverResult): string {
   const s = r.sample!;
   const parts = [s.turns ? `${s.turns.cards} of ${s.turns.of} turn cards` : "", s.rivers ? `${s.rivers.cards} of ${s.rivers.of} river cards${r.street === "flop" ? " after each turn" : ""}` : ""].filter(Boolean);
   const worst = Math.max(s.turns?.maxError ?? 0, s.rivers?.maxError ?? 0);
-  return `Solved on a sample: ${parts.join(" and ")}, picked by suit and rank. The exploitability above is the sampled game's; a card outside the sample isn't solved. Chance weights are within ${(100 * worst).toFixed(1)}% of exact for every matchup. How far a sample's strategy is from the full game's has been measured only on spots small enough to solve both ways.`;
+  return `Solved on a sample: ${parts.join(" and ")}, spread over ranks and suits. The exploitability above is the sampled game's; a card outside the sample isn't solved. Chance weights are within ${(100 * worst).toFixed(1)}% of exact for every matchup. ${r.street === "turn" ? "A turn's sample isn't measured against every card; on flops, m" : "M"}easured on spots small enough to solve both ways, a sampled flop's strategy gave away 0.8% to 4.2% of the pot in the full game where the ranges are close, and nothing measurable where one is far ahead; two 12-card samples of one wider spot put its value 31% of the pot apart (two of 16, 12.5%). Read it as a sketch.`;
 }
 
 const decisionWords = (n: ResultNode) => `${SEAT_NAMES[n.player]} ${n.line ? `after ${n.line}` : "to start"}`;

@@ -49,12 +49,26 @@ RIVERS_PER_MATCHUP = 52 - 4 - 8
 
 
 def pick(candidates, k):
-    """k of the candidates, spread by suit and rank; all of them when k is None or covers them."""
+    """k of the candidates, spread by rank and suit; all of them when k is None or covers them. Down the candidates from
+    the highest rank (suits c, d, h, s within a rank), every (n / k)th position names a rank; of that rank's cards left
+    (or the nearest rank's), the one of the suit furthest behind its share of the candidates, a tie to the higher card."""
     n = len(candidates)
     if k is None or k >= n:
         return list(candidates)
-    ordered = sorted(candidates, key=lambda c: (SUITS.index(c[1]), -c[0]))
-    return [ordered[math.floor((i + 0.5) * n / k)] for i in range(k)]
+    order = SUITS  # the solver's suit numbers, 0 to 3: a higher number is a higher card within a rank
+    by_rank = sorted(candidates, key=lambda c: (-c[0], -order.index(c[1])))
+    share = {s: sum(1 for c in candidates if c[1] == s) for s in order}
+    taken = dict.fromkeys(order, 0)
+    out = []
+    for i in range(k):
+        rank = by_rank[math.floor((i + 0.5) * n / k)][0]
+        left = [c for c in candidates if c not in out]
+        off = min(abs(c[0] - rank) for c in left)
+        options = [c for c in left if abs(c[0] - rank) == off]
+        card = min(options, key=lambda c: (taken[c[1]] / share[c[1]], -c[0], -order.index(c[1])))
+        out.append(card)
+        taken[card[1]] += 1
+    return sorted(out, key=lambda c: candidates.index(c))
 
 
 def rake_on(rake, pot):

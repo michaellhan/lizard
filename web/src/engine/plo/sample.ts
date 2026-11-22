@@ -1,6 +1,9 @@
 // A sample of the next street's cards, for a flop or turn too wide to solve on every card (engine/plo/flop/, turn/).
-// The cards are picked, not drawn: the candidates in suit order, each suit by rank, every (N / K)th taken, so each suit
-// gets its share and the ranks are spread. The sampled game is a smaller game: the next card is one of the K, and what's
+// The cards are picked, not drawn, spread over both ranks and suits: down the candidates from the highest rank, every
+// (N / K)th position names a rank, and of that rank's cards the one taken is of the suit furthest behind its share of
+// the candidates. So each rank gets its share (every rank once K reaches 13 or so) and each suit its share, the flush
+// suit too. (Ranks first: a first try, suit by suit then rank, left out whole ranks a wrap needs and put the range's
+// equity off by up to 11% at 12 or 16 cards a street; this is within 6% at 9, docs/ACCURACY.md section 15.) The sampled game is a smaller game: the next card is one of the K, and what's
 // solved and measured is that game, exactly. How far its strategy is from the full game's is measured on spots that fit
 // both (docs/ACCURACY.md section 15).
 //
@@ -23,15 +26,28 @@ import type { Side } from "./river/game";
 /** a sample this small could leave a matchup no card: K - a - B must stay above 0 with a and B up to 4 */
 export const MIN_SAMPLE = 9;
 
-/** `k` of `candidates`, spread by suit and rank (cards are rank * 4 + suit), in card order; all of them when k covers them.
- * `phase` (0 to 1, half by default) shifts where in each stretch the pick falls: another sample as evenly spread, to
- * measure how much the choice of sample moves a solve. */
+/** `k` of `candidates`, spread by rank and suit (cards are rank * 4 + suit), in card order; all of them when k covers
+ * them. `phase` (0 to 1, half by default) shifts where in each stretch the pick falls: another sample as evenly spread,
+ * to measure how much the choice of sample moves a solve. */
 export function pickCards(candidates: readonly number[], k: number, phase = 0.5): number[] {
   const n = candidates.length;
   if (k >= n) return [...candidates].sort((a, b) => a - b);
-  const ordered = [...candidates].sort((a, b) => a % 4 - (b % 4) || b - a);
+  const byRank = [...candidates].sort((a, b) => b - a);
+  const share = [0, 1, 2, 3].map((s) => candidates.filter((c) => c % 4 === s).length);
+  const taken = [0, 0, 0, 0];
   const out: number[] = [];
-  for (let i = 0; i < k; i++) out.push(ordered[Math.floor(((i + phase) * n) / k)]!);
+  for (let i = 0; i < k; i++) {
+    const rank = byRank[Math.floor(((i + phase) * n) / k)]! >> 2;
+    const left = candidates.filter((c) => !out.includes(c));
+    // that rank's cards, or (all taken) the nearest rank's
+    const off = Math.min(...left.map((c) => Math.abs((c >> 2) - rank)));
+    const options = left.filter((c) => Math.abs((c >> 2) - rank) === off);
+    // the suit furthest behind its share; a tie to the higher card
+    const behind = (c: number) => taken[c % 4]! / share[c % 4]!;
+    const card = options.reduce((x, y) => (behind(y) < behind(x) || (behind(y) === behind(x) && y > x) ? y : x));
+    out.push(card);
+    taken[card % 4]!++;
+  }
   return out.sort((a, b) => a - b);
 }
 

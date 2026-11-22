@@ -56,6 +56,8 @@ class Samples(unittest.TestCase):
         got = pick(off, 12)
         self.assertEqual(len(set(got)), 12)
         self.assertEqual(sorted(sum(1 for c in got if c[1] == s) for s in "shdc"), [3, 3, 3, 3])
+        self.assertEqual(len({c[0] for c in got}), 12)
+        self.assertEqual(len({c[0] for c in pick(off, 16)}), 13)
         self.assertEqual(pick(off, None), off)
         self.assertEqual(pick(off, 49), off)
 

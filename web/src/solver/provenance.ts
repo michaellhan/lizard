@@ -486,7 +486,7 @@ const sampleWords = (s: { turns?: PloSample; rivers?: PloSample }, flop: boolean
   const err = (x: PloSample) => `chance weights within ${(100 * x.maxError).toFixed(1)}% of exact for every matchup, ${(100 * x.meanError).toFixed(2)}% on average`;
   if (s.turns) parts.push(`${s.turns.cards} of the ${s.turns.of} turn cards (${err(s.turns)})`);
   if (s.rivers) parts.push(`${s.rivers.cards} of the ${s.rivers.of} river cards ${flop ? "after each turn" : ""} (${err(s.rivers)})`.replace("  ", " "));
-  return `solved on a sample of ${parts.join(" and ")}, picked by suit and rank: exploitability is measured in that smaller game, not the full one`;
+  return `solved on a sample of ${parts.join(" and ")}, spread over ranks and suits: exploitability is measured in that smaller game, not the full one`;
 };
 
 export function ploRiverProvenance(r: {

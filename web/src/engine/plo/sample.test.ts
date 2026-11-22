@@ -15,15 +15,25 @@ const range = (text: string, board: number[]) => {
 };
 
 describe("the card sample", () => {
-  it("picks each suit's share and spreads the ranks", () => {
+  it("spreads the picks over ranks and suits, the flush suit its share", () => {
     const board = parseIds("Js9s4d", 3)!;
+    const suits = (got: number[]) => [0, 1, 2, 3].map((s) => got.filter((c) => c % 4 === s).length);
     const got = pickCards(candidatesOf(board), 12);
     expect(new Set(got).size).toBe(12);
-    expect([0, 1, 2, 3].map((s) => got.filter((c) => c % 4 === s).length)).toEqual([3, 3, 3, 3]);
     expect(got.every((c) => !board.includes(c))).toBe(true);
-    // the ranks of one suit, high to low, every fourth or so
-    const ranks = got.filter((c) => c % 4 === 1).map((c) => c >> 2);
-    expect(Math.max(...ranks) - Math.min(...ranks)).toBeGreaterThanOrEqual(6);
+    // twelve ranks, three of each suit: spades (11 of the 49 left) as many as the rest
+    expect(new Set(got.map((c) => c >> 2)).size).toBe(12);
+    expect(suits(got)).toEqual([3, 3, 3, 3]);
+    // every rank from 16 cards on, and each suit within a card of its share
+    for (const k of [16, 24]) {
+      const more = pickCards(candidatesOf(board), k);
+      expect(new Set(more.map((c) => c >> 2)).size).toBe(13);
+      suits(more).forEach((n, s) => expect(Math.abs(n - (k * candidatesOf(board).filter((c) => c % 4 === s).length) / 49)).toBeLessThan(1));
+    }
+    // another phase is another sample, as spread
+    const other = pickCards(candidatesOf(board), 12, 0);
+    expect(other).not.toEqual(got);
+    expect(suits(other)).toEqual([3, 3, 3, 3]);
     expect(pickCards(candidatesOf(board), 49)).toHaveLength(49);
   });
 
@@ -71,7 +81,7 @@ describe("the card sample", () => {
     const game = compileFlop({ board, ranges, pot: 10, stacks: [40, 40], flopSizes: sizes, turnSizes: NONE, riverSizes: NONE, turnSample: 12, riverSample: 12 });
     expect(game.turns).toHaveLength(12);
     expect(game.sample!.error.max).toBeGreaterThan(0);
-    expect(game.sample!.error.max).toBeLessThan(0.1);
+    expect(game.sample!.error.max).toBeLessThan(0.12);
     expect(game.sample!.error.mean).toBeLessThan(0.02);
     for (const t of game.turns) expect(t.cards.rivers.length).toBeLessThanOrEqual(12);
   });

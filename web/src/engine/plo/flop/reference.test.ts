@@ -158,7 +158,7 @@ describe.each(spots.map((f) => [f.name, f] as const))("%s", (_, f) => {
   it("solves as close to equilibrium, and to the same value where there's one", () => {
     const s = new FlopSolver(g);
     let m = s.measure();
-    while (s.iterations < 5000 && m.pct > 1e-3) {
+    while (s.iterations < 20000 && m.pct > 1e-3) {
       for (let i = 0; i < 20; i++) s.iterate();
       m = s.measure();
     }

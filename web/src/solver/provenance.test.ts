@@ -272,6 +272,17 @@ describe("a PLO4 river", () => {
   it("says no raises rather than an empty list", () => {
     expect(describeProvenance(ploRiverProvenance({ ...river, stop: "target", sizes: { bets: [100], raises: [], raiseCap: 0, allIn: false } }))).toContain("bets 100% of the pot, raises none, up to 0 raises, no rake");
   });
+
+  it("says the rake taken, and calls a sampled solve approximate however close it came", () => {
+    expect(describeProvenance(ploRiverProvenance({ ...river, stop: "target", rake: { pct: 5, cap: 3 } }))).toContain("rake 5% of the pot up to 3bb, paid by the winner");
+    expect(describeProvenance(ploRiverProvenance({ ...river, stop: "target", rake: { pct: 5, cap: Infinity } }))).toContain("rake 5% of the pot, no cap");
+    const flop = { turnSizes: river.sizes, riverSizes: river.sizes, turns: 12 };
+    const sampled = ploRiverProvenance({ ...river, stop: "target", flop, sample: { turns: { cards: 12, of: 49, maxError: 0.03, meanError: 0.004 }, rivers: { cards: 12, of: 48, maxError: 0.02, meanError: 0.003 } } });
+    expect(sampled).toMatchObject({ approximate: true, band: "approximate" });
+    const words = describeProvenance(sampled);
+    expect(words).toContain("solved on a sample of 12 of the 49 turn cards (chance weights within 3.0% of exact for every matchup, 0.40% on average) and 12 of the 48 river cards after each turn");
+    expect(words).toContain("exploitability is measured in that smaller game, not the full one");
+  });
 });
 
 describe("the push/fold model (advisor.py _push and _vs_jam, as the engine says them)", () => {
