@@ -28,6 +28,22 @@ from gto import pf_study as PS  # noqa: E402
 from engine import pf_stored, pf_solve  # noqa: E402
 
 
+def built(path: str, spec) -> bool:
+    """--missing: a game counts as built when its file is there and is this game's tree. The key names the model (its tag)
+    and every tree option, so a game on another model has another file; but a tree rule changed under the same key (as the
+    charts' raise rule did, 2026-11-17) leaves a file of another tree, which pack's header (its decision count) shows."""
+    if not os.path.exists(path):
+        return False
+    from gto import pf_game as G
+    with open(path, "rb") as f:
+        head = f.read(8)
+    n = sum(1 for nd in G.walk(spec.build()[0]) if nd.kind == "dec")
+    if head[:4] == b"PFS1" and int.from_bytes(head[4:8], "little") == n:
+        return True
+    print(f"{os.path.basename(path)}: not this game's tree ({n} decisions); rebuilt", flush=True)
+    return False
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--keys", default="")
@@ -52,7 +68,7 @@ def main():
     for key in keys:
         spec = specs[key]
         out = os.path.join(pf_stored.DIR, key + ".bin")
-        if a.missing and os.path.exists(out):
+        if a.missing and built(out, spec):
             continue
         iters = a.iters or (pf_solve.STORED_ITERS_OF.get(key, PS.STORED_ITERS) if a.engine else PS.STORED_ITERS)
         g = spec.game()
