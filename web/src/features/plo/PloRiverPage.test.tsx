@@ -30,7 +30,7 @@ describe("PloRiverPage", () => {
   it("says what it covers and what it doesn't, before anything is run", () => {
     render(<PloRiverPage />);
     expect(screen.getByRole("heading", { level: 1, name: "Heads-up PLO4 flop, turn and river solve" })).toBeTruthy();
-    expect(screen.getByText(/^No rake; earlier streets aren.t solved\.$/)).toBeTruthy();
+    expect(screen.getByText(/^Rake only if you type it; earlier streets aren.t solved\.$/)).toBeTruthy();
   });
 
   it("solves a polarised river, with its provenance, frequencies and combos", async () => {
@@ -64,6 +64,18 @@ describe("PloRiverPage", () => {
     const combos = within(section).getByRole("table", { name: "Combos at this decision" });
     expect(within(combos).getAllByRole("row")).toHaveLength(3);
     expect(combos.textContent).toContain("Qh");
+  });
+
+  it("takes rake off each pot when one is typed, and says so with the numbers", async () => {
+    render(<PloRiverPage />);
+    small();
+    type("Rake", "5");
+    type("Rake cap", "1");
+    solve();
+    const section = await screen.findByRole("region", { name: "River solution" });
+    const badge = within(section).getByRole("button", { name: /Heads-up PLO4 solve of every combo/ });
+    expect(badge.textContent).toMatch(/rake 5% of the pot up to 1bb, paid by the winner/);
+    expect(section.textContent).toMatch(/Rake 5% up to 1bb off each pot, so the two EVs add to less than the pot/);
   });
 
   it("deals a hand from the solve and grades the action taken against that combo's mix and EVs", async () => {

@@ -100,8 +100,8 @@ describe("the tree", () => {
   it("says what's wrong with sizes", () => {
     expect(checkSizes(sizes({ bets: [150] }))).toMatch(/up to 100/);
     expect(checkSizes(sizes({ bets: [50, 50] }))).toMatch(/twice/);
-    expect(checkSizes(sizes({ bets: [25, 50, 75, 100] }))).toMatch(/At most 3 bet/);
-    expect(checkSizes(sizes({ raises: [33, 50, 100] }))).toMatch(/At most 2 raise/);
+    expect(checkSizes(sizes({ bets: [20, 40, 60, 80, 100] }))).toMatch(/At most 4 bet/);
+    expect(checkSizes(sizes({ raises: [25, 33, 50, 100] }))).toMatch(/At most 3 raise/);
     expect(checkSizes(sizes({ raiseCap: 4 }))).toMatch(/raise cap/);
     expect(checkSizes(sizes())).toBeNull();
   });

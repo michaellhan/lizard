@@ -3,14 +3,15 @@
 // can't be dealt, so it has no weight, and the matchups that can be dealt are weighted by the product of their hands'
 // weights, as engine/plo/equity.ts weights them.
 //
-// Values inside are in chips, zero-sum: each seat is credited half the pot at the start and the rest follows. A value
-// `v` here is v + pot / 2 as EV, chips won from the pot less chips bet on the river.
+// Values inside are in chips: each seat is credited half the pot at the start and the rest follows. A value `v` here is
+// v + pot / 2 as EV, chips won from the pot less chips bet on the river. Zero-sum without rake; with it, the rake the
+// winner pays (tree.ts Rake) comes off the winner's value, so the two seats' values add to minus the rake expected.
 import type { PloRange } from "../ranges";
 import { rangeSize, withoutBlocked } from "../ranges";
 import { handAt } from "../combos";
 import { bestOmaha } from "../evaluate";
 import { addReach, blockedReach, SUBSETS, subsetTables } from "./blockers";
-import { buildTree, checkSizes, type RiverSizes, type RiverTree } from "./tree";
+import { buildTree, checkRake, checkSizes, NO_RAKE, type Rake, type RiverSizes, type RiverTree } from "./tree";
 
 export class RiverError extends Error {}
 
@@ -22,6 +23,7 @@ export interface RiverSpec {
   /** each seat's chips behind: only the shorter one plays */
   stacks: readonly [number, number];
   sizes: RiverSizes;
+  rake?: Rake;
 }
 
 export interface Side {
@@ -115,7 +117,9 @@ export function compileGame(spec: RiverSpec): RiverGame {
   if (!(stack > 0)) throw new RiverError("Both seats need chips behind.");
   const wrong = checkSizes(sizes);
   if (wrong) throw new RiverError(wrong);
-  return { ...compileSides([spec.ranges[0], spec.ranges[1]], board), tree: buildTree(pot, stack, sizes) };
+  const badRake = spec.rake ? checkRake(spec.rake) : null;
+  if (badRake) throw new RiverError(badRake);
+  return { ...compileSides([spec.ranges[0], spec.ranges[1]], board), tree: buildTree(pot, stack, sizes, spec.rake ?? NO_RAKE) };
 }
 
 /** The two sums, over the hands each hero hand can meet, for one reach of the other side. */
@@ -152,8 +156,10 @@ export class Terminals {
     for (let i = 0; i < n; i++) out[i]! *= val;
   }
 
-  /** A showdown for `val` chips each way: out[i] is val times what hand i beats less what beats it, of what it can meet. */
-  showdown(hero: 0 | 1, reach: Float64Array, val: number, out: Float64Array): void {
+  /** A showdown for `val` chips each way: out[i] is val times what hand i beats less what beats it, of what it can meet;
+   * with `rake`, the winner pays it out of the pot and a tie splits it, so out[i] loses rake times what it beats and half
+   * of what it ties. */
+  showdown(hero: 0 | 1, reach: Float64Array, val: number, out: Float64Array, rake = 0): void {
     const { sum, low } = this;
     const me = this.game.sides[hero];
     const other = this.game.sides[1 - hero]!;
@@ -195,10 +201,16 @@ export class Terminals {
         total += r;
       }
     }
-    // beaten - beating = beaten + (beaten or tied) - everything it can meet
-    for (let i = 0; i < n; i++) {
-      const can = total - blockedReach(sum, mine, i * SUBSETS);
-      out[i] = val * (low[i]! + out[i]! - can);
-    }
+    // beaten - beating = beaten + (beaten or tied) - everything it can meet; beaten + tied / 2 = (beaten + (beaten or tied)) / 2
+    if (rake > 0)
+      for (let i = 0; i < n; i++) {
+        const can = total - blockedReach(sum, mine, i * SUBSETS);
+        out[i] = val * (low[i]! + out[i]! - can) - (rake * (low[i]! + out[i]!)) / 2;
+      }
+    else
+      for (let i = 0; i < n; i++) {
+        const can = total - blockedReach(sum, mine, i * SUBSETS);
+        out[i] = val * (low[i]! + out[i]! - can);
+      }
   }
 }

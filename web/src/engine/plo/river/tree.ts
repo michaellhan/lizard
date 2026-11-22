@@ -16,8 +16,8 @@ export type Seat = 0 | 1;
 /** the table's seat for each: heads-up the big blind acts first after the flop */
 const SEAT = ["BB", "SB"] as const;
 
-export const MAX_BET_SIZES = 3;
-export const MAX_RAISE_SIZES = 2;
+export const MAX_BET_SIZES = 4;
+export const MAX_RAISE_SIZES = 3;
 export const MAX_RAISE_CAP = 3;
 
 export interface RiverSizes {
@@ -29,6 +29,27 @@ export interface RiverSizes {
   raiseCap: number;
   /** also offer all-in wherever pot limit allows the whole stack */
   allIn: boolean;
+}
+
+/** Rake: `pct` of the pot as the hand ends, at most `cap` bb (Infinity: no cap). Postflop every pot is raked ("no flop, no
+ * drop" is preflop's), a fold's as a showdown's, on the pot less any bet nobody matched. The winner pays it; a tie
+ * splits it. */
+export interface Rake {
+  pct: number;
+  cap: number;
+}
+
+export const NO_RAKE: Rake = { pct: 0, cap: 0 };
+export const MAX_RAKE_PCT = 10;
+
+/** The rake on a pot that ends at `pot` bb. */
+export const rakeOn = (rake: Rake | undefined, pot: number): number => (rake && rake.pct > 0 ? Math.min((rake.pct / 100) * pot, rake.cap) : 0);
+
+/** What's wrong with a rake, or null. */
+export function checkRake(r: Rake): string | null {
+  if (!(r.pct >= 0 && r.pct <= MAX_RAKE_PCT)) return `Rake is a percent of the pot from 0 to ${MAX_RAKE_PCT}.`;
+  if (!(r.cap > 0)) return "The rake cap is above 0bb (leave it empty for no cap).";
+  return null;
 }
 
 export interface RiverAction {
@@ -61,10 +82,14 @@ export interface ActionNode extends NodeBase {
 export interface FoldNode extends NodeBase {
   kind: "fold";
   folded: Seat;
+  /** the rake on the pot as it ends here, bb */
+  rake: number;
 }
 
 export interface ShowdownNode extends NodeBase {
   kind: "showdown";
+  /** the rake on the pot if the hand ends here (a river's showdown, or a later street's all-in); 0 where the betting goes on */
+  rake: number;
 }
 
 export type RiverNode = ActionNode | FoldNode | ShowdownNode;
@@ -73,6 +98,7 @@ export interface RiverTree {
   pot: number;
   stack: number;
   sizes: RiverSizes;
+  rake: Rake;
   /** by id: the root is 0, a parent comes before its children */
   nodes: RiverNode[];
   /** actions over all of a seat's nodes */
@@ -98,7 +124,7 @@ export function checkSizes(s: RiverSizes): string | null {
   return null;
 }
 
-export function buildTree(pot: number, stack: number, sizes: RiverSizes): RiverTree {
+export function buildTree(pot: number, stack: number, sizes: RiverSizes, rake: Rake = NO_RAKE): RiverTree {
   const { table, lines } = headsUpRiver(pot, stack);
   const nodes: RiverNode[] = [];
   const slots: [number, number] = [0, 0];
@@ -112,8 +138,9 @@ export function buildTree(pot: number, stack: number, sizes: RiverSizes): RiverT
     const river = sim.streets.river!;
     const bets: [number, number] = [river.bets[SEAT[OOP]]!, river.bets[SEAT[IP]]!];
     if (sim.handOver) {
-      if (sim.active.size === 1) nodes.push({ id, path, bets, kind: "fold", folded: sim.active.has(SEAT[OOP]) ? IP : OOP });
-      else nodes.push({ id, path, bets, kind: "showdown" });
+      const r = rakeOn(rake, pot + bets[0] + bets[1]);
+      if (sim.active.size === 1) nodes.push({ id, path, bets, kind: "fold", folded: sim.active.has(SEAT[OOP]) ? IP : OOP, rake: r });
+      else nodes.push({ id, path, bets, kind: "showdown", rake: r });
       return id;
     }
     const can = legal(table, sim)!;
@@ -158,5 +185,5 @@ export function buildTree(pot: number, stack: number, sizes: RiverSizes): RiverT
     return id;
   };
   visit([], "", 0);
-  return { pot, stack, sizes, nodes, slots, actionNodes, depth };
+  return { pot, stack, sizes, rake, nodes, slots, actionNodes, depth };
 }

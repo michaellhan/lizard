@@ -15,7 +15,8 @@ import type { PloRange } from "../ranges";
 import { withoutBlocked } from "../ranges";
 import { addReach, blockedReach, SUBSETS, subsetTables } from "../river/blockers";
 import { compileSides, RiverError, Terminals, type RiverGame, type Side } from "../river/game";
-import { buildTree, checkSizes, type RiverSizes, type RiverTree, type Seat } from "../river/tree";
+import { candidatesOf, MIN_SAMPLE, pickCards, sampleOf, type CardSample } from "../sample";
+import { buildTree, checkRake, checkSizes, NO_RAKE, rakeOn, type Rake, type RiverSizes, type RiverTree, type Seat } from "../river/tree";
 
 /** the river cards a matchup that can be dealt leaves */
 export const RIVERS_PER_MATCHUP = NUM_CARDS - 4 - 8;
@@ -29,6 +30,16 @@ export interface TurnSpec {
   stacks: readonly [number, number];
   turnSizes: RiverSizes;
   riverSizes: RiverSizes;
+  rake?: Rake;
+  /** solve on this many of the river cards (../sample.ts), not all of them */
+  riverSample?: number;
+}
+
+/** What's wrong with a sample size, or null. */
+export function checkSample(k: number | undefined, street: string): string | null {
+  if (k === undefined) return null;
+  if (!Number.isInteger(k) || k < MIN_SAMPLE) return `A sample of ${street} cards is a whole number, at least ${MIN_SAMPLE}.`;
+  return null;
 }
 
 /** A river card's sides, in the river game's order, and each combo's turn index. */
@@ -48,6 +59,8 @@ export interface Closing {
   /** chips behind as the river starts (0: all-in) */
   stack: number;
   tree: RiverTree | null;
+  /** an all-in closing's rake, on the pot as it ends (0 with chips behind: the next street's tree has its own) */
+  rake: number;
 }
 
 export interface TurnGame {
@@ -59,8 +72,11 @@ export interface TurnGame {
   /** combos dropped for sharing a card with every hand the other side holds */
   unmatched: [number, number];
   setCount: number;
-  /** every card that can come, with a game; a card where no matchup can be dealt is left out */
+  /** every card that can come, with a game; a card where no matchup can be dealt is left out. With a sample, the
+   * sampled cards only */
   rivers: River[];
+  /** the river sample, if the rivers are one: its cards and each combo's scale (../sample.ts) */
+  sample?: CardSample;
   /** by turn node id */
   closings: Map<number, Closing>;
   riverSizes: RiverSizes;
@@ -113,17 +129,19 @@ export function turnSides(ranges: readonly [PloRange, PloRange], board: readonly
 export const asRange = (s: Side): PloRange => ({ hands: s.hands, weights: Float32Array.from(s.weights) });
 
 /** What a turn is on its card, whatever was bet before it: its sides and every river card's game. */
-export type TurnCards = Pick<TurnGame, "board" | "sides" | "matchups" | "unmatched" | "setCount" | "rivers">;
+export type TurnCards = Pick<TurnGame, "board" | "sides" | "matchups" | "unmatched" | "setCount" | "rivers" | "sample">;
 
-/** A turn's sides and rivers on a board of four, or a RiverError (no matchup can be dealt). */
-export function turnCards(ranges: readonly [PloRange, PloRange], board: readonly number[]): TurnCards {
+/** A turn's sides and rivers on a board of four, or a RiverError (no matchup can be dealt). `riverSample`: only that many
+ * river cards, picked by ../sample.ts, each matchup's weights scaled to match. */
+export function turnCards(ranges: readonly [PloRange, PloRange], board: readonly number[], riverSample?: number, phase?: number): TurnCards {
   const turn = turnSides(ranges, board);
   const live: [PloRange, PloRange] = [asRange(turn.sides[0]), asRange(turn.sides[1])];
   const index = turn.sides.map((s) => new Map(Array.from(s.hands, (h, i) => [h, i])));
-  const used = new Set(board);
+  const candidates = candidatesOf(board);
+  const sampled = riverSample !== undefined && riverSample < candidates.length;
+  const chosen = sampled ? pickCards(candidates, riverSample, phase) : candidates;
   const rivers: River[] = [];
-  for (let card = 0; card < NUM_CARDS; card++) {
-    if (used.has(card)) continue;
+  for (const card of chosen) {
     let game: River["game"];
     try {
       game = compileSides(live, [...board, card]);
@@ -134,12 +152,12 @@ export function turnCards(ranges: readonly [PloRange, PloRange], board: readonly
     const back = game.sides.map((s, seat) => Int32Array.from(s.hands, (h) => index[seat]!.get(h)!)) as [Int32Array, Int32Array];
     rivers.push({ card, game, back, terminals: new Terminals(game) });
   }
-  return { board, ...turn, rivers };
+  return { board, ...turn, rivers, ...(sampled ? { sample: sampleOf(turn.sides, chosen, candidates.length, turn.setCount) } : {}) };
 }
 
 /** Where a street's betting closes, by node id: the next street's pot and stack, and its tree at `sizes` (null all-in).
  * `trees` shares a tree between closings with the same pot and stack. */
-export function closingsOf(tree: RiverTree, pot: number, stack: number, sizes: RiverSizes, trees = new Map<string, RiverTree>()): Map<number, Closing> {
+export function closingsOf(tree: RiverTree, pot: number, stack: number, sizes: RiverSizes, trees = new Map<string, RiverTree>(), rake: Rake = tree.rake): Map<number, Closing> {
   const closings = new Map<number, Closing>();
   for (const node of tree.nodes) {
     if (node.kind !== "showdown") continue;
@@ -147,12 +165,12 @@ export function closingsOf(tree: RiverTree, pot: number, stack: number, sizes: R
     const nextPot = Math.round((pot + 2 * bet) * 100) / 100;
     const behind = Math.round((stack - bet) * 100) / 100;
     if (behind <= 0) {
-      closings.set(node.id, { id: node.id, pot: nextPot, stack: 0, tree: null });
+      closings.set(node.id, { id: node.id, pot: nextPot, stack: 0, tree: null, rake: rakeOn(rake, nextPot) });
       continue;
     }
     const key = `${nextPot}:${behind}`;
-    if (!trees.has(key)) trees.set(key, buildTree(nextPot, behind, sizes));
-    closings.set(node.id, { id: node.id, pot: nextPot, stack: behind, tree: trees.get(key)! });
+    if (!trees.has(key)) trees.set(key, buildTree(nextPot, behind, sizes, rake));
+    closings.set(node.id, { id: node.id, pot: nextPot, stack: behind, tree: trees.get(key)!, rake: 0 });
   }
   return closings;
 }
@@ -171,9 +189,16 @@ export function compileTurn(spec: TurnSpec): TurnGame {
     const wrong = checkSizes(sizes);
     if (wrong) throw new RiverError(`The ${street}: ${wrong}`);
   }
+  const badSample = checkSample(spec.riverSample, "river");
+  if (badSample) throw new RiverError(badSample);
+  const rake = spec.rake ?? NO_RAKE;
+  if (spec.rake) {
+    const wrong = checkRake(spec.rake);
+    if (wrong) throw new RiverError(wrong);
+  }
 
-  const cards = turnCards(spec.ranges, board);
-  const tree = buildTree(pot, stack, spec.turnSizes);
+  const cards = turnCards(spec.ranges, board, spec.riverSample);
+  const tree = buildTree(pot, stack, spec.turnSizes, rake);
   return { ...cards, tree, closings: closingsOf(tree, pot, stack, spec.riverSizes), riverSizes: spec.riverSizes };
 }
 

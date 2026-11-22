@@ -42,11 +42,13 @@ export function flopMemoryBytes(game: FlopGame): number {
   return bytes;
 }
 
-/** A turn card as the next card of a flop: where the flop closes all-in, a showdown over every river after it. */
+/** A turn card as the next card of a flop: where the flop closes all-in, a showdown over every river after it (every
+ * sampled river, weighted as the turn's sample weights them). */
 function nextOf(t: TurnCard, scratch: { reach: Float64Array; out: Float64Array }): NextCard {
+  const scales = t.cards.sample?.scales;
   return {
     back: t.back,
-    showdown(hero, reach, val, out) {
+    showdown(hero, reach, val, out, rake) {
       const heroN = t.cards.sides[hero].n;
       out.fill(0, 0, heroN);
       const opp = (1 - hero) as Seat;
@@ -54,10 +56,12 @@ function nextOf(t: TurnCard, scratch: { reach: Float64Array; out: Float64Array }
         const backOpp = r.back[opp];
         const backHero = r.back[hero];
         let any = 0;
-        for (let j = 0; j < backOpp.length; j++) any += scratch.reach[j] = reach[backOpp[j]!]!;
+        if (scales) for (let j = 0; j < backOpp.length; j++) any += scratch.reach[j] = reach[backOpp[j]!]! * scales[opp][backOpp[j]!]!;
+        else for (let j = 0; j < backOpp.length; j++) any += scratch.reach[j] = reach[backOpp[j]!]!;
         if (any === 0) continue;
-        r.terminals.showdown(hero, scratch.reach, val, scratch.out);
-        for (let i = 0; i < backHero.length; i++) out[backHero[i]!]! += scratch.out[i]! / RIVERS_PER_MATCHUP;
+        r.terminals.showdown(hero, scratch.reach, val, scratch.out, rake);
+        if (scales) for (let i = 0; i < backHero.length; i++) out[backHero[i]!]! += scratch.out[i]! * scales[hero][backHero[i]!]!;
+        else for (let i = 0; i < backHero.length; i++) out[backHero[i]!]! += scratch.out[i]! / RIVERS_PER_MATCHUP;
       }
     },
   };
@@ -96,7 +100,7 @@ export class FlopSolver extends StreetSolver {
     const subs = new Map<number, TurnSolver[] | null>();
     for (const [id, list] of games) subs.set(id, list ? list.map((g, k) => new TurnSolver(g, { ...shared, terminals: game.turns[k]!.terminals })) : null);
     const scratch = { reach: new Float64Array(riverN), out: new Float64Array(riverN) };
-    super(game, game.turns.map((t) => nextOf(t, scratch)), TURNS_PER_MATCHUP, subs);
+    super(game, game.turns.map((t) => nextOf(t, scratch)), TURNS_PER_MATCHUP, subs, {}, game.sample?.scales);
     this.turnGames = games;
   }
 

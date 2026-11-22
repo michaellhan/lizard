@@ -9,6 +9,7 @@ import { cardName, cardsText, parseIds } from "@/engine/plo/cards";
 import { handAt } from "@/engine/plo/combos";
 import { bestOmaha } from "@/engine/plo/evaluate";
 import { SEAT_NAMES, type ResultNode, type RiverResult, type RiverView, type ViewPath } from "@/engine/plo/river/run";
+import { rakeOn, type Rake } from "@/engine/plo/river/tree";
 import { gradeAt, type PloBasis } from "./drill";
 
 type Seat = 0 | 1;
@@ -45,8 +46,10 @@ export interface PlayEnd {
   board: string;
   /** the pot at the end */
   pot: number;
-  /** your chips won or lost from the start of the street solved first, bb */
+  /** your chips won or lost from the start of the street solved first, bb, after any rake you paid */
   net: number;
+  /** the rake taken from this pot, bb */
+  rake?: number;
   /** the hands at showdown, in words */
   shown?: [string, string];
 }
@@ -63,6 +66,8 @@ export interface Play {
   end: PlayEnd | null;
   /** where it stopped, in words, when a street after couldn't be had */
   broken?: string;
+  /** the solve's rake, taken from the pot as the hand ends */
+  rake?: Rake;
 }
 
 export interface PlayContext {
@@ -135,7 +140,7 @@ export async function startPlay(ctx: PlayContext, hero?: Seat): Promise<Play | n
   cards[me] = myHand;
   cards[other] = r.hands[other][theirs]!;
   const street = firstStreet(r);
-  const play: Play = { hero: me, cards, street, node: byPath(street, ""), put: [0, 0], log: [], end: null };
+  const play: Play = { hero: me, cards, street, node: byPath(street, ""), put: [0, 0], log: [], end: null, ...(r.rake ? { rake: r.rake } : {}) };
   return run(play, ctx);
 }
 
@@ -216,8 +221,9 @@ function settle(p: Play, put: [number, number], pot: number, winner: Seat | null
   // net from the first street's start: the pot then was already in, so the winner takes it and the other's chips since
   const start = pot - put[0] - put[1];
   const me = p.hero;
-  const net = winner === null ? start / 2 + (put[me === 0 ? 1 : 0] - put[me]) / 2 : winner === me ? start + put[me === 0 ? 1 : 0] : -put[me];
-  return { how, winner, board, pot, net: Math.round(net * 100) / 100, ...(shown ? { shown } : {}) };
+  const rake = rakeOn(p.rake, pot);
+  const net = winner === null ? start / 2 + (put[me === 0 ? 1 : 0] - put[me]) / 2 - rake / 2 : winner === me ? start + put[me === 0 ? 1 : 0] - rake : -put[me];
+  return { how, winner, board, pot, net: Math.round(net * 100) / 100, ...(rake > 0 ? { rake: Math.round(rake * 100) / 100 } : {}), ...(shown ? { shown } : {}) };
 }
 
 function showdown(p: Play, put: [number, number], pot: number, rand: () => number): PlayEnd {

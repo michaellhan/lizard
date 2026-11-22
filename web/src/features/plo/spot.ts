@@ -24,7 +24,14 @@ export interface PloSpot {
   turn: StreetSizesForm;
   /** a turn's or a flop's river */
   river: StreetSizesForm;
+  /** rake, % of the pot as typed ("" or "0": none), and its cap in bb ("": no cap) */
+  rake?: { pct: string; cap: string };
+  /** a flop's turn cards and a turn's or flop's river cards to solve on ("" or absent: every card), engine/plo/sample.ts */
+  sample?: { turns: string; rivers: string };
 }
+
+export const NO_SAMPLE = { turns: "", rivers: "" };
+export const NO_RAKE_FORM = { pct: "", cap: "" };
 
 export const DEFAULT_SPOT: PloSpot = {
   oop: "AAxx,KKxx,QQxx",
@@ -67,6 +74,12 @@ export function requestOf(spot: PloSpot, stop: { targetPct: number; seconds: num
   const turn = sizesOf(spot.turn);
   const river = sizesOf(spot.river);
   if (!first || (street !== "river" && !river) || (street === "flop" && !turn)) return "Sizes are percents, separated by commas: 50, 100.";
+  const rakePct = spot.rake?.pct.trim() ? Number(spot.rake.pct) : 0;
+  const rakeCap = spot.rake?.cap.trim() ? Number(spot.rake.cap) : Infinity;
+  if (!Number.isFinite(rakePct) || Number.isNaN(rakeCap)) return "Rake is a percent and its cap a number of bb: 5 and 3, say.";
+  const count = (t: string | undefined) => (t && t.trim() ? Number(t) : undefined);
+  const turns = street === "flop" ? count(spot.sample?.turns) : undefined;
+  const rivers = street === "flop" || street === "turn" ? count(spot.sample?.rivers) : undefined;
   return {
     oop: spot.oop,
     ip: spot.ip,
@@ -76,6 +89,9 @@ export function requestOf(spot: PloSpot, stop: { targetPct: number; seconds: num
     sizes: first,
     ...(street === "flop" ? { turnSizes: turn! } : {}),
     ...(street === "turn" || street === "flop" ? { riverSizes: river! } : {}),
+    ...(rakePct > 0 ? { rake: { pct: rakePct, cap: rakeCap } } : {}),
+    ...(turns !== undefined ? { turnSample: turns } : {}),
+    ...(rivers !== undefined ? { riverSample: rivers } : {}),
     ...stop,
   };
 }
@@ -108,6 +124,12 @@ export function spotToParams(spot: PloSpot): URLSearchParams {
     q.set(`${p}cap`, String(f.cap));
     if (!f.allIn) q.set(`${p}allin`, "0");
   }
+  if (spot.rake?.pct.trim() && Number(spot.rake.pct) > 0) {
+    q.set("rake", spot.rake.pct.trim());
+    if (spot.rake.cap.trim()) q.set("rakecap", spot.rake.cap.trim());
+  }
+  if (spot.sample?.turns.trim()) q.set("turns", spot.sample.turns.trim());
+  if (spot.sample?.rivers.trim()) q.set("rivers", spot.sample.rivers.trim());
   return q;
 }
 
@@ -135,5 +157,10 @@ export function spotFromParams(q: URLSearchParams): PloSpot | null {
       allIn: q.get(`${p}allin`) !== "0",
     };
   }
+  const rake = q.get("rake");
+  if (rake) spot.rake = { pct: rake, cap: q.get("rakecap") ?? "" };
+  const turns = q.get("turns");
+  const rivers = q.get("rivers");
+  if (turns || rivers) spot.sample = { turns: turns ?? "", rivers: rivers ?? "" };
   return spot;
 }

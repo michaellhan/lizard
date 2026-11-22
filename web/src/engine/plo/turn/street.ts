@@ -11,7 +11,7 @@
 // Exploitability is the river's: an exact best response to each side's average, through this street and everything
 // after it, the average of what each seat gains, in chips per matchup and as a percent of this street's pot.
 import { Terminals, type Side } from "../river/game";
-import { bestScratch, levelsFor, widestOf, type Exploitability, type Level } from "../river/solver";
+import { bestScratch, exploitabilityOf, levelsFor, raked, widestOf, type Exploitability, type Level } from "../river/solver";
 import type { ActionNode, RiverNode, RiverTree, Seat } from "../river/tree";
 import { OOP } from "../river/tree";
 
@@ -32,7 +32,7 @@ export interface Sub {
  * all-in, `val` chips times the reach each hand beats less the reach it loses to, into `out` (the card's combos). */
 export interface NextCard {
   back: [Int32Array, Int32Array];
-  showdown(hero: Seat, reach: Float64Array, val: number, out: Float64Array): void;
+  showdown(hero: Seat, reach: Float64Array, val: number, out: Float64Array, rake: number): void;
 }
 
 export interface StreetGame {
@@ -41,7 +41,7 @@ export interface StreetGame {
   matchups: number;
   setCount: number;
   /** by node id where the betting closes: the next street's pot */
-  closings: ReadonlyMap<number, { id: number; pot: number }>;
+  closings: ReadonlyMap<number, { id: number; pot: number; rake: number }>;
 }
 
 export interface StreetNodeReport {
@@ -74,12 +74,17 @@ export interface StreetShared {
 
 export class StreetSolver implements Sub {
   iterations = 0;
+  /** this street's own strategy held as its average (set with setAverage), the streets after it still solved: to measure
+   * a flop strategy with every turn and river re-solved under it (flop/sample.measure.test.ts) */
+  frozen = false;
   protected readonly regret: [Float32Array, Float32Array];
   protected readonly average: [Float32Array, Float32Array];
   protected readonly levels: Level[];
   protected readonly terminals: Terminals;
   private readonly nextReach: Float64Array;
   private readonly nextOut: Float64Array;
+  /** a sample's weights (../sample.ts): each seat's scale by combo, in place of 1 / perMatchup */
+  private readonly scales: readonly [Float64Array, Float64Array] | null;
   private readonly half: number;
   private keepGain = 0;
   private keepLoss = 0.5;
@@ -92,6 +97,7 @@ export class StreetSolver implements Sub {
     /** by closing id: a sub-solve for each of `cards` (null for an all-in closing) */
     protected readonly subs: ReadonlyMap<number, readonly Sub[] | null>,
     shared: StreetShared = {},
+    scales?: readonly [Float64Array, Float64Array],
   ) {
     const { sides, tree } = game;
     this.regret = [new Float32Array(sides[0].n * tree.slots[0]), new Float32Array(sides[1].n * tree.slots[1])];
@@ -99,6 +105,7 @@ export class StreetSolver implements Sub {
     this.levels = shared.levels ?? levelsFor(Math.max(sides[0].n, sides[1].n), widestOf(tree), tree.depth);
     this.terminals = shared.terminals ?? new Terminals(game);
     this.half = tree.pot / 2;
+    this.scales = scales ?? null;
     let n = 1;
     for (const c of cards) n = Math.max(n, c.back[0].length, c.back[1].length);
     this.nextReach = shared.next?.reach ?? new Float64Array(n);
@@ -136,25 +143,31 @@ export class StreetSolver implements Sub {
   private leaf(node: Exclude<RiverNode, ActionNode>, hero: Seat, reach: Float64Array, out: Float64Array, how: How): void {
     if (node.kind === "fold") {
       const val = this.half + node.bets[node.folded];
-      this.terminals.fold(hero, reach, node.folded === hero ? -val : val, out);
+      this.terminals.fold(hero, reach, node.folded === hero ? -val : val - node.rake, out);
       return;
     }
     const closing = this.game.closings.get(node.id)!;
     const subs = this.subs.get(node.id)!;
     const heroN = this.game.sides[hero].n;
     out.fill(0, 0, heroN);
-    const { nextReach: rr, nextOut: ro, perMatchup } = this;
+    const { nextReach: rr, nextOut: ro, perMatchup, scales } = this;
     const opp = (1 - hero) as Seat;
     this.cards.forEach((c, k) => {
       const backOpp = c.back[opp];
       const backHero = c.back[hero];
       let any = 0;
-      for (let j = 0; j < backOpp.length; j++) any += rr[j] = reach[backOpp[j]!]!;
+      if (scales) {
+        const so = scales[opp];
+        for (let j = 0; j < backOpp.length; j++) any += rr[j] = reach[backOpp[j]!]! * so[backOpp[j]!]!;
+      } else for (let j = 0; j < backOpp.length; j++) any += rr[j] = reach[backOpp[j]!]!;
       if (any === 0) return;
-      if (!subs) c.showdown(hero, rr, closing.pot / 2, ro);
+      if (!subs) c.showdown(hero, rr, closing.pot / 2, ro, closing.rake);
       else if (how === "solve") subs[k]!.pass(hero, rr, ro);
       else subs[k]!.valueAt(hero, rr, ro, how === "best");
-      for (let i = 0; i < backHero.length; i++) out[backHero[i]!]! += ro[i]! / perMatchup;
+      if (scales) {
+        const sh = scales[hero];
+        for (let i = 0; i < backHero.length; i++) out[backHero[i]!]! += ro[i]! * sh[backHero[i]!]!;
+      } else for (let i = 0; i < backHero.length; i++) out[backHero[i]!]! += ro[i]! / perMatchup;
     });
   }
 
@@ -184,7 +197,7 @@ export class StreetSolver implements Sub {
     const n = this.game.sides[seat].n;
     const heroN = this.game.sides[hero].n;
     const sigma = level.sigma;
-    this.current(node, seat, sigma, how !== "solve");
+    this.current(node, seat, sigma, how !== "solve" || this.frozen);
     if (seat === hero) {
       for (let k = 0; k < a; k++) this.walk(node.children[k]!, hero, reach, level.values[k]!, depth + 1, how);
       for (let i = 0; i < n; i++) {
@@ -198,7 +211,7 @@ export class StreetSolver implements Sub {
           out[i] = t;
         }
       }
-      if (how !== "solve") return;
+      if (how !== "solve" || this.frozen) return;
       const r = this.regret[seat];
       const { keepGain, keepLoss } = this;
       for (let k = 0; k < a; k++) {
@@ -223,7 +236,7 @@ export class StreetSolver implements Sub {
           const here = reach[i]! * sigma[row + i]!;
           next[i] = here;
           any += here;
-          if (how === "solve") avg[at + i] = avg[at + i]! * keep + here;
+          if (how === "solve" && !this.frozen) avg[at + i] = avg[at + i]! * keep + here;
         }
         if (any === 0) continue;
         this.walk(node.children[k]!, hero, next, child, depth + 1, how);
@@ -257,9 +270,7 @@ export class StreetSolver implements Sub {
     };
     const best: [number, number] = [value(0, true), value(1, true)];
     const here = value(OOP, false);
-    const gain: [number, number] = [best[0] - here, best[1] + here];
-    const chips = (best[0] + best[1]) / 2;
-    return { best, gain, chips, pct: (100 * chips) / tree.pot, value: here };
+    return exploitabilityOf(best, [here, raked(tree) ? value(1, false) : -here], tree.pot);
   }
 
   /** Each seat's reach where node `id` is reached from `roots` (default: the ranges), at the average strategies. */

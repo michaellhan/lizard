@@ -9,8 +9,9 @@
 import { NUM_CARDS } from "../cards";
 import type { PloRange } from "../ranges";
 import { RiverError, Terminals } from "../river/game";
-import { buildTree, checkSizes, type RiverSizes, type RiverTree } from "../river/tree";
-import { asRange, closingsOf, turnCards, turnSides, type Closing, type TurnCards, type TurnGame } from "../turn/game";
+import { buildTree, checkRake, checkSizes, NO_RAKE, type Rake, type RiverSizes, type RiverTree } from "../river/tree";
+import { asRange, checkSample, closingsOf, turnCards, turnSides, type Closing, type TurnCards, type TurnGame } from "../turn/game";
+import { candidatesOf, pickCards, sampleOf, type CardSample } from "../sample";
 
 /** the turn cards a matchup that can be dealt leaves */
 export const TURNS_PER_MATCHUP = NUM_CARDS - 3 - 8;
@@ -25,6 +26,13 @@ export interface FlopSpec {
   flopSizes: RiverSizes;
   turnSizes: RiverSizes;
   riverSizes: RiverSizes;
+  rake?: Rake;
+  /** solve on this many of the turn cards (../sample.ts), not all of them */
+  turnSample?: number;
+  /** and after each, on this many of its river cards */
+  riverSample?: number;
+  /** where in each stretch a sample's picks fall (../sample.ts pickCards): only to measure another sample */
+  samplePhase?: number;
 }
 
 /** A turn card: its turn's sides and rivers, each combo's flop index, and the sums its folds are counted with. */
@@ -47,8 +55,12 @@ export interface FlopGame {
   matchups: number;
   unmatched: [number, number];
   setCount: number;
-  /** every card that can come on the turn, with a game */
+  /** every card that can come on the turn, with a game (with a sample, the sampled cards only) */
   turns: TurnCard[];
+  /** the turn sample, if the turns are one: its cards and each combo's scale (../sample.ts) */
+  sample?: CardSample;
+  /** each turn's river sample size, if the rivers are sampled */
+  riverSample?: number;
   /** by flop node id */
   closings: Map<number, FlopClosing>;
   turnSizes: RiverSizes;
@@ -70,17 +82,25 @@ export function compileFlop(spec: FlopSpec): FlopGame {
     const wrong = checkSizes(sizes);
     if (wrong) throw new RiverError(`The ${street}: ${wrong}`);
   }
+  const rake = spec.rake ?? NO_RAKE;
+  if (spec.rake) {
+    const wrong = checkRake(spec.rake);
+    if (wrong) throw new RiverError(wrong);
+  }
+  const badSample = checkSample(spec.turnSample, "turn") ?? checkSample(spec.riverSample, "river");
+  if (badSample) throw new RiverError(badSample);
 
   const flop = turnSides(spec.ranges, board);
   const live: [PloRange, PloRange] = [asRange(flop.sides[0]), asRange(flop.sides[1])];
   const index = flop.sides.map((s) => new Map(Array.from(s.hands, (h, i) => [h, i])));
-  const used = new Set(board);
+  const candidates = candidatesOf(board);
+  const sampled = spec.turnSample !== undefined && spec.turnSample < candidates.length;
+  const chosen = sampled ? pickCards(candidates, spec.turnSample!, spec.samplePhase) : candidates;
   const turns: TurnCard[] = [];
-  for (let card = 0; card < NUM_CARDS; card++) {
-    if (used.has(card)) continue;
+  for (const card of chosen) {
     let cards: TurnCards;
     try {
-      cards = turnCards(live, [...board, card]);
+      cards = turnCards(live, [...board, card], spec.riverSample, spec.samplePhase);
     } catch (e) {
       if (e instanceof RiverError) continue; // (no matchup can be dealt with this card out)
       throw e;
@@ -89,12 +109,22 @@ export function compileFlop(spec: FlopSpec): FlopGame {
     turns.push({ card, cards, back, terminals: new Terminals(cards) });
   }
 
-  const tree = buildTree(pot, stack, spec.flopSizes);
+  const tree = buildTree(pot, stack, spec.flopSizes, rake);
   const riverTrees = new Map<string, RiverTree>();
   const closings = new Map<number, FlopClosing>();
   for (const c of closingsOf(tree, pot, stack, spec.turnSizes).values())
     closings.set(c.id, { ...c, turnClosings: c.tree ? closingsOf(c.tree, c.pot, c.stack, spec.riverSizes, riverTrees) : null });
-  return { board, ...flop, tree, turns, closings, turnSizes: spec.turnSizes, riverSizes: spec.riverSizes };
+  return {
+    board,
+    ...flop,
+    tree,
+    turns,
+    closings,
+    turnSizes: spec.turnSizes,
+    riverSizes: spec.riverSizes,
+    ...(sampled ? { sample: sampleOf(flop.sides, chosen, candidates.length, flop.setCount) } : {}),
+    ...(spec.riverSample !== undefined && spec.riverSample < candidates.length - 1 ? { riverSample: spec.riverSample } : {}),
+  };
 }
 
 /** A turn card's game at one closing of the flop (one with chips behind). */

@@ -475,35 +475,57 @@ const sizesWords = (s: { bets: readonly number[]; raises: readonly number[]; rai
   return `bets ${list(s.bets)} of the pot, raises ${list(s.raises)}, up to ${s.raiseCap} raise${s.raiseCap === 1 ? "" : "s"}${s.allIn ? ", all-in where the limit allows" : ""}`;
 };
 
+type PloSizes = { bets: readonly number[]; raises: readonly number[]; raiseCap: number; allIn: boolean };
+type PloSample = { cards: number; of: number; maxError: number; meanError: number };
+
+const rakeWords = (rake?: { pct: number; cap: number }) =>
+  rake && rake.pct > 0 ? `rake ${rake.pct}% of the pot${Number.isFinite(rake.cap) ? ` up to ${rake.cap}bb` : ", no cap"}, paid by the winner` : "no rake";
+
+const sampleWords = (s: { turns?: PloSample; rivers?: PloSample }, flop: boolean) => {
+  const parts: string[] = [];
+  const err = (x: PloSample) => `chance weights within ${(100 * x.maxError).toFixed(1)}% of exact for every matchup, ${(100 * x.meanError).toFixed(2)}% on average`;
+  if (s.turns) parts.push(`${s.turns.cards} of the ${s.turns.of} turn cards (${err(s.turns)})`);
+  if (s.rivers) parts.push(`${s.rivers.cards} of the ${s.rivers.of} river cards ${flop ? "after each turn" : ""} (${err(s.rivers)})`.replace("  ", " "));
+  return `solved on a sample of ${parts.join(" and ")}, picked by suit and rank: exploitability is measured in that smaller game, not the full one`;
+};
+
 export function ploRiverProvenance(r: {
   stop: "target" | "time" | "iterations" | "cancelled";
   iterations: number;
   seconds: number;
   exploitabilityPct: number;
   targetPct: number;
-  sizes: { bets: readonly number[]; raises: readonly number[]; raiseCap: number; allIn: boolean };
+  sizes: PloSizes;
   /** a turn's: its river sizes and the river cards solved */
-  turn?: { riverSizes: { bets: readonly number[]; raises: readonly number[]; raiseCap: number; allIn: boolean }; rivers: number };
+  turn?: { riverSizes: PloSizes; rivers: number };
   /** a flop's: its turn and river sizes and the turn cards solved */
-  flop?: { turnSizes: { bets: readonly number[]; raises: readonly number[]; raiseCap: number; allIn: boolean }; riverSizes: { bets: readonly number[]; raises: readonly number[]; raiseCap: number; allIn: boolean }; turns: number };
+  flop?: { turnSizes: PloSizes; riverSizes: PloSizes; turns: number };
+  /** the rake taken, if any */
+  rake?: { pct: number; cap: number };
+  /** a sample of the cards after a flop or turn (engine/plo/sample.ts): an abstraction, so approximate */
+  sample?: { turns?: PloSample; rivers?: PloSample };
   now?: number;
 }): Provenance {
   const short = r.stop !== "target";
+  const sampled = Boolean(r.sample && (r.sample.turns || r.sample.rivers));
   const label = { time: "the time budget ran out", iterations: "the iteration limit came first", cancelled: "cancelled", target: "" }[r.stop];
+  const raking = rakeWords(r.rake);
+  const samples = sampled ? `; ${sampleWords(r.sample!, Boolean(r.flop))}` : "";
   return {
     source: "plo-river",
-    approximate: short,
+    approximate: short || sampled,
     exploitabilityPct: r.exploitabilityPct,
     targetPct: r.targetPct,
-    band: bandOf(r.exploitabilityPct, short),
+    band: bandOf(r.exploitabilityPct, short || sampled),
     iterations: r.iterations,
     seconds: r.seconds,
     view: r.flop
-      ? `a flop and its ${r.flop.turns} turn cards, every river after each, from the ranges typed, the flop at ${sizesWords(r.sizes)}, every turn at ${sizesWords(r.flop.turnSizes)}, every river at ${sizesWords(r.flop.riverSizes)}, no rake`
+      ? `a flop and its ${r.flop.turns} turn cards, every river after each, from the ranges typed, the flop at ${sizesWords(r.sizes)}, every turn at ${sizesWords(r.flop.turnSizes)}, every river at ${sizesWords(r.flop.riverSizes)}, ${raking}${samples}`
       : r.turn
-        ? `a turn and its ${r.turn.rivers} river cards from the ranges typed, the turn at ${sizesWords(r.sizes)}, every river at ${sizesWords(r.turn.riverSizes)}, no rake`
-        : `from the ranges typed, at ${sizesWords(r.sizes)}, no rake`,
-    ...(short ? { approximateLabel: `short of its target: ${label}` } : {}),
+        ? `a turn and its ${r.turn.rivers} river cards from the ranges typed, the turn at ${sizesWords(r.sizes)}, every river at ${sizesWords(r.turn.riverSizes)}, ${raking}${samples}`
+        : `from the ranges typed, at ${sizesWords(r.sizes)}, ${raking}`,
+    ...(short || sampled ? { approximateLabel: [short ? `short of its target: ${label}` : "", sampled ? "a sample of the cards, not every card" : ""].filter(Boolean).join("; ") } : {}),
+    ...(sampled ? { approximateReason: "the solve is on a sample of the turn or river cards, not every card, so its numbers are a smaller game's" } : {}),
     mode: "accurate",
     transport: "worker",
     solverVersion: r.flop ? "Lizard PLO flop, turn and river, discounted CFR in TypeScript" : r.turn ? "Lizard PLO turn and river, discounted CFR in TypeScript" : "Lizard PLO river, discounted CFR in TypeScript",
