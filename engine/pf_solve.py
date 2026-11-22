@@ -392,7 +392,7 @@ def spec_of(state: dict) -> Tuple[Optional[Spec], Optional[str]]:
 # leaves the tree, and the decisions after it have no EV. 2026-11-13: the charts' blinds 3bet to 4x the open
 # (gto/advisor.py _default_size: 10bb over 2.5bb) where the tree's default is 4.8x (12bb, the published solves' size),
 # about 30% of 6-max decisions (docs/ACCURACY.md section 18.5), so 6-max was stored at blind_3bet 4 too. 2026-11-17
-# (section 18.8): the rest of the charts' rule, which the 4x alone left out: a cold 4bet adds the opener's chips (20bb
+# (section 18.12): the rest of the charts' rule, which the 4x alone left out: a cold 4bet adds the opener's chips (20bb
 # over an open and a 3bet to 7.5bb, where the tree's is 17.25bb), a squeeze adds a caller's chips beyond its blind
 # (12bb, not 12.5bb), and every size goes to the half big blind (17bb, not 17.25bb). The games are stored with the
 # whole rule (pf_engine.build sizing="chart", key suffix "_ch") at 2 to 6 players, for Practice's and Analyze's grade

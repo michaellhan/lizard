@@ -10,7 +10,7 @@
 // `pfWhy` saying why. A hand played in Practice is read by the table's own rule (pfGrade.ts pfReadAt), so one decision
 // has one grade. A site's hand is rarely at a stored game's stacks: each of its decisions is read against the stored game
 // nearest the stacks of the seats still in, where every one is within PF_DEPTH_TOL of its depth (pfDepthAt, measured in
-// docs/ACCURACY.md section 18.8), and the decision's note names that game and how far off the stacks were; past it the
+// docs/ACCURACY.md section 18.12), and the decision's note names that game and how far off the stacks were; past it the
 // charts grade it, and `pfWhy` says how far. Any other game is asked what it always was.
 import type { DecisionRecord, HandRecord } from "@/data/db";
 import { PRACTICE_SITE } from "@/data/hands";
@@ -252,7 +252,7 @@ export function pfOut(hand: Pick<HandRecord, "tournament" | "setup"> & Partial<P
 export const PF_NO_RAKE = "this history doesn't say its rake or cap, so it's read against the stored game with no rake";
 
 /** How far a seat's effective stack may be from the stored game's depth for a site's decision to be read against that game
- * (a share of the depth). Measured by scripts/pf_depth_tolerance.py (docs/ACCURACY.md section 18.8): within it the stored
+ * (a share of the depth). Measured by scripts/pf_depth_tolerance.py (docs/ACCURACY.md section 18.12): within it the stored
  * game's verdict is the one a solve at the table's own stacks gives on most decisions; past it they part more often. */
 export const PF_DEPTH_TOL = 0.15;
 

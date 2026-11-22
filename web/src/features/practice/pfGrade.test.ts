@@ -248,7 +248,7 @@ describe("a move the solve never makes", () => {
   // Real answers of the stored grid (scripts/pf/untrained_nodes.py: engine.pf_solve.answer, the worker's entry) and the
   // charts' answers at the same spots (Advisor.advise).
   type Spot = { state: { stack: number; hero: string; hole: string; preflop: Move[] }; solve: AdvisorResponse; chart: AdvisorResponse };
-  const U = untrained as unknown as Record<"hj40" | "co100" | "utg40" | "trap50", Spot>;
+  const U = untrained as unknown as Record<"hj40" | "co100" | "utg40" | "rare60", Spot>;
   const hand = (s: Spot, opts = {}): PracticeHand => {
     let h: PracticeHand = { ...newHand(6, s.state.stack, 0, 7, { pfSolve: true, ...opts }), hero: s.state.hero };
     h = { ...h, hands: { ...h.hands, [s.state.hero]: [s.state.hole.slice(0, 2), s.state.hole.slice(2)] } };
@@ -269,23 +269,23 @@ describe("a move the solve never makes", () => {
     const hj = U.hj40.solve;
     const cells = hj.grid!.cells;
     expect(hj.actions!.find((a) => a.action === "raise")!.freq).toBe(0);
-    expect([cells.AA!.ev![0], cells["72o"]!.ev![0]]).toEqual([-7.495, -7.5]);
-    expect(untrainedMoves(hj)).toEqual([{ action: "raise", amount_bb: 7.5, ev: -7.495, top: "AA" }]);
-    // 6-max 100bb, the CO over an open and a 3-bet: it never cold 4-bets (AA's call +23.3, its 4-bet -17.25)
-    expect(untrainedMoves(U.co100.solve)).toEqual([{ action: "raise", amount_bb: 17.25, ev: -17.25, top: "AA" }]);
-    // a move a few hands make is learned: UTG calls 0.46% of its range facing a squeeze, AA's trap is worth +9.1bb
-    const trap = U.trap50.solve.actions!.find((a) => a.action === "call")!;
-    expect(trap.freq).toBeLessThan(UNTRAINED_SHARE);
-    expect(U.trap50.solve.grid!.cells.AA!.ev![1]).toBeGreaterThan(-UNTRAINED_LOSS);
-    expect(untrainedMoves(U.trap50.solve)).toEqual([]);
+    expect([cells.AA!.ev![0], cells["72o"]!.ev![0]]).toEqual([-7.491, -7.5]);
+    expect(untrainedMoves(hj)).toEqual([{ action: "raise", amount_bb: 7.5, ev: -7.491, top: "AA" }]);
+    // 6-max 100bb, the CO over an open and a 3-bet: it never cold 4-bets (AA's call +23.0, its 4-bet to 20 -20)
+    expect(untrainedMoves(U.co100.solve)).toEqual([{ action: "raise", amount_bb: 20, ev: -20, top: "AA" }]);
+    // a move a few hands make is learned: at 60bb the BTN calls a 4-bet all-in with 0.48% of its range, AA's call +58.7bb
+    const rare = U.rare60.solve.actions!.find((a) => a.action === "call")!;
+    expect(rare.freq).toBeLessThan(UNTRAINED_SHARE);
+    expect(U.rare60.solve.grid!.cells.AA!.ev![0]).toBeGreaterThan(-UNTRAINED_LOSS);
+    expect(untrainedMoves(U.rare60.solve)).toEqual([]);
     expect(untrainedMoves(U.utg40.solve)).toEqual([]);
     for (const n of Object.values(NODES)) expect(untrainedMoves(n)).toEqual([]);
   });
-  it("grades a chart 3-bet with AA by the chart, not as a 12.5bb Blunder, and says why", () => {
-    // (by the solve's numbers it was: -7.495 against the call's +5.284 in a 4bb pot)
+  it("grades a chart 3-bet with AA by the chart, not as a 14bb Blunder, and says why", () => {
+    // (by the solve's numbers it was: -7.491 against the call's +6.765 in a 4bb pot)
     const aa = U.hj40.solve.grid!.cells.AA!;
     const bySolve = gradeMix(aa.ev!.map((ev, i) => ({ action: U.hj40.solve.grid!.actions[i]!, freq: aa.f[i]!, ev })), 4, 0, "preflop-solve");
-    expect([bySolve.verdict, bySolve.loss]).toEqual(["Blunder", expect.closeTo(12.548, 3)]);
+    expect([bySolve.verdict, bySolve.loss]).toEqual(["Blunder", expect.closeTo(14.256, 3)]);
     const h = hand(U.hj40);
     const { on, d } = choose(h, U.hj40, "raise");
     expect(on.pfWhy).toBe("The solve never plays raise 7.5bb here, so its EV for it is untrained: it has even AA losing 7.5bb by it.");
@@ -305,19 +305,19 @@ describe("a move the solve never makes", () => {
     expect(on.provenance.source).toBe("preflop-solve");
     expect(d.grade!.byEv).toBe(true);
     expect(d.grade!.verdict).toBe("Blunder");
-    expect(d.grade!.loss).toBeCloseTo(5.817, 6);
+    expect(d.grade!.loss).toBeCloseTo(6.394, 6);
   });
   it("still grades a spot whose rare move is a learned one by the solve", () => {
-    const h = hand(U.trap50);
-    const { on, d } = choose(h, U.trap50, "all-in");
+    const h = hand(U.rare60);
+    const { on, d } = choose(h, U.rare60, "call");
     expect(on.pfWhy).toBeUndefined();
     expect(d.grade!.byEv).toBe(true);
     expect(d.grade!.verdict).toBe("Best");
   });
   it("won't offer the solve's size for a move it never makes either (the session's own sizes)", () => {
-    // the chart 4-bets to 20bb, the solve to 17.25: lined up by kind, the 4-bet would be graded at -17.25
+    // (the game at the charts' raise rule 4-bets to the chart's 20bb: the size lines up, its EV is untrained all the same)
     const h = hand(U.co100, { pfSizes: true });
-    expect(gradedOn(h, held(U.co100)).pfWhy).toMatch(/^The solve never plays raise 17\.25bb here, so its EV for it is untrained: it has even AA losing 17\.3bb by it\.$/);
+    expect(gradedOn(h, held(U.co100)).pfWhy).toMatch(/^The solve never plays raise 20bb here, so its EV for it is untrained: it has even AA losing 20\.0bb by it\.$/);
     expect(optionsAt(h, held(U.co100)).find((a) => a.action === "raise")!.amount_bb).toBe(20);
   });
   it("is read the same in Analyze, in a drill and on a retry", () => {

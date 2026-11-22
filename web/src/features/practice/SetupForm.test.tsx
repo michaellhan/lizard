@@ -241,7 +241,7 @@ describe("grading preflop by the preflop solve", () => {
     });
     it("at 2 to 6 players, says its sizes are the charts' own and how much that table size leaves ungraded, ticked or not", () => {
       // (since 2026-11-17 every stored cash game the grade asks is at the charts' own raise sizes: no 12bb blind 3bet)
-      for (const [n, said] of [[6, "about 1 hand in 120 at 100bb"], [5, "about 1 hand in 120 at 100bb"], [2, "about 1 hand in 45 at 100bb"]] as const) {
+      for (const [n, said] of [[6, "about 1 hand in 55 at 100bb"], [5, "about 1 hand in 100 at 100bb"], [2, "about 1 hand in 40 at 100bb"]] as const) {
         open(OPTS, vi.fn(), n);
         const note = document.getElementById("pf-note")!;
         expect(sizes()).toHaveAccessibleDescription(/Not a full solve/);

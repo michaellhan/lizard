@@ -102,7 +102,8 @@ describe("each Practice setting", () => {
     const h = newHand(6, 100, 0, 7, { ...BASE, pfSolve: true, pfSizes: true });
     expect([!!h.pfSolve, !!h.pfSizes]).toEqual([true, true]);
     const ps = pfState(h) as Record<string, unknown>;
-    expect([ps.preflop_solve, ps.study, !!ps.pf_sizes]).toEqual([true, true, true]);
+    // (the grade asks the game stored at the charts' own raise sizes: the tree option, not sizes of its own)
+    expect([ps.preflop_solve, ps.study, ps.pf_tree, !!ps.pf_sizes]).toEqual([true, true, { sizing: "chart" }, false]);
     for (const [p, s] of [[7, 100], [6, 37], [9, 100]] as const) expect(newHand(p, s, 0, 7, { ...BASE, pfSolve: true }).pfSolve, `${p} players, ${s}bb`).toBeFalsy();
   });
 

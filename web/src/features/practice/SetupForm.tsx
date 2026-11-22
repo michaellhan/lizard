@@ -55,15 +55,15 @@ import {
 } from "./TournamentFields";
 
 /** How many hands hold a preflop decision the stored solve can't grade, at 100bb, playing the charts, by table size: the
- * games at the charts' own raise sizes, lz3 (scripts/pf_practice_coverage.py --chart-sizes, 10,000 hands at 2 to 5 players and
- * 30,000 at 6: 204 of 9,452 hands with a decision, 64 of 8,984, 75 of 9,482, 79 of 9,692, 244 of 29,371; docs/ACCURACY.md
- * section 18.8). */
+ * games at the charts' own raise sizes, lz4 (scripts/pf_practice_coverage.py --chart-sizes, 10,000 hands at 2 to 5 players and
+ * 30,000 at 6: 234 of 9,595 hands with a decision, 62 of 9,035, 77 of 9,509, 97 of 9,717, 541 of 29,347; docs/ACCURACY.md
+ * section 18.12). At 6 players most are moves the solve never trains (pfGrade.ts untrainedMoves), left to the chart. */
 const PF_UNGRADED: Record<number, string> = {
-  2: "about 1 hand in 45",
-  3: "about 1 hand in 140",
+  2: "about 1 hand in 40",
+  3: "about 1 hand in 145",
   4: "about 1 hand in 125",
-  5: "about 1 hand in 120",
-  6: "about 1 hand in 120",
+  5: "about 1 hand in 100",
+  6: "about 1 hand in 55",
 };
 
 const setTexture = (

@@ -526,7 +526,7 @@ test("7g. Preflop graded by the stored solve where it's that very spot, by the c
 
   // The charts grade where no game is stored. They are met in a session of their own (6 players at 250bb, past the
   // stored depths) rather than waited for inside the stored one: since the grade asks the games stored at the charts'
-  // own raise sizes, a stored game answers 99% of its spots (6-max 100bb playing the charts, ACCURACY section 18.8), so
+  // own raise sizes, a stored game answers 98% of its spots (6-max 100bb playing the charts, ACCURACY section 18.12), so
   // a chart fallback there is too rare to wait on.
   await session(page, "preflop", async () => {
     await page.getByLabel("Stack in big blinds").fill("250");
