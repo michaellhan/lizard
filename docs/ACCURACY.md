@@ -2024,10 +2024,10 @@ The heads-up spots have none.
   the charts', though the chart itself only 3-bets the hand.
 - 40bb is checked only by reading the jam as the solve's 3-bet.
 
-### 18.12 The grade at the charts' raise sizes, unequal stacks in Analyze, a straddle from any seat, 5bet rules (2026-11-17)
+### 18.12 The grade at the charts' raise sizes, unequal stacks in Analyze, a straddle from any seat, 5bet rules (2026-11-22)
 
-Every figure here is of the `lz3` model as committed on 2026-11-16. Another session is moving the grid to `lz4` (an
-exactly enumerated class equity table); the commands to measure again on it are at the end.
+Every figure here is of the `lz4` model (section 31). The work was first measured on `lz3` on 2026-11-17 and measured
+again on lz4 after it landed, so lz3 figures appear only where they are named as such.
 
 **The charts' whole raise rule [V].** Section 18.5 stored the 6-max games at the charts' 3bet size only (a blind's
 3bet to 4x the open). The grade then still refused most decisions after a 3bet, because the charts size the rest
@@ -2042,10 +2042,16 @@ each at 6-max 100bb and 200bb, 5-max 40bb and heads-up 100bb, and asks the chart
 raise is theirs to the cent, and every all-in is where they go all-in.
 
 The grid is stored at those sizes at 2 to 6 players: 11 depths, no rake and 5% capped at 3bb, 110 games
-(`engine/pf/lz3_*_ch.bin`). Each ran 1,500 iterations through slot.sh, 2,713 s in all, 980 KB. The farthest is 1.22
-mbb/hand a seat (`lz3_6max_50bb_ch`). They replace the 22 `_blind_3bet4` files. Practice's and Analyze's grade asks
+(`engine/pf/lz4_*_ch.bin`). Each ran 1,500 iterations through slot.sh, 3,726 s in all, 996 KB. The farthest is 1.236
+mbb/hand a seat (`lz4_5max_50bb_ch`). They replace the 22 `_blind_3bet4` files. Practice's and Analyze's grade asks
 for them in every cash game of 2 to 6 players (`pfStored.ts` `pfGradeSizes`, `pfChartKey`). Study's Solver source
 keeps the tree's own sizes, which are the published solves'.
+
+`scripts/pf/build_stored.py --missing` had the flaw section 31 found in the tournament builder, in another form: it
+skipped a game whose file existed. The key names the model tag and every tree option, so a game on another model or
+table already got its own file; but a tree rule changed under the same key (as the charts' raise rule did while this
+was built) left the old file standing. It now reads the file's header (`PFS1` and the tree's decision count) and
+rebuilds a file that isn't its game's tree.
 
 A crash found on the way. With unequal stacks and the charts' sizes, a raise could follow three all-ins. The
 showdown evaluator takes three players at most, so four all-in crashed it ("2 is not in list" in `_prep_terminals`). A
@@ -2054,54 +2060,61 @@ covers two unequal tables, sizes the tree's and the charts', and checks the 6-ma
 nodes.
 
 **What it answers [V]** (`scripts/pf_practice_coverage.py --chart-sizes`, playing the charts, 6-max 100bb, 30,000
-hands a run):
+hands a run; before is lz4's `_blind_3bet4` games at b3ace5f):
 
-| | `_blind_3bet4` (before) | `_ch`, no rake | `_ch`, 5% capped at 3bb |
-|---|---:|---:|---:|
-| Decisions answered | 93.1% | 99.2% | 99.3% |
-| Facing an open | 99.0% | 100.0% | 100.0% |
-| Facing a 3bet | 23.0% | 93.4% | 93.8% |
-| Facing a 4bet | 24.0% | 65.1% | 75.5% |
-| Facing a 5bet or more | 27.9% | 60.5% | 69.8% |
-| Lowest seat | BB 81.8% | UTG 99.0% | UTG 99.1% |
-| Hands holding a decision it can't grade | 2,078 (7.1%) | 244 (0.83%) | 211 (0.72%) |
-| EV lost per graded decision | 0.0198bb | 0.0272bb | 0.0180bb |
+| | No rake, before | No rake, `_ch` | 5% capped at 3bb, before | 5% capped at 3bb, `_ch` |
+|---|---:|---:|---:|---:|
+| Decisions answered | 92.3% | 98.2% | 93.2% | 98.9% |
+| Facing an open | 97.4% | 99.5% | 99.0% | 100.0% |
+| Facing a 3bet | 20.3% | 83.2% | 23.6% | 88.2% |
+| Facing a 4bet | 22.3% | 67.0% | 25.0% | 72.9% |
+| Facing a 5bet or more | 20.0% | 44.4% | 30.2% | 72.1% |
+| Lowest seat | BB 77.8% | BTN 96.5% | BB 81.9% | CO 98.0% |
+| Hands holding a decision it can't grade | 2,324 (7.9%) | 541 (1.84%) | 2,060 (7.0%) | 345 (1.17%) |
+| EV lost per graded decision | 0.0133bb | 0.0193bb | 0.0119bb | 0.0150bb |
 
-Before, the misses were sizes (1,705 own-size, 172 line-size). After, none is: 196 decisions are a class the solve's
-range never holds there, 26 an option the tree lacks (a call where the tree has only a raise or a fold), 22 a line
-the solve never reaches. The EV lost per decision rises because the newly graded decisions are 3bet and 4bet pots,
-where the charts and the solve differ most. Playing every option evenly answers 91.3% (8.0% of decisions are classes
-the solve folds earlier). Playing the solve's own mix answers 99.8%.
+Before, most misses were sizes (no rake: 1,822 own-size, 221 line-size). After, none is. Without rake, 300 decisions
+are a move the solve never trains (section 18.9's rule leaves them to the chart: 289 of them a raise, 258 facing a 3bet,
+such as the CO's cold 4bet over UTG's open and the HJ's 3bet, which the solve never makes and prices as folding to
+whatever comes next), 146 a class the
+solve's range never holds there, 56 an option the tree lacks (a call where the tree has only a raise or a fold), 39 a
+line the solve rarely reaches. On lz3 these figures were 99.2% answered and 0.83% of hands; the gap is section 18.9's
+untrained-move rule, which came after that measurement and now refuses those 4bets instead of grading them by an EV
+nobody trained. The EV lost per decision rises because the newly graded decisions are 3bet and 4bet pots, where the
+charts and the solve differ most. Playing every option evenly answers 90.2% (7.8% of decisions are classes the solve
+folds earlier). Playing the solve's own mix answers 98.8%.
 
 At 2 to 5 players (10,000 hands each, playing the charts, no rake, 100bb):
 
 | Players | Answered | Facing a 3bet | Facing a 4bet | Hands with a decision it can't grade | EV lost a decision |
 |---|---:|---:|---:|---:|---:|
-| 2 | 98.0% | 73.5% | 64.0% | 204 of 9,452 (2.2%) | 0.0587bb |
-| 3 | 99.3% | 93.0% | 69.1% | 64 of 8,984 (0.71%) | 0.0359bb |
-| 4 | 99.2% | 94.2% | 62.9% | 75 of 9,482 (0.79%) | 0.0305bb |
-| 5 | 99.2% | 93.1% | 65.2% | 79 of 9,692 (0.82%) | 0.0244bb |
+| 2 | 97.8% | 74.4% | 67.5% | 234 of 9,595 (2.4%) | 0.0419bb |
+| 3 | 99.3% | 92.9% | 74.2% | 62 of 9,035 (0.69%) | 0.0315bb |
+| 4 | 99.2% | 93.8% | 71.4% | 77 of 9,509 (0.81%) | 0.0255bb |
+| 5 | 99.0% | 91.2% | 76.6% | 97 of 9,717 (1.0%) | 0.0221bb |
 
-Every miss is a class the range never holds there, an option the tree lacks, or a line the solve never reaches; none
-is a size. Heads-up misses more: 3.2% of decisions facing an open and 26.5% facing a 3bet, all classes the solve's range
-doesn't hold there. These figures are what Practice's form now says at each table size ("about 1 hand in 45"
-heads-up, 140 at 3 players, 125 at 4, 120 at 5 and 6; `SetupForm.tsx` `PF_UNGRADED`). Before this they were not
-measured at 2 to 5 players, where the grade read the tree's own sizes, so there is no before column.
+None of the misses is a size: they are classes the range never holds there, options the tree lacks, lines the solve
+rarely reaches, and at 4 and 5 players a few untrained moves (4 and 24). Heads-up misses more: 4.0% of decisions facing
+an open and 25.6% facing a 3bet, all classes the solve's range doesn't hold there. These figures are what Practice's
+form now says at each table size ("about 1 hand in 40" heads-up, 145 at 3 players, 125 at 4, 100 at 5, 55 at 6;
+`SetupForm.tsx` `PF_UNGRADED`). Before this the grade read the tree's own sizes at 2 to 5 players, which this script
+doesn't measure, so there is no before column.
 
 **What the charts' sizes cost against the published solves [V]** (`scripts/pf/measure_tree.py --chart`, 700
 iterations at the references' 5% capped at 4bb, scored as section 18.4):
 
 | Game | Mean error | Spots out | Facts off | mbb/hand |
 |---|---:|---:|---:|---:|
-| The tree's own sizes (lz3) | 2.01 | 6/26 | 11 | 1.08 |
-| The charts' sizes (lz3) | 2.90 | 11/26 | 11 | 1.22 |
-| The charts themselves (section 18.4) | 0.96 | | | |
+| The tree's own sizes (lz4) | 1.96 | 5/26 | 11 | 0.92 |
+| The charts' sizes (lz4) | 2.84 | 8/26 | 11 | 1.30 |
+| The charts themselves (section 31) | 1.14 | | | |
 
 As in section 18.5, the rise is where the two games are different spots. The worst are the opener facing a blind's 3bet
-(10bb in the charts' game, 12bb in the references): BTN vs SB 11.1 points, BTN vs BB 11.1, CO vs BB 6.8. Then UTG vs the
-BTN's 3bet at 10.7, where the 4bet behind it is 17bb against 17.25bb. So the grade's games are further from the
-published solves than Study's, and the charts stay the default (target 5 of the plan changes nothing). Both are labelled
-the class-level model, approximate, after a 3bet with section 18.7's reason.
+(10bb in the charts' game, 12bb in the references): BTN vs SB 8.3 points (2.5 in the tree's own game), BTN vs BB 7.3
+(3.0), CO vs BB 4.4 (2.3). Then UTG vs the BTN's 3bet at 7.4 (5.2), where the 4bet behind it is 17bb against 17.25bb.
+So the grade's games are further from the published solves than Study's, and the charts stay the default (target 5 of
+the plan changes nothing). Both are labelled the class-level model, approximate, after a 3bet with section 18.7's
+reason. (On lz3: 2.90 for the charts' sizes, 2.01 for the tree's own, the charts 0.96.)
 
 **Unequal stacks in Analyze's grade [V].** A site's hand is rarely at a stored depth with equal stacks, and Analyze had
 graded those by the charts only. Three ways were weighed:
@@ -2124,7 +2137,7 @@ in is within 9% of 80bb"), and the record keeps the depth (`pfDepth`). Practice 
 a stored depth, so its grade is the exact game.
 
 The tolerance is measured (`scripts/pf_depth_tolerance.py`). Each test table was solved at its own stacks, natively at
-the charts' sizes and 1,500 iterations like the grid (0.95 to 1.13 mbb/hand a seat). Then 3,000 hands were played on
+the charts' sizes and 1,500 iterations like the grid (0.80 to 1.05 mbb/hand a seat on lz4). Then 3,000 hands were played on
 it with the charts' mix and 3,000 with every option evenly, and each decision was graded both by its own solve and by
 the nearest stored game read as Analyze reads it. The tables, UTG to BB:
 - equal at 89, 110, 69, 35 and 170bb (each between two stored depths);
@@ -2134,24 +2147,27 @@ the nearest stored game read as Analyze reads it. The tables, UTG to BB:
 - a short big blind (BB 60);
 - 70/130/100/80/120/100.
 
-By each decision's deviation, decisions both ways could read (the charts' mix / every option evenly):
+By each decision's deviation, decisions both ways could read (the charts' mix / every option evenly), lz4:
 
 | Deviation | Decisions | Same verdict | Two or more classes apart | Mean \|EV lost diff\| | p95 \|EV lost diff\| |
 |---|---:|---:|---:|---:|---:|
-| 0-5% | 6,486 / 6,281 | 98.7% / 98.0% | 0.6% / 0.7% | 0.004 / 0.035bb | 0.008 / 0.054bb |
-| 5-10% | 3,403 / 3,359 | 98.6% / 97.9% | 0.7% / 0.6% | 0.008 / 0.055bb | 0.007 / 0.102bb |
-| 10-15% | 14,216 / 14,032 | 98.1% / 97.5% | 0.8% / 0.8% | 0.005 / 0.034bb | 0.011 / 0.114bb |
-| 15-20% | 645 / 634 | 97.5% / 97.3% | 1.1% / 0.8% | 0.034 / 0.157bb | 0.016 / 0.158bb |
-| 20-30% | 811 / 829 | 97.5% / 95.4% | 0.7% / 1.7% | 0.018 / 0.059bb | 0.017 / 0.217bb |
-| Over 30% | 4,589 / 4,599 | 98.4% / 97.2% | 0.8% / 1.0% | 0.004 / 0.059bb | 0.003 / 0.152bb |
+| 0-5% | 6,356 / 6,221 | 98.4% / 97.9% | 0.6% / 0.7% | 0.003 / 0.042bb | 0.005 / 0.073bb |
+| 5-10% | 3,458 / 3,338 | 98.2% / 98.0% | 0.7% / 0.4% | 0.004 / 0.061bb | 0.006 / 0.101bb |
+| 10-15% | 14,212 / 14,058 | 98.1% / 97.5% | 0.9% / 0.8% | 0.003 / 0.036bb | 0.006 / 0.111bb |
+| 15-20% | 675 / 672 | 98.8% / 98.2% | 0.6% / 0.1% | 0.002 / 0.067bb | 0.002 / 0.200bb |
+| 20-30% | 773 / 812 | 96.9% / 95.8% | 1.6% / 1.2% | 0.004 / 0.101bb | 0.012 / 0.234bb |
+| Over 30% | 4,717 / 4,628 | 98.8% / 97.2% | 0.5% / 0.9% | 0.002 / 0.076bb | 0.000 / 0.175bb |
 
-The stored game could not read 0.2% to 0.9% of decisions in the buckets up to 15%, mostly an all-in whose chips differ
-from the stored game's (87 of them at 35bb against the 40bb game).
+The stored game could not read 0.3% to 1.0% of decisions in the buckets up to 15%, mostly an all-in whose chips differ
+from the stored game's (91 of them at 35bb against the 40bb game, playing the charts).
 
-**The tolerance stays 15% [I].** Up to 15%, the stored game's verdict matches the table's own solve on 97.5 to 98.7% of
-decisions, about as often as at 0-5%. From 15% to 20% the mean EV gap is 5 to 8 times what it is at 10-15% (a few
-large misses in a small bucket), and from 15% to 30% the p95 keeps rising (to 0.017bb playing the charts, 0.217bb playing evenly). The verdicts still mostly agree there. The over-30%
-bucket agrees well again. Those decisions come from the tables with one short seat (UTG 40, BB 60) while that seat
+**The tolerance stays 15% [I].** Up to 15%, the stored game's verdict matches the table's own solve on 97.5 to 98.4% of
+decisions, about as often as at 0-5%. Past 15% the lz4 figures are less one-sided than lz3's were (on lz3 the 15-20%
+bucket's mean EV gap was 5 to 8 times the 10-15% one). Playing the charts, 15-20% agrees as well as below it (98.8%,
+0.002bb). Playing every option evenly, the mean EV gap is 1.8 times the 10-15% figure (0.067 against 0.036bb) and so is
+the p95 (0.200 against 0.111bb). From 20% to 30% both ways get worse: verdicts agree on 96.9% and 95.8%, with the
+largest two-class shares and p95 gaps in the table. The 15-20% bucket is small (675 decisions), so the data doesn't argue
+for 20% clearly enough to widen the tolerance; 15% stays. The over-30% bucket agrees well again. Those decisions come from the tables with one short seat (UTG 40, BB 60) while that seat
 is still in, and from the most uneven table (70/130/100/80/120/100). Many are likely opens with the far-off seat yet
 to act, which it barely changes. The script doesn't break this down, so that is a guess. A rule that weighed only the seats that can still change the decision might admit them.
 That isn't built.
@@ -2169,8 +2185,8 @@ solve, is on top of them.
 in the request. The straddler posts 2bb and acts last before the flop (a Mississippi straddle). The first to act is the
 seat after the big blind, and an open is 2.5x the straddle. Key suffix `_s{POS}`, words in the label and `pf_limits`.
 On the first seat it is the old straddle exactly (same key, same tree), and the blinds can't straddle. Test
-`test_straddle_from_any_seat` covers the action order, folding to the straddler, the sizes, and convergence:
-`4max_40bb_sBTN` reaches 0.557 mbb/hand a seat and `5max_60bb_sCO` 1.432, both under 1.5 in 1,500 iterations. Study's
+`test_straddle_from_any_seat` covers the action order, folding to the straddler, the sizes, and convergence: both of
+its games stay under 1.5 mbb/hand a seat in 1,500 iterations (`test_pf_engine.py`, 43 tests OK on lz4). Study's
 Tree form doesn't offer it. Its table and the charts play the first seat's straddle only, so a node shown from another
 seat's tree would not match the table it is shown on. A request can ask for it.
 
@@ -2182,26 +2198,26 @@ seat's tree would not match the table it is shown on. A request can ask for it.
 
 A 5bet pot's flop is valued as a 4bet pot's. Key suffix `_5x{v}`, words in the label. Test `test_five_bet_rules` checks
 the deepest raise count (4 with the default, 3 with none, 5 sized at 3-handed 200bb) and the size of every 5bet, and
-both converge under 1.5 mbb in 1,500 iterations (`4max_200bb_5x2.2` 0.966, `4max_200bb_5x0` 1.373). `pfSolve.test.tsx`
+both games converge under 1.5 mbb in 1,500 iterations (passing on lz4). `pfSolve.test.tsx`
 covers the form and the link. No published solve has a sized 5bet, so neither rule is measured against one.
 
-**The limp trees [V].** `scripts/pf/measure_limps.py`, 1,500 iterations:
+**The limp trees [V].** `scripts/pf/measure_limps.py`, 1,500 iterations, lz4:
 
-| Game, spot | Lizard (lz3) | Published |
+| Game, spot | Lizard (lz4) | Published |
 |---|---|---|
-| 6-max 100bb, 5% capped at 4bb, the SB may complete: SB folded to | raise 43.1, limp 5.9, fold 51.0 | gtopreflop raise 43.4 / limp 2.3; thinkgto raise 33.1 / limp 20.5 |
-| the same, BB facing the complete | raise 45.0, check 55.0 | none |
-| the same without the complete (the stored tree): SB folded to | raise 46.0, fold 54.0 | raise-only solves 43.5 |
-| Heads-up 50bb, 0.12bb ante, no rake: SB first in | raise 57.5, limp 38.2, fold 4.3 | GTO Wizard raise 64, fold 4 (limp about 32, derived) |
-| the same, BB facing the limp | raise 45.7, check 54.3 | GTO Wizard raise 34 |
+| 6-max 100bb, 5% capped at 4bb, the SB may complete: SB folded to | raise 41.7, limp 7.7, fold 50.6 | gtopreflop raise 43.4 / limp 2.3; thinkgto raise 33.1 / limp 20.5 |
+| the same, BB facing the complete | raise 44.4, check 55.6 | none |
+| the same without the complete (the stored tree): SB folded to | raise 45.7, fold 54.3 | raise-only solves 43.5 |
+| Heads-up 50bb, 0.12bb ante, no rake: SB first in | raise 56.0, limp 39.8, fold 4.2 | GTO Wizard raise 64, fold 4 (limp about 32, derived) |
+| the same, BB facing the limp | raise 46.6, check 53.4 | GTO Wizard raise 34 |
 
 What this shows:
 - The two published 6-max solves disagree by 18 points on the small blind's limp, so there is no single figure to meet.
-  Lizard's 5.9% limp sits between them, nearer gtopreflop's, with the raise share matching gtopreflop's to 0.3 points.
-- The complete costs the rest of the tree little: the 26-spot score is 2.20 points with it and 2.16 without (7 of 26
-  out either way, 11 facts off), both at 1,500 iterations, 0.42 mbb/hand a seat.
-- Heads-up, the fold share matches, but Lizard limps about 6 points more and raises 6 less than GTO Wizard. Its big
-  blind raises over a limp 12 points more often (45.7% against 34%).
+  Lizard's 7.7% limp sits between them, nearer gtopreflop's, with the raise share 1.7 points under gtopreflop's.
+- The complete costs the rest of the tree a little: the 26-spot score is 2.16 points with it (10 of 26 out) and 2.02
+  without (8 of 26 out), 9 facts off either way, both at 1,500 iterations, 0.39 mbb/hand a seat.
+- Heads-up, the fold share matches, but Lizard limps about 8 points more and raises 8 less than GTO Wizard. Its big
+  blind raises over a limp 12.6 points more often (46.6% against 34%).
 
 That big blind's raise is the largest miss. The 26 spots the flop values were calibrated to (section 18.4) hold no
 decision inside a limped pot, so a limped pot's value is among the model's least supported [I].
@@ -2211,22 +2227,18 @@ reference spots (`solver/tests/preflop_refs.py`) all open 2.5bb from every seat 
 measured against any reference. The 6-max 100bb tree with limps from every seat needs about 2.1 GB, over this
 machine's 1 GB a process. Only the small blind's limp has published shares, so that tree isn't measured either.
 
-**The class-level model** is unchanged (`lz3`, 2.01 points in sample, 2.26 held out; section 18.7). The rows stay
+**The class-level model** is section 31's `lz4` (1.96 points in sample; held-out error not measured again). The rows stay
 APPROXIMATE.
 
-**Not checked:**
-- in a browser: the Analyze note, Practice's form at 2 to 5 players and Study's 5bet field are covered by unit tests
-  only (`grading.test.ts`, `SetupForm.test.tsx`, `pfSolve.test.tsx`);
-- the e2e steps changed for the `_ch` files (7g, 7h, 7j in `e2e/qa.e2e.ts`, a line in `e2e/checks.e2e.ts`) were not run.
+**Checked on lz4:** `test_pf_engine.py` (43 tests) and `test_pf_stored.py` (4) OK; `test_pf_offpath.py` quick and with
+`PF_OFFPATH_ALL=1`; the full vitest suite; the e2e steps changed for the `_ch` files (7g, 7h, 7j in `e2e/qa.e2e.ts`, and
+the "both boxes ticked" step of `e2e/checks.e2e.ts`) against a built preview. The untrained-move fixture
+(`pf_untrained.json`, `scripts/pf/untrained_nodes.py`) was rebuilt on the `_ch` games: the rare move that stays graded is
+now the BTN's call of a 60bb all-in over an open and a 3bet (0.48% of its range, AA +58.7bb), since in the chart-sized
+50bb game UTG's call of a squeeze is 2.5% of its range and no longer rare.
 
-**To measure again on `lz4`**, after rebasing onto it (each through slot.sh from the worktree):
-- `git rm engine/pf/lz4_6max_*_blind_3bet4.bin`, then `scripts/pf/build_stored.py --engine --missing` builds the
-  110 `lz4_*_ch.bin` games (about 45 minutes);
-- `scripts/pf_practice_coverage.py --hands 30000 --policy chart --chart-sizes` (add `--rake`, or `--players 2` to `5`
-  with `--hands 10000`) for the coverage tables;
-- `scripts/pf/measure_tree.py --chart` and `scripts/pf/measure_tree.py` for the distance table;
-- `scripts/pf_depth_tolerance.py --hands 3000` for the tolerance (about 50 minutes);
-- `scripts/pf/measure_limps.py`.
+**Not checked in a browser:** the Analyze note, Practice's form at 2 to 5 players and Study's 5bet field are covered by
+unit tests only (`grading.test.ts`, `SetupForm.test.tsx`, `pfSolve.test.tsx`).
 
 ## 19. Nut advantage on Reports (2026-11-06)
 

@@ -6647,33 +6647,38 @@ into, and fixed where it can be (ACCURACY 18.11):
   the leak bar (its marks are per cell at 95% and say so); "Open limp (RFI)" kept in the grid only (in the frequency
   rows it changed the trend's rows); nothing in `web/src/grading/` changed.
 
-## 2026-11-17: Preflop grade at the charts' raise sizes, unequal stacks in Analyze, straddle seat and 5bet rules
+## 2026-11-22 — Preflop grade at the charts' raise sizes, unequal stacks in Analyze, straddle seat and 5bet rules
 
-Workstream W2 of the GAP_PLAN run. Every figure below is of model `lz3`; another session is moving the grid to `lz4`,
-and ACCURACY section 18.8 ends with the commands to rebuild and measure again on it.
+Workstream W2 of the GAP_PLAN run, built on lz3 on 2026-11-17 and measured again on `lz4` (ACCURACY section 18.12).
+Every figure below is lz4's.
 
 - Games at the charts' whole raise rule (4bets that add the opener's chips, squeezes, the half-big-blind rounding):
   `pf_engine.build(sizing="chart")`, `pf_tree {"sizing": "chart"}`, key `_ch`. 110 games stored (2 to 6 players,
-  11 depths, raked or not; 2,713 s through slot.sh, at most 1.22 mbb/hand a seat), replacing the 22 6-max
+  11 depths, raked or not; 3,726 s through slot.sh, at most 1.236 mbb/hand a seat), replacing the 22 6-max
   `_blind_3bet4` files. Practice's and Analyze's cash grade asks for them at 2 to 6 players. At 6-max 100bb playing
-  the charts (30,000 hands): decisions answered 93.1% to 99.2%, facing a 3bet 23.0% to 93.4%, hands with an
-  ungraded decision 7.1% to 0.83%. At 2 to 5 players 98.0 to 99.3% answered. Practice's form now gives each table
-  size's figure.
+  the charts (30,000 hands): decisions answered 92.3% to 98.2% (raked 93.2% to 98.9%), facing a 3bet 20.3% to 83.2%,
+  hands with an ungraded decision 7.9% to 1.84%. None of the rest is a size; most are cold 4bets the solve never
+  trains, left to the chart. At 2 to 5 players 97.8 to 99.3% answered. Practice's form gives each table size's figure
+  (1 hand in 40 heads-up, 145, 125, 100, 55 at 6).
+- `scripts/pf/build_stored.py --missing` rebuilds a file that isn't its game's tree (the header's decision count), so a
+  tree rule changed under the same key no longer leaves the old file standing.
 - Fixed: with unequal stacks a raise could follow three all-ins and crash the showdown evaluator. No raise is offered
   over three all-ins now (test).
 - Analyze grades site hands with unequal stacks or stacks between stored depths by the nearest stored game, where
   every live seat's effective stack is within 15% of its depth. The note names the game and the distance, and the
   record keeps `pfDepth`. The 15% was measured on ten tables solved at their own stacks (`scripts/pf_depth_tolerance.py`):
-  up to 15% the verdict matches the table's own solve on 97.5 to 98.7% of decisions, and from 15% to 20% the mean EV
-  gap is 5 to 8 times larger.
+  up to 15% the verdict matches the table's own solve on 97.5 to 98.4% of decisions; past it, playing every option
+  evenly, the EV gap doubles, and from 20% to 30% verdicts agree on 95.8 to 96.9%. 15% stays.
 - Tree builder: 5bet rules (all-in, none, or a sized 5bet with the 6bet all-in) in Study's Tree form and the link, and
   a straddle from any seat but the blinds in requests (not in the form, since Study's table plays only the first
   seat's straddle). Both converge under 1.5 mbb in 1,500 iterations (tests).
 - Measured: the limp trees against the published limping shares (`scripts/pf/measure_limps.py`; the 6-max small blind
-  limps 5.9% between the two published 2.3% and 20.5%; heads-up the big blind raises a limp 46% against GTO Wizard's
-  34%). No published reference has per-position opens. The charts-sized game is 2.90 points from the published spots
-  where the tree's own is 2.01, so the charts (0.96) stay the default and nothing became the default.
+  limps 7.7% between the two published 2.3% and 20.5%; heads-up the big blind raises a limp 46.6% against GTO Wizard's
+  34%). No published reference has per-position opens. The charts-sized game is 2.84 points from the published spots
+  where the tree's own is 1.96, so the charts (1.14) stay the default and nothing became the default.
+- Checked: test_pf_engine (43) and test_pf_stored (4) on lz4, test_pf_offpath (all games), vitest, and the e2e steps 7g,
+  7h, 7j and checks' "both boxes ticked" against a built preview.
 - FEATURE_MATRIX: Preflop, Preflop trainer, Preflop solves and Preflop tree builder stay APPROXIMATE (class-level
-  model), EV-loss scoring stays PARTIAL. Notes updated.
-- Not done: no browser check, e2e steps updated but not run, the 6-max limps-from-every-seat tree (about 2.1 GB) not
-  solved, the straddle seat not in the form.
+  model), EV-loss scoring stays PARTIAL. Notes updated with the lz4 figures.
+- Not done: no browser check of the Analyze note or the 5bet field, the 6-max limps-from-every-seat tree (about 2.1 GB)
+  not solved, the straddle seat not in the form.
