@@ -164,7 +164,7 @@ Total pot $240 Main pot $120. Side pot $120. | Rake $0
 
 test("6. A final table's ICM says what it is and what model it stands on", async ({ page, problems }) => {
   await page.goto("/lizard/tournaments/");
-  await page.getByLabel("Payouts").fill("50 30 20");
+  await page.getByLabel("Payouts", { exact: true }).fill("50 30 20");
   await page.getByLabel("UTG stack").fill("15");
   await page.getByLabel("BTN stack").fill("60");
   await page.getByRole("button", { name: "Open in Study" }).click();
