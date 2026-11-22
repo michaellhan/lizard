@@ -71,7 +71,7 @@ export function storedSpotHand(st: StagePreset): StudyHand {
 export const storedSpotLink = (st: StagePreset) =>
   `/study?${toSearch(storedSpotHand(st))}`;
 
-const SEL = "rounded-md border border-border bg-surface-2 px-2 py-1 text-sm";
+const SEL = "rounded-md border border-border bg-surface-2 px-2 py-1 text-sm min-w-0 max-w-full";
 const BTN =
   "rounded border border-border px-2 py-0.5 text-xs hover:bg-surface-2 disabled:opacity-40";
 const OPEN =

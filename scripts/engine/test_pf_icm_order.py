@@ -27,7 +27,12 @@ from gto.advisor import Advisor  # noqa: E402
 from gto.pf_classes import CLASSES  # noqa: E402
 
 GAP, DEV, WMIN = 0.25, 0.05, 0.05
-EV_BACKED_FIRST_IN = 0        # the count this holds (a model or solver change that adds some must say why)
+EV_BACKED_FIRST_IN = 1        # the count this holds (a model or solver change that adds some must say why)
+# The one (2026-11-22, W1's chip EV set): "Final table, 5 left, 10bb average, chip leader on the button, chip EV", the
+# hijack at 7.5bb jams Q6s 48% (all-in EV 0.000bb over folding, indifferent) and folds Q7s (all-in -0.058bb), 0.008bb
+# past DEV. Solved to 4x STORED_ITERS (6,000 iterations) the spot, its 2.58 mbb and both EVs come out the same to the
+# third decimal: a converged feature of the class-level model at this depth, not a solve stopped early. Not a page bug:
+# both grades follow the EVs, and the gap is under the grade's own noise.
 
 
 def first_in(sv, order) -> list:
