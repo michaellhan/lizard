@@ -53,7 +53,7 @@ if (paths.length < 3) {
   process.exit(1);
 }
 
-const reserved = ["assets", "solver"]; // top-level asset folders (Vite's, and the solver bundle's)
+const reserved = ["assets", "solver", "ocr"]; // top-level asset folders (Vite's, the solver bundle's, and the screenshot reader's OCR)
 const clash = paths.filter((p) => reserved.includes(p.split("/")[0]));
 if (clash.length) {
   console.error(`postbuild: route(s) ${clash.join(", ")} would shadow an asset folder; rename the route`);

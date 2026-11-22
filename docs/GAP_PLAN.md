@@ -27,7 +27,7 @@ reviewed and passes its gates.
 | W4 | Library: single-size library, more breadth, under 1 GB | Single-size library | `library-build/`, `scripts/library/`, `web/src/library/` | merged (eca8152) and published 2026-11-22: 38 lines on 552 flops, live and checked in a browser; PARTIAL |
 | W5 | PLO4: turn and flop solves, registry, Study, Practice and Analyze | PLO4 | `web/src/engine/plo/`, `features/*/Plo*` | queued |
 | W6 | AI explanations proxy and client | AI explanations | `explain-worker/` (new), Explain buttons | done 2026-11-22: Worker deployed, answers "not configured" until the owner adds the key (`DEPLOYMENT.md` §7); client off until `LIZARD_EXPLAIN=on`; PARTIAL |
-| W7 | Screenshot import | (new row) | `web/src/features/analyze/screenshot/` (new) | queued |
+| W7 | Screenshot import | Screenshot import (new row) | `web/src/features/analyze/screenshot/` (new) | done 2026-11-22 on its branch (worktree-agent-afc144ac8a80fc1cc), not merged or deployed: review-only screenshot to spot, cards and OCR in the browser, measured on synthetic tables only; PARTIAL |
 | W8 | Arena: private share-link heads-up games | Multiplayer / HU arena | `arena-worker/` (new), `web/src/features/arena/` (new) | queued |
 | W9 | Postflop depth: multiway trees, a browser flop model closer to the library's | (Postflop depth, Formats) | `engine/tree_depth.py`, solver patches | queued |
 
