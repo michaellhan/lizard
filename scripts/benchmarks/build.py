@@ -26,6 +26,6 @@ def hu_game(spot: dict, payoffs=None) -> HUGame:
 def mw_game(spot: dict) -> MWGame:
     board = parse_board(spot["board"])
     ranges = [parse_range(r, board) for r in spot["ranges"]]
-    tree = mw_tree(MWSpec(3, spot["pot"], spot["stack"], spot["bet"], spot["raise_frac"], spot["max_raises"],
+    tree = mw_tree(MWSpec(len(ranges), spot["pot"], spot["stack"], spot["bet"], spot["raise_frac"], spot["max_raises"],
                           spot["allin_spr"]))
     return MWGame(board, ranges, tree, spot.get("rake", 0.0), spot.get("cap"))

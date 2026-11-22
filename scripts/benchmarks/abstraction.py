@@ -83,6 +83,16 @@ VARIANTS = {
                             river_strength_spr=0.0), 1000,
                        "only the river by 32 strength buckets without its card (every turn per combo)"),
 }
+# The river dealt by card class (flop_model.py, docs/ACCURACY.md section 34): Fast's or Accurate's turn by hand
+# buckets, the river on each class's card by K strength buckets there
+for _k in (4, 8):
+    VARIANTS[f"fast-d{_k}"] = (dict(VARIANTS["fast"][0], river_dealt=_k), 400,
+                               f"Fast's turn (32 buckets), the river dealt by card class, {_k} buckets on each card")
+for _k in (8, 16):
+    VARIANTS[f"accurate-d{_k}"] = (dict(VARIANTS["accurate"][0], river_dealt=_k), 1000,
+                                   f"Accurate's turn (64 buckets), the river dealt by card class, {_k} buckets on each card")
+VARIANTS["library-c8"] = (dict(VARIANTS["library"][0], river_dealt=8, river_classes=True), 300,
+                          "the library's turn per combo, the river dealt by card class, 8 buckets on each card")
 SELF = "exact-self"   # the control: the exact solve's own flop held in the exact game (given up ~0, within convergence)
 
 # Narrow on purpose (the module's docstring): about 30 combos a player, a mix of made hands, draws and air.
@@ -104,6 +114,7 @@ SPOTS = {
 def _engine():
     sys.path.insert(0, os.path.join(ROOT, "solver"))
     sys.path.insert(0, ROOT)
+    import flop_model  # noqa: F401  (the river dealt by class: the "-d" variants; beside this file)
 
 
 def _ranges(spot):

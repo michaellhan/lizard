@@ -4,7 +4,7 @@ import type { StudyHand } from "@/features/study/studyState";
 import type { AdvisorResponse, AdvisorState } from "@/solver/protocol";
 import type { Provenance, SolveResult } from "@/solver/types";
 import { columns, rows } from "./reports";
-import { callersAfter, checkSpot, customBase, customProvenance, customReport, customStudyHand, FAST_VS_LIBRARY, flopsToGo, newFlopReport, openers, potLine, seatsIn, solveFlop, type Ask, type CustomFlop } from "./customReport";
+import { ACCURATE_VS_LIBRARY, callersAfter, checkSpot, customBase, customProvenance, customReport, customStudyHand, FAST_VS_LIBRARY, flopsToGo, newFlopReport, openers, potLine, seatsIn, solveFlop, type Ask, type CustomFlop } from "./customReport";
 import { flopSet } from "./flopSets";
 
 const base: StudyHand = {
@@ -209,7 +209,9 @@ describe("the report", () => {
     expect(p.approximate).toBe(false);
     expect(p.approximateLabel).toBeUndefined();
     expect(p.abstraction).toMatch(/gave up 1\.9% pot on average, up to 5\.4%/);
-    expect(p.abstraction).not.toContain("against the library's report");
+    // (what an Accurate report measured against the library's report: ACCURACY section 34)
+    expect(p.abstraction).toContain(`; against the library's report of 6-max 100bb BTN vs BB (95 flops), an Accurate report's EVs were ${ACCURATE_VS_LIBRARY.evPct}% pot off a flop on average and in position's bet size split ${ACCURATE_VS_LIBRARY.splitPts} points`);
+    expect(ACCURATE_VS_LIBRARY.splitPts).toBeLessThan(FAST_VS_LIBRARY.splitPts);
     // (a local server's solves were never measured)
     expect(customProvenance({ size: 2, mode: "accurate", flops, done, left: [] }, "http").abstraction).toBeUndefined();
   });

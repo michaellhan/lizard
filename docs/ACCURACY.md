@@ -3629,3 +3629,127 @@ charts, which are approximate, so a "leak" there is a gap to the charts, said on
 frequency, not a solve"). The simulation's mixes are chart-shaped, not the charts themselves; real databases have
 correlated decisions (one player, one style), which this does not model. Report time over 150,000 decisions is 1.45 s
 (`scale.test.ts`, limit 6 s).
+
+## 34. A browser flop model closer to the library's, and four-way rivers against an exact reference (2026-11-22)
+
+Two questions from the gap plan (W9), each measured before anything changed in the app. Neither change was shipped:
+what was measured is below, with why.
+
+### 34.1 The river dealt by card class inside a flop solve
+
+Section 21 found the browser's flop models give up 1.9% of the pot on average against the full game (up to 4.9% Fast,
+5.4% Accurate), where the library's model gives up 0.6% (up to 2.1%), and that most of the cost is the river played
+blind: by 32 buckets of river strength without its card. The library deals every river card and plays each by 64
+buckets of strength there, with the turn per combo. That model doesn't fit in the browser: natively, one thread, with the
+compiled core run as the browser runs it (no deferred games, no BLAS leaf batches), a single-raised flop with real
+ranges (BTN vs BB, 100bb, the worker's 33/75/125% turn and river menu) is 5.8M cells, 0.32 s an iteration and 690 MB on
+Ks7d2c with 8 buckets a card, and 10.5M cells on JdTd8c, where Fast's whole solve is 0.44M cells and 3.3 ms an
+iteration. Even one river card per class with the turn per combo (8 buckets a card) was 452 ms an iteration and
+1.34 GB on JdTd8c. The size comes from entering 13-46 river boards under each turn line combo by combo, not from the
+bucket count.
+
+**What was built** (`scripts/benchmarks/flop_model.py`, Lizard-side, patching `gto.solver` at import; `solver/` is
+unchanged): the turn stays in Fast's or Accurate's hand buckets, and the river is dealt as one card per class of the
+turn's board (a rank's cards, a suit with two or more board cards apart: 13 rivers on a rainbow turn, about 24 with a
+flush suit), with `river_dealt` buckets of strength on each card. The compiled core has no chance node in bucket space,
+so the river is upstream's river-strength entry with tables that deal the card: its buckets are (class, strength) pairs,
+the showdown and fold tables block diagonal (a pot is contested on one card), and a turn bucket enters each pair with the
+root-weighted share of its combos that land there, scaled so that a pair of hands meets on each class with the share of
+the rivers that class stands for. It stays zero-sum; a config without `river_dealt` builds upstream's tree cell for cell
+(`scripts/engine/test_flop_model.py`). It replaces the blind river only where upstream plays one (root stack to pot of 8
+or more): dealt in the 3bet pot too, it gave up more there than the river on the turn's boards (below).
+
+**Against the full game**, section 21's harness and spots (`results/abstraction_w9.json`; given up, % of the pot, OOP
+then IP; the exact solves as there). Fast was run again as a control and reproduced its earlier figures to the third
+decimal. The `-d` rows on AJ3 deal the river in the 3bet pot, which the shipped gate wouldn't (there the gated model is
+Accurate's own row).
+
+| Model | K72 own game | K72 given up | JT8 own game | JT8 given up | AJ3 own game | AJ3 given up | Mean, most |
+|---|---|---|---|---|---|---|---|
+| Fast (control, run again) | 0.036 | 2.17, 2.25 | 0.031 | 1.00, 4.85 | 0.069 | 0.64, 0.22 | 1.85, 4.85 |
+| Accurate (section 21) | 0.005 | 2.23, 2.33 | 0.006 | 0.78, 5.41 | 0.027 | 0.47, 0.26 | 1.91, 5.41 |
+| Library (section 21) | 0.499 | 0.25, 0.34 | 0.143 | 0.48, 2.14 | 0.113 | 0.09, 0.12 | 0.57, 2.14 |
+| Fast, dealt by class, 4 a card | 0.031 | 1.79, 6.68 | 0.069 | 2.78, 15.49 | 0.073 | 1.48, 1.57 | 4.96, 15.49 |
+| Fast, dealt by class, 8 a card | 0.291 | 0.41, 0.36 | 0.052 | 1.08, 5.56 | 0.060 | 1.22, 0.98 | 1.60, 5.56 |
+| Accurate, dealt by class, 8 a card | 0.102 | 0.69, 0.38 | 0.014 | 1.08, 5.79 | 0.013 | 1.20, 0.99 | 1.69, 5.79 |
+| the same, gated (3bet pot as Accurate) | | | | | | 0.47, 0.26 | 1.44, 5.79 |
+
+On the dry flop the dealt river does what section 21 suggested: Ks7d2c's cost falls from 2.2% of the pot to 0.4-0.7,
+the library's level. On the two-tone flop it doesn't move (in position 5.4 to 5.6-5.8: the turn's hand buckets, which
+merge draws with made hands, look like the larger part there, and dealing the river doesn't touch them), and 4 buckets a
+card is far worse than the blind river (15.5% on JT8).
+
+**Against the library on real ranges**, section 24's harness (`custom_report.py --model`, 6-max 100bb BTN vs BB, the
+representative 95 flops, the library off, each flop stopped as Fast's are, from its 300th iteration at 0.2% of the pot;
+per flop, mean absolute difference from the library's report):
+
+| Model | BB checks (points) | BTN bets after the check (points) | of those, at 75% (points) | BB's EV (% pot) | Time, 95 flops | Peak |
+|---|---|---|---|---|---|---|
+| Fast (section 24) | 0.9 | 3.8 | 16.3 (max 49.3) | 0.35 (max 1.09) | 157 s | 425 MB |
+| Accurate | 0.9 | 2.9 | 13.5 (max 40.4) | 0.26 (max 0.91) | 184 s | 527 MB |
+| Accurate, dealt by class, 8 a card | 0.9 | 5.0 | 23.5 (max 72.7) | 0.40 (max 1.46) | 2,289 s | 774 MB |
+
+On the representative 25 the same order holds (Fast 18.0 points of split and 0.29% EV, Accurate 14.9 and 0.17%).
+At 16 a card (`--model accurate-d16`, the representative 25) the first 10 flops, all rainbow, came closer than Accurate
+on in position's betting after the check (2.0 points off per flop against 2.9, its average lean 0.4 points against
+2.8), at 25 s a flop natively against 1.1. The 11th flop, the first two-tone one, took the process past 900 MB, and the
+run was stopped there to keep under the 1 GB a process may use on this machine; it has no size-split figure (the
+harness writes its columns at the end).
+
+With real ranges a bucket on each card holds about 75 combos where on section 21's spots it held four, and the dealt
+river at 8 a card moves in position's betting further from the library's than the blind river's 32 buckets did: it bets
+4.5 points more often than the library after the check and puts 23 points less of it at 75%. The narrow spots flattered
+it, as section 21 warned they might.
+
+**Cost.** Natively, one thread, as the browser runs the core, real ranges: an iteration of Accurate's flop takes 4.7 ms
+on Ks7d2c and 8.2 ms on JdTd8c; dealt by class at 8 a card, 26-30 ms (166 MB) and 130 ms (364 MB), 6 and 16 times as
+long; a 3bet pot's 1.2 ms becomes 14 ms. In the custom report a rainbow flop took about 9 s and a two-tone one 30-38 s
+where Accurate took 1.4 s. The showdown tables are dense across classes (the core multiplies the whole block-diagonal
+matrix), which is most of the extra on two-tone turns, where the widest turn sets the width for all.
+
+**Decision: nothing shipped.** The one setting the browser affords where it helps (8 a card) helps the dry flop of a
+narrow benchmark, not the two-tone one, and on real ranges takes Accurate further from the library at 6-16 times the
+cost. Fast and Accurate keep their models, and the figures on their answers (section 21's, `abstraction.ts`) stand.
+What changed for users: an Accurate custom report now says what Accurate measured against the library's report (the
+second row above: 0.26% of the pot, 13.5 points of split), as a Fast report has said its own since section 24
+(`customReport.ts` `ACCURATE_VS_LIBRARY`). The turn's hand buckets are the next thing to measure on two-tone flops;
+`abstraction.py` has no variant that isolates them yet.
+
+### 34.2 Four-way rivers against an exact reference
+
+Section 14's reference solved three-way rivers by brute force over triples of hands. It now takes four players
+(`refsolver/mw.py`: an (n0, n1, n2, n3) table with every quadruple that shares a card removed, the same DCFR and exact
+best responses; `test_reference.py` `FourWay`). The engine's four-player solve removes cards pair by pair
+(`multiway_solver._term_pw`); with three players it removes them for all three at once and matches the reference to
+0.0001% of the pot (section 14). Three four-way rivers (Ks7d2c3h9s, 40bb pot, 80bb behind, 50% pot bets, 7-8 combos a
+player; `spots.py`), the engine as the app runs a four-way river (`exact=True`, which is pairwise from four players):
+
+| Spot | Hands | Iter | Value diff (% pot) | NashConv by the reference (% pot) | NashConv, engine's own (% pot) | Engine's own values against the reference's walk of its strategy (bb) | Largest TV | Engine s | Ref s |
+|---|---|---|---|---|---|---|---|---|---|
+| `4way-river-one-bet` (ranges share cards) | 8x7x7x7 | 300 | 2.77 | 5.89 | 0.36 | 1.31 | 0.96 | 5.8 | 14.2 |
+| | | 3000 | 2.29 | 5.99 | 0.59 | 1.12 | 0.82 | 38.6 | |
+| `4way-river-raise` (the same, a raise allowed) | 8x7x7x7 | 300 | 0.89 | 6.44 | 1.55 | 0.62 | 1.00 | 20.8 | 78.4 |
+| | | 3000 | 0.88 | 6.95 | 2.10 | 0.62 | 1.00 | 209.1 | |
+| `4way-river-no-overlap` (no card in two ranges) | 6x6x6x6 | 300 | 0.16 | 0.28 | 0.14 | 0.02 | 0.42 | 3.7 | 12.1 |
+| | | 3000 | 0.11 | 0.24 | 0.05 | 0.02 | 0.37 | 36.7 | |
+
+(`results/benchmark.json`; the reference's own NashConv 0.00004%, 0.07% and 0.002%; the engine ran in numpy, no
+four-player core.)
+
+Where no card is in two ranges, removing cards pair by pair is exact, and the engine's four-player CFR lands within
+0.11% of the pot of the reference's values and 0.24% from equilibrium in the exact game: the four-player solve itself
+is sound. Where the ranges share cards (the first two spots put the same kings, queens and aces in several ranges, on
+purpose), the engine's own game is a different game: its values for its own strategy are 0.6-1.3 bb (1.5-3.3% of the
+pot) from what the same strategy earns with every card removed exactly, and in the exact game it is 6-7% of the pot from
+equilibrium however long it runs. These ranges are small and overlap far more than real ones (a real range of a few
+hundred combos blocks a few percent of another's), so this bounds the error from above rather than measuring a real
+pot; it is still the reason four-way answers are labelled approximate, and now a measured one.
+
+**What could be made sounder, and wasn't.** Exact removal for four ranges takes inclusion-exclusion over every pair,
+triple and quadruple of hands sharing cards: the three-player exact term the engine has already costs O(n x 52) a
+terminal, and the four-player one would need the triple overlaps on top. It would be a change to
+`solver/gto/multiway_solver.py`, and only fixes the river: four-way flops and turns are also the engine's reduced game
+(8 or 6 hand buckets, one bet a street, the shortest stack), which no reference here can solve exactly. A four-way
+river in the app is already solved per combo on one bet a street; with ranges that overlap as real ones do, the measured
+error above should shrink, but that was not measured. Five or more players stay on the betting rules. Nothing was
+changed in the app for multiway; FEATURE_MATRIX's Multiway row carries these figures.

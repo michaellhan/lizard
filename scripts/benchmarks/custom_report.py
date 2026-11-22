@@ -2,7 +2,7 @@
 """A custom flop report of a library spot, solved live as the browser's Fast tier solves it, against the library's own
 report of that spot (docs/ACCURACY.md, custom flop reports).
 
-    custom_report.py --library DIR [--spot srp_btn_bb] [--size 25] [--out FILE]
+    custom_report.py --library DIR [--spot srp_btn_bb] [--size 25] [--model fast] [--out FILE]
 
 DIR is an assembled library (scripts/library/assemble.py's stage or release: <spot>/report.json). The live side is
 the worker's Fast Advisor (solver/gto/static/worker.js, with 4 or more threads as most browsers give it: the turn on
@@ -36,6 +36,8 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "solver"))
 
 from gto import core  # noqa: E402
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import flop_model  # noqa: E402,F401  (the river dealt by card class: --model accurate-d8 and the like)
 from gto.advisor import Advisor  # noqa: E402
 from gto.flop_library import all_flops, flop_name, representative_flops  # noqa: E402
 from gto.solver import Config  # noqa: E402
@@ -44,14 +46,30 @@ from gto.solver import Config  # noqa: E402
 PREFLOP = {
     "srp_btn_bb": [("UTG", "fold"), ("HJ", "fold"), ("CO", "fold"), ("BTN", "raise", 2.5), ("SB", "fold"), ("BB", "call")],
     "srp_co_bb": [("UTG", "fold"), ("HJ", "fold"), ("CO", "raise", 2.5), ("BTN", "fold"), ("SB", "fold"), ("BB", "call")],
+    "3bp_bb_btn": [("UTG", "fold"), ("HJ", "fold"), ("CO", "fold"), ("BTN", "raise", 2.5), ("SB", "fold"), ("BB", "raise", 10),
+                   ("BTN", "call")],
 }
 
 
-def fast_advisor() -> Advisor:
-    """The worker's Fast Advisor with 4 or more threads (worker.js, THREADED), without the library."""
+# The flop models a report can be solved in (--model): the worker's Fast as it was (the turn and river by 32 hand
+# buckets, the river blind by strength), Accurate's (64 over every river), and with the river dealt by card class
+# (flop_model.py: K buckets on each class's card; docs/ACCURACY.md section 34)
+MODELS = {
+    "fast": dict(n_turns=3, leaf_turns=4, leaf_rivers_flop=4, n_rivers_from_flop=4, river_buckets=32, turn_buckets=True,
+                 bucket_river_step=3, river_classes=True, river_strength=32),
+    "accurate": dict(n_turns=4, leaf_turns=4, leaf_rivers_flop=8, n_rivers_from_flop=8, river_classes=True,
+                     river_buckets=64, turn_buckets=True, bucket_river_step=1, river_strength=32),
+}
+for _k in (4, 8, 16):
+    MODELS[f"fast-d{_k}"] = dict(MODELS["fast"], river_dealt=_k)
+    MODELS[f"accurate-d{_k}"] = dict(MODELS["accurate"], river_dealt=_k)
+
+
+def fast_advisor(model: str = "fast") -> Advisor:
+    """The worker's Fast Advisor with 4 or more threads (worker.js, THREADED), without the library; its flop model
+    `model` (MODELS)."""
     raises = {"flop": [0.5], "turn": [0.75], "river": [0.75]}
-    adv = Advisor(Config(n_turns=3, leaf_turns=4, leaf_rivers_flop=4, n_rivers_from_flop=4, river_buckets=32,
-                         turn_buckets=True, bucket_river_step=3, river_classes=True, river_strength=32,
+    adv = Advisor(Config(**MODELS[model],
                          bet_sizes={"flop": [0.33, 0.75], "turn": [0.33, 0.75, 1.25], "river": [0.33, 0.75, 1.25]},
                          raise_sizes=raises),
                   # (the browser's 4 s default is never reached there: the settled stop ends a flop at ~1 s)
@@ -106,6 +124,7 @@ def main() -> int:
     ap.add_argument("--spot", default="srp_btn_bb", choices=sorted(PREFLOP))
     ap.add_argument("--size", default=25, type=int)
     ap.add_argument("--out", type=Path)
+    ap.add_argument("--model", default="fast", choices=sorted(MODELS))
     a = ap.parse_args()
     rep = json.loads((a.library / a.spot / "report.json").read_text())
     names = rep["nodes"][""]
@@ -115,7 +134,7 @@ def main() -> int:
     counts = {flop_name(k): c for k, c in all_flops().items()}
     lib_rows = [dict(f=f, w=float(x.get("w", counts[f])), **columns(x["n"], x.get("ev"), x.get("eq"), pot)) for f, x in lib.items()]
 
-    adv = fast_advisor()
+    adv = fast_advisor(a.model)
     flops = [flop_name(k) for k in representative_flops(a.size)]
     live, per = [], []
     t_all = time.time()
@@ -150,7 +169,7 @@ def main() -> int:
         return max(xs) if xs else None
 
     out = {
-        "spot": a.spot, "size": a.size, "flops": flops, "library_flops": len(lib_rows), "pot": pot,
+        "spot": a.spot, "size": a.size, "model": a.model, "flops": flops, "library_flops": len(lib_rows), "pot": pot,
         "engine": {"core": core.lib() is not None, "threads": core.threads(), "seconds": round(time.time() - t_all, 1),
                    "peak_rss_mb": round(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / (1 << 20), 1)},
         "per_flop": {"mean_abs": {k: mean_abs(k) for k in KEYS}, "max_abs": {k: max_abs(k) for k in KEYS}, "rows": per},

@@ -344,11 +344,12 @@ def compare_mw(spot: dict, game: MWGame, meta: dict, npz, ref: dict, ref_npz) ->
     tvs, ws, biggest = [], [], 0.0
     for n in game.acts:
         p = n.player
-        q, s = [i for i in range(3) if i != p]
         m = np.moveaxis(game.mask.astype(np.float64), p, 0)
         w = []
         for r in (ra, re):
-            opp = (m @ r[n.path][s]) @ r[n.path][q]
+            opp = m
+            for q in reversed([i for i in range(game.np) if i != p]):
+                opp = opp @ r[n.path][q]
             w.append(r[n.path][p] * opp / game.deals)
         tv = 0.5 * np.abs(engine[n.path] - reference[n.path]).sum(axis=0)
         tvs.append(tv); ws.append((w[0] + w[1]) / 2)

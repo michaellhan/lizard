@@ -4928,6 +4928,546 @@
     }
    ],
    "total_s": 53.09406614303589
+  },
+  "4way-river-one-bet": {
+   "spot": {
+    "name": "4way-river-one-bet",
+    "kind": "mw",
+    "board": "Ks7d2c3h9s",
+    "ranges": [
+     "KhQh,KdQd,QcQd,QhQs,JcJd,9h8h,Ah2h,KcJc",
+     "AcKh,AdKd,9d9c,7h7c,QsJs,JhTh,KhTc",
+     "KdTd,TcTs,AcQc,8c7c,Ad3d,7c6c,Kc9c",
+     "Qc9d,JsJh,AhKc,3c3d,9h9c,6h5h,Ac2d"
+    ],
+    "pot": 40,
+    "stack": 80,
+    "bet": [
+     0.5
+    ],
+    "reference": "cfr",
+    "engine_iters": [
+     300,
+     3000
+    ],
+    "ref_iters": 10000,
+    "raise_frac": 0.75,
+    "max_raises": 1,
+    "allin_spr": 0.0,
+    "rake": 0.0,
+    "cap": null,
+    "what": "four-way river, one bet a street and no raise (the app's four-way rule)"
+   },
+   "reference": {
+    "build_s": 0.0036401748657226562,
+    "acts": 32,
+    "ends": 33,
+    "deals": 1502.0,
+    "hands": [
+     8,
+     7,
+     7,
+     7
+    ],
+    "method": "cfr",
+    "iterations": 10000,
+    "tolerance": "DCFR 10000 iterations; three-way CFR has no equilibrium guarantee, the gains below are the measure",
+    "solve_s": 14.203672885894775,
+    "gains": {
+     "value": [
+      2.899644311098853,
+      18.51177442806563,
+      3.506023689014079,
+      15.08255757182144
+     ],
+     "br": [
+      2.899644635678855,
+      18.51178544292678,
+      3.50602433981372,
+      15.082562010806141
+     ],
+     "gain": [
+      3.245800024309631e-07,
+      1.1014861151181776e-05,
+      6.507996408444683e-07,
+      4.43898470159354e-06
+     ]
+    },
+    "expected_rake": 0.0,
+    "wall_s": 14.209307193756104,
+    "peak_rss_mb": 27.046875
+   },
+   "engine": [
+    {
+     "iterations": 300,
+     "tree_identical": true,
+     "values_ref": [
+      2.899644311098853,
+      18.51177442806563,
+      3.506023689014079,
+      15.08255757182144
+     ],
+     "values_engine_own": [
+      2.175509780290471,
+      19.06774756813885,
+      3.9891710977452304,
+      14.879517306632254
+     ],
+     "values_engine_by_ref": [
+      2.0178031503342306,
+      18.298089907444275,
+      3.4916858820513172,
+      16.19242106017018
+     ],
+     "own_vs_ref_walk_bb": 1.3129037535379258,
+     "value_diff_bb": 1.10986348834874,
+     "value_diff_pct_pot": 2.77465872087185,
+     "nashconv_engine_by_ref_pct": 5.888724116131221,
+     "nashconv_engine_own_pct": 0.35560245463782447,
+     "nashconv_ref_pct": 4.107306374012687e-05,
+     "gains_engine_by_ref_bb": [
+      0.02569162098265876,
+      1.3583432453090545,
+      0.055781043335289215,
+      0.9156737368254859
+     ],
+     "gains_engine_own_bb": [
+      0.031331972205999925,
+      0.05128586706960547,
+      0.016311245717294476,
+      0.043311896862229915
+     ],
+     "gains_ref_bb": [
+      3.245800024309631e-07,
+      1.1014861151181776e-05,
+      6.507996408444683e-07,
+      4.43898470159354e-06
+     ],
+     "rake_paid_bb": 0.0,
+     "conservation_bb": 0.0,
+     "largest_tv_reached": 0.9582215855892796,
+     "mean_tv_weighted": 0.13034695500419574,
+     "wall_s": 5.835038900375366,
+     "peak_rss_mb": 38.578125,
+     "use_core": false,
+     "pass": false
+    },
+    {
+     "iterations": 3000,
+     "tree_identical": true,
+     "values_ref": [
+      2.899644311098853,
+      18.51177442806563,
+      3.506023689014079,
+      15.08255757182144
+     ],
+     "values_engine_own": [
+      2.2325639204975536,
+      18.96807597099977,
+      4.03496712451626,
+      14.871786927267225
+     ],
+     "values_engine_by_ref": [
+      2.0593803789912837,
+      18.420169417330495,
+      3.523827716000716,
+      15.996622487677508
+     ],
+     "own_vs_ref_walk_bb": 1.1248355604102827,
+     "value_diff_bb": 0.9140649158560681,
+     "value_diff_pct_pot": 2.28516228964017,
+     "nashconv_engine_by_ref_pct": 5.99180920633333,
+     "nashconv_engine_own_pct": 0.5940328568428122,
+     "nashconv_ref_pct": 4.107306374012687e-05,
+     "gains_engine_by_ref_bb": [
+      0.07032474926673915,
+      1.363086007165208,
+      0.09676471127587316,
+      0.8665482148255119
+     ],
+     "gains_engine_own_bb": [
+      0.05651263520962946,
+      0.08173581606844138,
+      0.014319199418433293,
+      0.08504549204062073
+     ],
+     "gains_ref_bb": [
+      3.245800024309631e-07,
+      1.1014861151181776e-05,
+      6.507996408444683e-07,
+      4.43898470159354e-06
+     ],
+     "rake_paid_bb": 0.0,
+     "conservation_bb": 0.0,
+     "largest_tv_reached": 0.8171038738831609,
+     "mean_tv_weighted": 0.11194031525955078,
+     "wall_s": 38.60043120384216,
+     "peak_rss_mb": 38.59375,
+     "use_core": false,
+     "pass": false
+    }
+   ],
+   "total_s": 59.0927357673645
+  },
+  "4way-river-raise": {
+   "spot": {
+    "name": "4way-river-raise",
+    "kind": "mw",
+    "board": "Ks7d2c3h9s",
+    "ranges": [
+     "KhQh,KdQd,QcQd,QhQs,JcJd,9h8h,Ah2h,KcJc",
+     "AcKh,AdKd,9d9c,7h7c,QsJs,JhTh,KhTc",
+     "KdTd,TcTs,AcQc,8c7c,Ad3d,7c6c,Kc9c",
+     "Qc9d,JsJh,AhKc,3c3d,9h9c,6h5h,Ac2d"
+    ],
+    "pot": 40,
+    "stack": 80,
+    "bet": [
+     0.5
+    ],
+    "reference": "cfr",
+    "engine_iters": [
+     300,
+     3000
+    ],
+    "ref_iters": 10000,
+    "raise_frac": 0.75,
+    "max_raises": 2,
+    "allin_spr": 0.0,
+    "rake": 0.0,
+    "cap": null,
+    "what": "four-way river, one bet and one raise"
+   },
+   "reference": {
+    "build_s": 0.016393184661865234,
+    "acts": 156,
+    "ends": 185,
+    "deals": 1502.0,
+    "hands": [
+     8,
+     7,
+     7,
+     7
+    ],
+    "method": "cfr",
+    "iterations": 10000,
+    "tolerance": "DCFR 10000 iterations; three-way CFR has no equilibrium guarantee, the gains below are the measure",
+    "solve_s": 78.38621306419373,
+    "gains": {
+     "value": [
+      3.5595170374551746,
+      17.9096762210891,
+      3.522481072290684,
+      15.00832566916504
+     ],
+     "br": [
+      3.559517112087448,
+      17.914678551488226,
+      3.5232858944541356,
+      15.030484504126846
+     ],
+     "gain": [
+      7.463227325033017e-08,
+      0.005002330399126009,
+      0.0008048221634515684,
+      0.022158834961805596
+     ]
+    },
+    "expected_rake": 0.0,
+    "wall_s": 78.4129409790039,
+    "peak_rss_mb": 42.953125
+   },
+   "engine": [
+    {
+     "iterations": 300,
+     "tree_identical": true,
+     "values_ref": [
+      3.5595170374551746,
+      17.9096762210891,
+      3.522481072290684,
+      15.00832566916504
+     ],
+     "values_engine_own": [
+      4.107352905178705,
+      17.797918316125635,
+      3.992804220145048,
+      14.081344361507282
+     ],
+     "values_engine_by_ref": [
+      3.7529831189711382,
+      17.66821177048731,
+      3.878010047227533,
+      14.700795063314011
+     ],
+     "own_vs_ref_walk_bb": 0.6194507018067288,
+     "value_diff_bb": 0.3555289749368491,
+     "value_diff_pct_pot": 0.8888224373421229,
+     "nashconv_engine_by_ref_pct": 6.441773489329451,
+     "nashconv_engine_own_pct": 1.55422800497364,
+     "nashconv_ref_pct": 0.06991515539164106,
+     "gains_engine_by_ref_bb": [
+      0.004498747031282058,
+      1.2808803983183914,
+      0.1483464461253523,
+      1.1429838042567546
+     ],
+     "gains_engine_own_bb": [
+      0.0041580083413670366,
+      0.5594983305310208,
+      0.015628169665914182,
+      0.042406693451154
+     ],
+     "gains_ref_bb": [
+      7.463227325033017e-08,
+      0.005002330399126009,
+      0.0008048221634515684,
+      0.022158834961805596
+     ],
+     "rake_paid_bb": 0.0,
+     "conservation_bb": 7.105427357601002e-15,
+     "largest_tv_reached": 0.9995986956728969,
+     "mean_tv_weighted": 0.060670135962303556,
+     "wall_s": 20.844583988189697,
+     "peak_rss_mb": 39.0625,
+     "use_core": false,
+     "pass": false
+    },
+    {
+     "iterations": 3000,
+     "tree_identical": true,
+     "values_ref": [
+      3.5595170374551746,
+      17.9096762210891,
+      3.522481072290684,
+      15.00832566916504
+     ],
+     "values_engine_own": [
+      4.112390484620213,
+      17.792580803881187,
+      3.9906125678352633,
+      14.069426916926702
+     ],
+     "values_engine_by_ref": [
+      3.7474357882234477,
+      17.692563509878973,
+      3.87535305522423,
+      14.684647646673348
+     ],
+     "own_vs_ref_walk_bb": 0.6152207297466461,
+     "value_diff_bb": 0.35287198293354605,
+     "value_diff_pct_pot": 0.8821799573338651,
+     "nashconv_engine_by_ref_pct": 6.948710359243695,
+     "nashconv_engine_own_pct": 2.10319284893154,
+     "nashconv_ref_pct": 0.06991515539164106,
+     "gains_engine_by_ref_bb": [
+      0.009556944046552385,
+      1.3425961471546621,
+      0.15678747796382453,
+      1.2705435745324394
+     ],
+     "gains_engine_own_bb": [
+      0.0055495686000828215,
+      0.7691288216954852,
+      0.012425928228592564,
+      0.05417282104845533
+     ],
+     "gains_ref_bb": [
+      7.463227325033017e-08,
+      0.005002330399126009,
+      0.0008048221634515684,
+      0.022158834961805596
+     ],
+     "rake_paid_bb": 0.0,
+     "conservation_bb": 0.0,
+     "largest_tv_reached": 0.9999999566843532,
+     "mean_tv_weighted": 0.060806609122461865,
+     "wall_s": 209.084566116333,
+     "peak_rss_mb": 38.953125,
+     "use_core": false,
+     "pass": false
+    }
+   ],
+   "total_s": 309.1035649776459
+  },
+  "4way-river-no-overlap": {
+   "spot": {
+    "name": "4way-river-no-overlap",
+    "kind": "mw",
+    "board": "Ks7d2c3h9s",
+    "ranges": [
+     "AhKh,QhJh,Th8h,6h5h,AhQh,KhJh",
+     "AdQd,JdTd,8d6d,5d4d,AdKd,QdJd",
+     "AcQc,JcTc,8c6c,5c4c,AcKc,QcJc",
+     "AsQs,JsTs,8s6s,5s4s,AsJs,QsTs"
+    ],
+    "pot": 40,
+    "stack": 80,
+    "bet": [
+     0.5
+    ],
+    "reference": "cfr",
+    "engine_iters": [
+     300,
+     3000
+    ],
+    "ref_iters": 10000,
+    "raise_frac": 0.75,
+    "max_raises": 1,
+    "allin_spr": 0.0,
+    "rake": 0.0,
+    "cap": null,
+    "what": "four-way river, one bet a street, no card shared between ranges"
+   },
+   "reference": {
+    "build_s": 0.0025959014892578125,
+    "acts": 32,
+    "ends": 33,
+    "deals": 1296.0,
+    "hands": [
+     6,
+     6,
+     6,
+     6
+    ],
+    "method": "cfr",
+    "iterations": 10000,
+    "tolerance": "DCFR 10000 iterations; three-way CFR has no equilibrium guarantee, the gains below are the measure",
+    "solve_s": 12.100649118423462,
+    "gains": {
+     "value": [
+      15.992326195051202,
+      10.242782073189524,
+      10.800484501881764,
+      2.9644072298775113
+     ],
+     "br": [
+      15.992713480867867,
+      10.24305631672096,
+      10.80057301406304,
+      2.964510417969679
+     ],
+     "gain": [
+      0.00038728581666447326,
+      0.00027424353143601365,
+      8.851218127681193e-05,
+      0.00010318809216780522
+     ]
+    },
+    "expected_rake": 0.0,
+    "wall_s": 12.104697942733765,
+    "peak_rss_mb": 25.40625
+   },
+   "engine": [
+    {
+     "iterations": 300,
+     "tree_identical": true,
+     "values_ref": [
+      15.992326195051202,
+      10.242782073189524,
+      10.800484501881764,
+      2.9644072298775113
+     ],
+     "values_engine_own": [
+      15.976558513063596,
+      10.215496177513774,
+      10.87229729341754,
+      2.935647853226928
+     ],
+     "values_engine_by_ref": [
+      15.958378646811127,
+      10.230435076609243,
+      10.863178822195069,
+      2.9480074543845585
+     ],
+     "own_vs_ref_walk_bb": 0.018179866252468813,
+     "value_diff_bb": 0.06269432031330524,
+     "value_diff_pct_pot": 0.1567358007832631,
+     "nashconv_engine_by_ref_pct": 0.28397665304315867,
+     "nashconv_engine_own_pct": 0.13495993247067295,
+     "nashconv_ref_pct": 0.00213307405386276,
+     "gains_engine_by_ref_bb": [
+      0.05777257249203416,
+      0.0072287650724138786,
+      0.024298018152766332,
+      0.0242913055000491
+     ],
+     "gains_engine_own_bb": [
+      0.017453773806844097,
+      0.005327510448053019,
+      0.015348402726168331,
+      0.015854286007203733
+     ],
+     "gains_ref_bb": [
+      0.00038728581666447326,
+      0.00027424353143601365,
+      8.851218127681193e-05,
+      0.00010318809216780522
+     ],
+     "rake_paid_bb": 0.0,
+     "conservation_bb": 0.0,
+     "largest_tv_reached": 0.4206865106490211,
+     "mean_tv_weighted": 0.01759740080098392,
+     "wall_s": 3.7105331420898438,
+     "peak_rss_mb": 38.6875,
+     "use_core": false,
+     "pass": false
+    },
+    {
+     "iterations": 3000,
+     "tree_identical": true,
+     "values_ref": [
+      15.992326195051202,
+      10.242782073189524,
+      10.800484501881764,
+      2.9644072298775113
+     ],
+     "values_engine_own": [
+      15.972027841277662,
+      10.225713392678916,
+      10.852402985680689,
+      2.9498554614027355
+     ],
+     "values_engine_by_ref": [
+      15.95240741074143,
+      10.241981992507185,
+      10.843688154842644,
+      2.9619224419087398
+     ],
+     "own_vs_ref_walk_bb": 0.019620430536232192,
+     "value_diff_bb": 0.043203652960880135,
+     "value_diff_pct_pot": 0.10800913240220032,
+     "nashconv_engine_by_ref_pct": 0.23971068155051123,
+     "nashconv_engine_own_pct": 0.054578351401547424,
+     "nashconv_ref_pct": 0.00213307405386276,
+     "gains_engine_by_ref_bb": [
+      0.0639591427571169,
+      0.007445984808864381,
+      0.01437082589614569,
+      0.010108319158077528
+     ],
+     "gains_engine_own_bb": [
+      0.007151208263881159,
+      0.006342231195063164,
+      0.005890146056852785,
+      0.0024477550448218643
+     ],
+     "gains_ref_bb": [
+      0.00038728581666447326,
+      0.00027424353143601365,
+      8.851218127681193e-05,
+      0.00010318809216780522
+     ],
+     "rake_paid_bb": 0.0,
+     "conservation_bb": 0.0,
+     "largest_tv_reached": 0.36673673572957755,
+     "mean_tv_weighted": 0.01725106985817735,
+     "wall_s": 36.7137017250061,
+     "peak_rss_mb": 38.671875,
+     "use_core": false,
+     "pass": false
+    }
+   ],
+   "total_s": 52.877315044403076
   }
  },
  "machine": {
@@ -4937,7 +5477,7 @@
   "python": "3.9.6",
   "numpy": "2.0.2",
   "scipy": "1.13.1",
-  "git_commit": "8d902b6f1c4653c8d054f835794358f2a5f3bdf3",
+  "git_commit": "adac027a9ecb90be02d53f770e3e346c977eae12",
   "solver_upstream_commit": "1a14605e09d0cc58414b3a8a6c693041cbc2968d",
   "threads": 1,
   "load_note": "run niced through slot.sh beside other builds: times are a loaded machine's, not a benchmark of speed"
@@ -4974,5 +5514,5 @@
   "largest_tv_reached": 0.00616238749744385,
   "largest_tv_any_infoset": 0.15526091531625932
  },
- "last_run_s": 353.67000818252563
+ "last_run_s": 52.88274598121643
 }

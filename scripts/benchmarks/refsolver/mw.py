@@ -1,7 +1,8 @@
-"""A three-way river, by brute force over triples of hands, from the rules.
+"""A three- or four-way river, by brute force over triples (quadruples) of hands, from the rules.
 
-Terminal values come from a full (n0, n1, n2) table: each live hand's share of the pot, split among the best live hands,
-for every triple that shares no card. There is no LP for three players and no equilibrium guarantee for CFR; what is
+Terminal values come from a full (n0, n1, n2[, n3]) table: each live hand's share of the pot, split among the best live
+hands, for every triple (quadruple) that shares no card: card removal exact for every player at once, where the
+engine's four-way solve removes cards pair by pair (multiway_solver._term_pw). There is no LP for three players and no equilibrium guarantee for CFR; what is
 exact here is the best response, so a profile's distance from equilibrium is measured exactly whichever way it was
 found. Values are chips relative to the start of the river (a player's value is its share of the pot, less rake, less
 what it put in), so the players' values add up to the pot less the rake.
@@ -30,20 +31,33 @@ class MWGame:
         self.board = tuple(board)
         self.names = [sorted(r) for r in ranges]
         self.np = len(ranges)
-        if self.np != 3:
-            raise ValueError("three players")
+        if self.np not in (3, 4):
+            raise ValueError("three or four players")
         self.weights = [np.array([r[n] for n in names]) for r, names in zip(ranges, self.names)]
         self.hands = [[combo_cards(n) for n in names] for names in self.names]
         self.scores = [score(hands_with_board(h, self.board)) for h in self.hands]
         self.n = [len(h) for h in self.hands]
         self.rate, self.cap = rate, cap
-        pair = [[np.array([[len({*x, *y}) == 4 for y in self.hands[q]] for x in self.hands[p]])
-                 for q in range(3)] for p in range(3)]
-        self.mask = pair[0][1][:, :, None] & pair[0][2][:, None, :] & pair[1][2][None, :, :]
-        self.deals = float(np.einsum("i,j,k,ijk->", *self.weights, self.mask.astype(np.float64)))
+        N = self.np
+        mask = np.ones(tuple(self.n), dtype=bool)
+        for p in range(N):
+            for q in range(p + 1, N):
+                pq = np.array([[len({*x, *y}) == 4 for y in self.hands[q]] for x in self.hands[p]])
+                shape = [1] * N
+                shape[p], shape[q] = self.n[p], self.n[q]
+                mask = mask & pq.reshape(shape)
+        self.mask = mask
+        self.deals = self._contract(self.mask.astype(np.float64), self.weights)
         self.acts: List[MAct] = []
         self.ends: List[MEnd] = []
         self.root = self._expand(tree, "")
+
+    @staticmethod
+    def _contract(T, rs) -> float:
+        """T (one axis a player, in order) contracted with every player's vector."""
+        for r in reversed(rs):
+            T = T @ r
+        return float(T)
 
     def rake(self, pot: float) -> float:
         r = self.rate * pot
@@ -51,9 +65,9 @@ class MWGame:
 
     def _shares(self, live) -> List[np.ndarray]:
         """Each player's share of a pot the players `live` contest, for every triple."""
-        grids = np.meshgrid(*[self.scores[p] for p in range(3)], indexing="ij")
+        grids = np.meshgrid(*[self.scores[p] for p in range(self.np)], indexing="ij")
         best = np.max([grids[p] for p in live], axis=0)
-        top = [grids[p] == best if p in live else np.zeros(best.shape, dtype=bool) for p in range(3)]
+        top = [grids[p] == best if p in live else np.zeros(best.shape, dtype=bool) for p in range(self.np)]
         count = sum(t.astype(np.int64) for t in top)
         return [t / count for t in top]
 
@@ -73,13 +87,15 @@ class MWGame:
         net = node.pot - e.rake
         m = self.mask.astype(np.float64)
         # each player's table with its own axis first
-        e.tables = [np.moveaxis((shares[p] * net - node.c[p]) * m, p, 0) for p in range(3)]
+        e.tables = [np.moveaxis((shares[p] * net - node.c[p]) * m, p, 0) for p in range(self.np)]
         self.ends.append(e)
         return e
 
     def _end_value(self, e: MEnd, p: int, r) -> np.ndarray:
-        q, s = [i for i in range(3) if i != p]
-        return (e.tables[p] @ r[s]) @ r[q]
+        T = e.tables[p]
+        for q in reversed([i for i in range(self.np) if i != p]):
+            T = T @ r[q]
+        return T
 
     def walk(self, strat, p: int, best: bool = False, q_out: Optional[dict] = None) -> np.ndarray:
         def go(node, r):
@@ -104,8 +120,8 @@ class MWGame:
         return float(self.weights[p] @ self.walk(strat, p, best)) / self.deals
 
     def gains(self, strat) -> dict:
-        v = [self.value(strat, p) for p in range(3)]
-        br = [self.value(strat, p, True) for p in range(3)]
+        v = [self.value(strat, p) for p in range(self.np)]
+        br = [self.value(strat, p, True) for p in range(self.np)]
         return {"value": v, "br": br, "gain": [b - x for b, x in zip(br, v)]}
 
     def expected_rake(self, strat) -> float:
@@ -114,7 +130,7 @@ class MWGame:
         for e in self.ends:
             if e.rake:
                 r = reach[e.path]
-                total += e.rake * float(np.einsum("i,j,k,ijk->", r[0], r[1], r[2], self.mask.astype(np.float64)))
+                total += e.rake * self._contract(self.mask.astype(np.float64), r)
         return total / self.deals
 
     def reaches(self, strat) -> Dict[str, list]:
@@ -173,7 +189,7 @@ class MWGame:
             return u
 
         for t in range(start + 1, start + iters + 1):
-            for p in range(3):
+            for p in range(self.np):
                 go(self.root, list(self.weights), p)
             ap, bn = t ** alpha, t ** beta
             ap, bn = ap / (ap + 1), bn / (bn + 1)

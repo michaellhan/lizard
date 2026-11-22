@@ -245,8 +245,14 @@ const pct = (x: number) => `${x < 0.1 ? x.toFixed(3) : x.toFixed(2)}%`;
  * the mean per flop of BB's EV off, % of the pot, and of in position's share of its bets at 75% after BB's check off,
  * points. Shown with a Fast report's abstraction error: the size split is the column to trust least. */
 export const FAST_VS_LIBRARY = { evPct: 0.35, splitPts: 16, spot: "6-max 100bb BTN vs BB", flops: 95 };
-const vsLibrary = () =>
-  `against the library's report of ${FAST_VS_LIBRARY.spot} (${FAST_VS_LIBRARY.flops} flops), a Fast report's EVs were ${FAST_VS_LIBRARY.evPct}% pot off a flop on average and in position's bet size split ${FAST_VS_LIBRARY.splitPts} points`;
+/** The same for Accurate's flop model (docs/ACCURACY.md section 34, `--model accurate`, each flop stopped as Fast's are,
+ * from its 300th iteration; the browser's Accurate runs on to 1,000): closer to the library than Fast on real ranges,
+ * though no closer to the full game on section 21's narrow spots. */
+export const ACCURATE_VS_LIBRARY = { evPct: 0.26, splitPts: 13.5, spot: "6-max 100bb BTN vs BB", flops: 95 };
+const vsLibrary = (mode: "fast" | "accurate") => {
+  const m = mode === "fast" ? FAST_VS_LIBRARY : ACCURATE_VS_LIBRARY;
+  return `against the library's report of ${m.spot} (${m.flops} flops), ${mode === "fast" ? "a Fast" : "an Accurate"} report's EVs were ${m.evPct}% pot off a flop on average and in position's bet size split ${m.splitPts} points`;
+};
 
 /** What the numbers are: your spot, solved live at a tier over n flops of a representative set, with how far each solve
  * was from equilibrium in its own game and what its flop model gave up against the full game (abstraction.ts). A flop the
@@ -274,7 +280,7 @@ export function customProvenance(r: Pick<FlopReportRecord, "done" | "left" | "si
   ].filter(Boolean);
   const model: FlopModel | null = live.length && transport === "worker" && (r.mode === "fast" || r.mode === "accurate") ? r.mode : stored ? "library" : null;
   const given = abstractionWords(model);
-  const words = given && model === "fast" ? `${given}; ${vsLibrary()}` : given;
+  const words = given && (model === "fast" || model === "accurate") ? `${given}; ${vsLibrary(model)}` : given;
   return {
     source: live.length ? "live" : stored ? "library" : "instant",
     approximate: approx > 0 || togo > 0,

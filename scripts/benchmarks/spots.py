@@ -70,6 +70,21 @@ SPOTS: List[dict] = [
        30, 20, [0.5], allin_spr=1.5, what="three-way river, stacks under the pot, all-ins"),
     mw("3way-river-rake", RIVER_BOARD, ["KQs,QQ,JJ,98s,A2s,KJs", "AKs,99,77,QJs,JTs,KTo", "KTs,TT,AQs,87s,A3s,76s"],
        30, 60, [0.5], rake=0.05, cap=3.0, what="three-way river with 5% rake capped at 3 bb"),
+    # four-way rivers (W9, docs/ACCURACY.md section 34): the engine's four-player solve removes cards pair by pair
+    # (multiway_solver._term_pw); the reference's (n0, n1, n2, n3) tables remove them for all four hands at once
+    mw("4way-river-one-bet", RIVER_BOARD, ["KhQh,KdQd,QcQd,QhQs,JcJd,9h8h,Ah2h,KcJc", "AcKh,AdKd,9d9c,7h7c,QsJs,JhTh,KhTc",
+                                           "KdTd,TcTs,AcQc,8c7c,Ad3d,7c6c,Kc9c", "Qc9d,JsJh,AhKc,3c3d,9h9c,6h5h,Ac2d"],
+       40, 80, [0.5], max_raises=1, engine_iters=(300, 3000), ref_iters=10000,
+       what="four-way river, one bet a street and no raise (the app's four-way rule)"),
+    mw("4way-river-raise", RIVER_BOARD, ["KhQh,KdQd,QcQd,QhQs,JcJd,9h8h,Ah2h,KcJc", "AcKh,AdKd,9d9c,7h7c,QsJs,JhTh,KhTc",
+                                         "KdTd,TcTs,AcQc,8c7c,Ad3d,7c6c,Kc9c", "Qc9d,JsJh,AhKc,3c3d,9h9c,6h5h,Ac2d"],
+       40, 80, [0.5], max_raises=2, engine_iters=(300, 3000), ref_iters=10000,
+       what="four-way river, one bet and one raise"),
+    # (no card in two players' ranges: pairwise card removal is exact here, so what's left is the four-player CFR)
+    mw("4way-river-no-overlap", RIVER_BOARD, ["AhKh,QhJh,Th8h,6h5h,AhQh,KhJh", "AdQd,JdTd,8d6d,5d4d,AdKd,QdJd",
+                                              "AcQc,JcTc,8c6c,5c4c,AcKc,QcJc", "AsQs,JsTs,8s6s,5s4s,AsJs,QsTs"],
+       40, 80, [0.5], max_raises=1, engine_iters=(300, 3000), ref_iters=10000,
+       what="four-way river, one bet a street, no card shared between ranges"),
 ]
 BY_NAME: Dict[str, dict] = {s["name"]: s for s in SPOTS}
 

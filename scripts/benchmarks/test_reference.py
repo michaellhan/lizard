@@ -367,6 +367,33 @@ class ThreeWay(unittest.TestCase):
         self.assertLess(sum(r["gain"]), first / 50)
 
 
+class FourWay(unittest.TestCase):
+    """The same game with a fourth player: its table removes cards for all four hands at once."""
+    def game(self, rate=0.0):
+        board = strip("Ks7d2c3h9s")
+        tree = mw_tree(MWSpec(4, 40.0, 80.0, [0.5], max_raises=1))
+        ranges = [C.parse_range(x, board) for x in ("AdAh,QcQd", "AcKd,JcJd", "AsQh,TcTd", "AhKh,QsQh")]
+        return MWGame(board, ranges, tree, rate)
+
+    def test_a_quadruple_sharing_a_card_is_never_dealt(self):
+        g = self.game()
+        self.assertEqual(g.mask.shape, (2, 2, 2, 2))
+        for idx in itertools.product(range(2), repeat=4):
+            hands = [g.hands[p][i] for p, i in enumerate(idx)]
+            self.assertEqual(bool(g.mask[idx]), len({c for h in hands for c in h}) == 8)
+
+    def test_chips_are_conserved_and_gains_fall(self):
+        for rate in (0.0, 0.05):
+            g = self.game(rate)
+            u = g.uniform()
+            self.assertAlmostEqual(sum(g.value(u, p) for p in range(4)), 40.0 - g.expected_rake(u), places=9)
+        first = sum(g.gains(g.uniform())["gain"])
+        g.run_dcfr(1000)
+        r = g.gains(g.average())
+        self.assertGreaterEqual(min(r["gain"]), -1e-9)
+        self.assertLess(sum(r["gain"]), first / 20)
+
+
 class PrizeEquity(unittest.TestCase):
     def test_by_hand(self):
         # 50 / 30 / 20 chips for 100 / 0: the chips' shares of first place
