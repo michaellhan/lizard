@@ -156,6 +156,7 @@ class Game(E.Game):
 
     def _prep_terminals(self):
         super()._prep_terminals()
+        self._even_side_pots()
         fs = self.fold_split
         n = self.n
         if fs:
@@ -175,6 +176,49 @@ class Game(E.Game):
                 self._fs_groups.setdefault(gk, []).append(i)
             self._fs_groups = {gk: np.array(ix) for gk, ix in self._fs_groups.items()}
         self.fold_split = []           # (pf_engine's loop then does nothing: _term_values below prices them)
+
+    def _even_side_pots(self):
+        """A three-way all-in's side pot when the main pot's winner can't win it: pf_engine's nonlinear payoff gives it
+        to the deeper of the two who can, every time, which favours the deeper stack (chip EV, linear, splits it by
+        the two players' heads-up equity per class instead). Here each of the two takes it half the time: the utility
+        is the mean of the two outcomes', the same even weighting pf_engine already gives the losers of the main pot.
+        A winner-take-all is then chips in expectation, not class by class (scripts/engine/test_pf_icm.py)."""
+        if self.payoff.linear or self.three is None:
+            return
+        rows, act, fac, U, side_amt, sx, sy = self.three
+        if not (side_amt > 1e-12).any():
+            return
+        U = U.copy()
+        pot = self.inv.sum(1)
+        for i, r in enumerate(rows):
+            if side_amt[i] <= 1e-12:
+                continue
+            nd = self.nodes_all[self.terms[r]]
+            inv = self.inv[r]
+            live = list(nd.active)
+            behind = float(min(self.stacks[q] - inv[q] for q in live))
+            f = self._pe(float(pot[r]), max(behind, 0.0)) / float(pot[r])
+            L = E.layers(inv, live)
+            ranks = [int(x) for x in act[i]]
+            pair = [(amt * f, el) for amt, el in L[1:] if len(el) == 2]
+            sure = [(amt * f, el) for amt, el in L[1:] if len(el) == 1]
+            us = []
+            for k, w in enumerate(ranks):
+                d = -inv.copy()
+                d[w] += L[0][0] * f
+                for amt, el in sure:
+                    d[el[0]] += amt
+                outs = [d]
+                for amt, el in pair:
+                    takers = [w] if w in el else list(el)
+                    outs = [o + amt * np.eye(self.n)[t] for o in outs for t in takers]
+                u = np.mean([self.payoff.utility(o, nd) for o in outs], axis=0)
+                us.append(u)
+                U[i, k] = u[ranks]
+            for q in range(self.n):
+                if q not in live:
+                    self.pay[r, q] = float(np.mean([u[q] for u in us]))
+        self.three = (rows, act, fac, U, side_amt, sx, sy)
 
     def _term_values(self, reach: np.ndarray, V: np.ndarray):
         super()._term_values(reach, V)

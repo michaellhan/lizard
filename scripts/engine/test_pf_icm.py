@@ -142,14 +142,41 @@ class Calibrated(unittest.TestCase):
     solve and every stored spot since 2026-11-17)."""
 
     def test_winner_take_all_is_chips(self):
+        # equal stacks (no side pots): the same solve
         pos = SEATS[4]
-        stacks, antes = [25, 12, 40, 18], [0.125] * 4
+        stacks, antes = [20, 20, 20, 20], [0.125] * 4
         gc = C.game(pos, stacks, antes)
         gw = C.game(pos, stacks, antes, icm_model=icm.Model(dict(zip(pos, stacks)), [100]))
         for t in range(1, 16):
             gc.iterate(t)
             gw.iterate(t)
         self.assertLess(np.abs(gc.average() - gw.average()).max(), 1e-6)
+
+    def test_winner_take_all_side_pots_are_chips_split_evenly(self):
+        # uneven stacks: every outcome's utility is its chips, and a three-way all-in's side pot that the main pot's
+        # winner can't take goes half to each of the two who can (chip EV splits it by their heads-up equity per class)
+        pos = SEATS[4]
+        stacks, antes = [25, 12, 40, 18], [0.125] * 4
+        gc = C.game(pos, stacks, antes)
+        gw = C.game(pos, stacks, antes, icm_model=icm.Model(dict(zip(pos, stacks)), [100]))
+        self.assertLess(np.abs(gc.pay - gw.pay).max(), 1e-9)
+        for x, y in zip(gc.hu, gw.hu):
+            for j in range(5, 9):
+                self.assertLess(np.abs(x[j] - y[j]).max(), 1e-9)
+        rows, act, _, Uc, side, sx, sy = gc.three
+        Uw = gw.three[3]
+        self.assertTrue((side > 1e-12).any())
+        for i in range(len(rows)):
+            for k in range(3):
+                extra = Uw[i, k] - Uc[i, k]                      # the side pot, which chip EV adds by equity
+                self.assertAlmostEqual(extra.sum(), side[i], places=9)
+                if side[i] > 1e-12:
+                    elig = {sx[i], sy[i]}
+                    if k in elig:
+                        self.assertAlmostEqual(extra[k], side[i], places=9)
+                    else:
+                        for j in elig:
+                            self.assertAlmostEqual(extra[j], side[i] / 2, places=9)
 
     def test_folded_seats_priced_in_one_pass_as_pf_engines_loop(self):
         # pf_engine.Game prices a heads-up pot's folded seats in a Python loop; pf_icm_calib.Game in one pass: the same
