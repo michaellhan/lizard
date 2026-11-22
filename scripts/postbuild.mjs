@@ -6,6 +6,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { checkStaged } from "./pyodide/stage.mjs";
 import { hostsNamed } from "./pyodide/worker-edits.mjs";
+import { scanDir } from "./keyscan/scan.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const dist = join(root, "web", "dist");
@@ -24,6 +25,14 @@ const unpublishable = [
 ];
 if (unpublishable.length) {
   console.error(`postbuild: not publishing web/dist/solver:\n  ${unpublishable.join("\n  ")}`);
+  process.exit(1);
+}
+
+// nothing published holds anything shaped like an API key, or the marks of calling Anthropic from the browser: AI
+// explanations go through explain-worker/, whose key is a Worker secret (scripts/keyscan/scan.mjs)
+const keys = scanDir(dist);
+if (keys.length) {
+  console.error(`postbuild: not publishing web/dist, it holds what looks like a key:\n  ${keys.join("\n  ")}`);
   process.exit(1);
 }
 

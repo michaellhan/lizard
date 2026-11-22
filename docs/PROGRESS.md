@@ -6400,3 +6400,43 @@ into, and fixed where it can be (ACCURACY 18.11):
   assembled stage. Not checked in a browser.
 - Left: merge the branch, check the stage's size, publish (`publish.sh` or the 6-hourly run), deploy the app, then
   grade the matrix row (NOT IMPLEMENTED until then).
+
+## 2026-11-22 — AI explanations: Lizard's own proxy and the Explain button (W6)
+
+- **Proxy.** `explain-worker/`, a Cloudflare Worker with D1, modelled on the sync Worker, deployed by hand as
+  `lizard-explain` on `www.michael-han.com/lizard/api/explain*` with the database `lizard-explain` (`docs/DEPLOYMENT.md`
+  §7). It takes one decision as checked numbers and short labels (`schema.ts`: strict keys, enums for the street, verdict
+  and source, card and seat patterns, labels of at most 5 words and 32 characters with no newline, quote or colon, at
+  most 10 actions and 24 line items, a 4 KB body cap), writes the prompt itself (`prompt.ts`, a fixed system prompt that
+  takes the numbers as ground truth and names a source that isn't a solve as such) and asks Claude Haiku 5.5 through the
+  official SDK (`@anthropic-ai/sdk` 1.8.0; effort low, 1024 tokens). Owner's decisions: the model, fixed on the server, and
+  a $20/month hard cap (`budget.ts`: each call reserves its worst case in one D1 statement that fails past the cap, then
+  settles to its usage at $0.10/$0.50 per million tokens; a call that may have been billed keeps its reserve). Rate limits
+  per IP (6/minute, 60/day, IPv6 by /64, salted hash) and in total (60/minute, 2,000/day). The Origin check and the
+  `x-lizard` header are a soft signal only. Until the owner puts in `ANTHROPIC_API_KEY` it answers `not_configured`. No
+  secret was set, and no key was created, entered or asked for.
+- **Client.** `web/src/explain/`: request builders for Practice's verdicts (`fromReviewed`), Study's nodes (`fromStudy`)
+  and Analyze's decisions (`fromDecision`), the proxy client and `ExplainButton`, put beside Copy for AI in
+  `PracticeParts.tsx` `DecisionView`, `StudyPage.tsx`, and inside each graded decision's Why in Analyze's
+  `DecisionTables.tsx` (one line each). The answer is labelled "AI explanation of the numbers above; may be wrong."; the
+  button is disabled with the reason when the proxy says not configured, over budget or can't be reached. No
+  bring-your-own-key field. Off unless `VITE_EXPLAIN=on` (repo variable `LIZARD_EXPLAIN`, wired in `deploy.yml`, unset).
+- **No keys in the site.** `scripts/keyscan/scan.mjs`, run by `postbuild.mjs` on `web/dist`, refuses to publish anything
+  shaped like an API key, the classic app's stored-key name, or Anthropic's direct-browser header; tried by planting a fake
+  key in a built chunk (refused) and taking it out (passed). Its tests are in `npm run test:scripts`.
+- **Decisions made unattended.** The route sits beside the sync Worker's as a more specific pattern rather than a new
+  path family; health is a free `GET /lizard/api/explain/health` the button asks once a page load; thinking stays
+  adaptive at low effort (the claude-api skill's advice for Haiku 5.5) with the worst case reserved, rather than turned
+  off; Analyze's line is its situation words, as the decision record keeps no structured line; the D1 database had been
+  created on 2026-11-18 by this workstream before a session restart and was reused empty.
+- **Tests.** `explain-worker`: tsc clean, vitest 25/25 (schema rejection, size cap, IP, IPv6 and global limits, the
+  budget cap with concurrent requests and the month's rollover, not configured, upstream errors and refusals, with
+  Anthropic stubbed through the SDK's fetch and D1 as SQLite). Web: `npm run typecheck` and `npm run lint` clean; vitest
+  on `src/explain` (15, the builders checked against the Worker's own schema) and the touched pages' suites
+  (Practice's DecisionView, PracticePage, MultiTables, StudyPage, all of Analyze, copyForAi: 31 files, 512 tests) pass;
+  `node --test scripts/keyscan/scan.test.mjs` 3/3; `npm run build` with `VITE_EXPLAIN=on` passes. Live: health and a
+  request answer `not_configured` (503), another origin `bad_origin` (403), and the sync Worker's `/lizard/api/health`
+  still answers itself. Not clicked in a real browser; no answer from the model has been seen.
+- **Matrix.** AI explanations NOT IMPLEMENTED → PARTIAL (Other 6/1/0/2, total 50/14/4/3). It stays PARTIAL until a real
+  explanation comes back live, which needs the owner's key.
+- The heads-up precompute builds in gtosolver were left alone; the long commands ran through `slot.sh`.

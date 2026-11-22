@@ -1,0 +1,19 @@
+# No secrets here: database_id is an identifier. The one secret, ANTHROPIC_API_KEY, goes in only with
+# `npx wrangler@4 secret put ANTHROPIC_API_KEY` (docs/DEPLOYMENT.md §7); until then every request answers "not_configured".
+name = "lizard-explain"
+main = "src/index.ts"
+compatibility_date = "2026-10-01"
+workers_dev = false
+# (more specific than the sync worker's /lizard/api/*, so Cloudflare sends these paths here and the rest there)
+routes = [{ pattern = "www.michael-han.com/lizard/api/explain*", zone_name = "michael-han.com" }]
+
+[vars]
+SITE_ORIGIN = "https://www.michael-han.com"
+
+[triggers]
+crons = ["43 3 * * *"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "lizard-explain"
+database_id = "fd1d8c2d-1ada-4166-9755-23c3d103660e"

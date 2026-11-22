@@ -73,6 +73,8 @@ import { ComboPanel } from "./ComboPanel";
 import { classOf } from "@/engine/nlhe/cards";
 import { studyText } from "@/features/practice/copyForAi";
 import { CopyForAi } from "@/features/practice/HintReveal";
+import { ExplainButton } from "@/explain/ExplainButton";
+import { fromStudy } from "@/explain/request";
 import { offersReport } from "./runouts";
 import { RunoutPanel } from "./RunoutPanel";
 import { SaveSpot } from "./SaveSpot";
@@ -509,6 +511,7 @@ function HoldemStudy() {
           <span className="text-xs text-muted">This spot as plain text, to paste into a chatbot.</span>
         </div>
       )}
+      {!building && !done.tournament && !!done.actions?.length && <ExplainButton key={`explain|${requestKey}|${shown!.provenance.source}|${myCls}`} request={() => fromStudy(hand, done, shown!.provenance, myCls)} />}
     </div>
   );
   const sidePanel = panelOn && offered.length > 0 && (

@@ -19,6 +19,8 @@ import type { Provenance, StopCost } from "@/solver/types";
 import { useSettings } from "@/state/settings";
 import { ASK_AHEAD, meterLine, type AheadMeter } from "./ahead";
 import { reviewedText } from "./copyForAi";
+import { ExplainButton } from "@/explain/ExplainButton";
+import { fromReviewed } from "@/explain/request";
 import { exploitNote } from "./exploit";
 
 const many = (n: number, one: string) => `${n.toLocaleString()} ${one}${n === 1 ? "" : "s"}`;
@@ -583,6 +585,7 @@ export function DecisionView({ d, title = "Your last decision", spot, children }
       {d.mix.length > 0 && <MixTable mix={d.mix} hasEv={hasEv} labelOf={(a) => optionLabel(a.action, a.amount)} chose={d.chose} unit={evUnit(d.provenance)} />}
       {children}
       {g && spot && <CopyForAi key={`${spot.n}|${d.study}|${d.chose}`} text={() => reviewedText(spot)} />}
+      {g && spot && <ExplainButton key={`explain|${spot.n}|${d.study}|${d.chose}`} request={() => fromReviewed(spot)} />}
       {d.study && (
         <p>
           <Link to={`/study?${d.study}`} className="text-accent hover:underline">
