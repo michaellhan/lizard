@@ -1,6 +1,8 @@
 // The report's tables and lists of graded decisions: a table of groups, each row with its count, its share in the mix
 // with a 95% interval and the decisions behind it, a row graded more than one way having those a way under it; the
 // decisions themselves, each a link to its hand.
+import { ExplainButton } from "@/explain/ExplainButton";
+import { fromDecision } from "@/explain/request";
 import { Fragment, useId, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { VerdictTag } from "@/components/VerdictTag";
@@ -185,6 +187,7 @@ export function DecisionList({ title, ds, byId }: { title: string; ds: readonly 
               <details className="text-xs text-muted">
                 <summary className="cursor-pointer hover:text-text">{sourceBrief(d)}</summary>
                 <p className="mt-0.5">{decisionNote(d)}</p>
+                {isGraded(d) && !!d.mix?.length && <ExplainButton request={() => fromDecision(d, h)} />}
               </details>
             </li>
           );

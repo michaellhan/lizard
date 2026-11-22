@@ -47,6 +47,9 @@ jobs:
       - name: Sync service tests (the Worker on its real schema, D1 stood in for by SQLite; nothing here deploys it)
         working-directory: worker
         run: ../node_modules/.bin/tsc --noEmit -p . && ../node_modules/.bin/vitest run --root . src
+      - name: Explain proxy tests (the Worker on its real schema, Anthropic's API stubbed, D1 stood in for by SQLite; nothing here deploys it)
+        working-directory: explain-worker
+        run: npm ci --ignore-scripts && ../node_modules/.bin/tsc --noEmit -p . && ../node_modules/.bin/vitest run --root . src
 
   python:
     runs-on: ubuntu-24.04
@@ -92,6 +95,7 @@ jobs:
         run: npm run build
         env:
           VITE_SYNC: ${{ vars.LIZARD_SYNC }}
+          VITE_EXPLAIN: ${{ vars.LIZARD_EXPLAIN }}
       - name: The built site, for the browser tests
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:

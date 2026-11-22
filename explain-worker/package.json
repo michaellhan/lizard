@@ -1,0 +1,12 @@
+{
+  "name": "lizard-explain",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "../node_modules/.bin/vitest run --root . src",
+    "typecheck": "../node_modules/.bin/tsc --noEmit -p ."
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "1.8.0"
+  }
+}

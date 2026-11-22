@@ -26,7 +26,7 @@ reviewed and passes its gates.
 | W3 | Analyze: decision grading, leak thresholds, reports | Decision grading, Leak finding, Reports | `web/src/features/analyze/`, `web/src/features/history/` | queued |
 | W4 | Library: single-size library, more breadth, under 1 GB | Single-size library | `library-build/`, `scripts/library/`, `web/src/library/` | code done on its branch 2026-11-17; the build is solving (`docs/single-size-library.md`); not merged or published |
 | W5 | PLO4: turn and flop solves, registry, Study, Practice and Analyze | PLO4 | `web/src/engine/plo/`, `features/*/Plo*` | queued |
-| W6 | AI explanations proxy and client | AI explanations | `explain-worker/` (new), Explain buttons | queued |
+| W6 | AI explanations proxy and client | AI explanations | `explain-worker/` (new), Explain buttons | done 2026-11-22: Worker deployed, answers "not configured" until the owner adds the key (`DEPLOYMENT.md` §7); client off until `LIZARD_EXPLAIN=on`; PARTIAL |
 | W7 | Screenshot import | (new row) | `web/src/features/analyze/screenshot/` (new) | queued |
 | W8 | Arena: private share-link heads-up games | Multiplayer / HU arena | `arena-worker/` (new), `web/src/features/arena/` (new) | queued |
 | W9 | Postflop depth: multiway trees, a browser flop model closer to the library's | (Postflop depth, Formats) | `engine/tree_depth.py`, solver patches | queued |

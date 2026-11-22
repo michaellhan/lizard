@@ -366,3 +366,59 @@ npx wrangler@4 d1 execute lizard-sync --remote --command "ALTER TABLE users DROP
 ```
 
 To take it down, set `LIZARD_SYNC` off and redeploy, then remove the route (`npx wrangler@4 delete` from `worker/` removes the Worker and its route, and leaves the database). Local data is untouched by either.
+
+## 7. AI explanations (service up, waiting on the owner's Anthropic key)
+
+Done (2026-11-22): the Worker `lizard-explain` (`explain-worker/`) on the route `www.michael-han.com/lizard/api/explain*`,
+which is more specific than the sync Worker's `/lizard/api/*`, so Cloudflare sends these paths to it and everything else
+under `/lizard/api/` to sync as before; its D1 database `lizard-explain` (`fd1d8c2d-1ada-4166-9755-23c3d103660e`) with
+`explain-worker/schema.sql` applied; the Explain buttons in the site, off until a build variable turns them on. The model
+(Claude Haiku 5.5), the system prompt and the $20/month hard cap are fixed in the Worker's code (`prompt.ts`,
+`budget.ts`); the design is in the AI explanations row of `docs/FEATURE_MATRIX.md`.
+
+Until the key exists the Worker answers every request, and its health check, with `{"error":"not_configured"}` (503).
+Checked live on 2026-11-22:
+
+```bash
+curl -s -H 'origin: https://www.michael-han.com' https://www.michael-han.com/lizard/api/explain/health
+```
+
+What the owner does, once:
+
+1. Create an Anthropic API key for Lizard in the Anthropic Console (a key of its own, so it can be revoked alone; a
+   spend limit of about $20 there, where the Console offers one, is a second guard beside the Worker's cap).
+2. Put it in as the Worker's secret, at this hidden prompt, from `explain-worker/`:
+
+```bash
+npx wrangler@4 secret put ANTHROPIC_API_KEY
+```
+
+3. Check that the health check now answers `{"ok":true,"model":"claude-haiku-5-5"}` (the `curl` above).
+4. Turn the buttons on in the site: set the repo variable and run the deploy (any push to `main`, or the workflow by hand):
+
+```bash
+gh variable set LIZARD_EXPLAIN --body on
+```
+
+```bash
+gh workflow run deploy.yml --ref main
+```
+
+5. Click Explain once on a Practice verdict, an Analyze decision and a Study node, and read each answer against the numbers
+   above it. Then the matrix row can move past PARTIAL.
+
+A change to `explain-worker/` is deployed by hand from `explain-worker/` (nothing in CI deploys it; CI runs its tests):
+
+```bash
+npm ci --ignore-scripts && npx wrangler@4 deploy
+```
+
+The month's spend, in nanodollars (1e-9 USD; the cap is 20,000,000,000), and the request count:
+
+```bash
+npx wrangler@4 d1 execute lizard-explain --remote --command "SELECT * FROM budget"
+```
+
+To switch it off: unset `LIZARD_EXPLAIN` and redeploy the site (the buttons go), and `npx wrangler@4 secret delete
+ANTHROPIC_API_KEY` from `explain-worker/` (the Worker answers `not_configured` again). `npx wrangler@4 delete` there
+removes the Worker and its route, and leaves the database.
