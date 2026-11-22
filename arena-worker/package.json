@@ -1,0 +1,9 @@
+{
+  "name": "lizard-arena",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "../node_modules/.bin/vitest run --root .",
+    "typecheck": "../node_modules/.bin/tsc --noEmit -p ."
+  }
+}

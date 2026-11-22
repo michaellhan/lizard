@@ -422,3 +422,55 @@ npx wrangler@4 d1 execute lizard-explain --remote --command "SELECT * FROM budge
 To switch it off: unset `LIZARD_EXPLAIN` and redeploy the site (the buttons go), and `npx wrangler@4 secret delete
 ANTHROPIC_API_KEY` from `explain-worker/` (the Worker answers `not_configured` again). `npx wrangler@4 delete` there
 removes the Worker and its route, and leaves the database.
+
+## 8. Private heads-up tables, "Play a friend" (service up, page off until a build variable)
+
+Done (2026-11-22): the Worker `lizard-arena` (`arena-worker/`) on the route `www.michael-han.com/lizard/api/arena*`,
+more specific than the sync Worker's `/lizard/api/*` as explain's is, with two SQLite-backed Durable Object classes
+(migration `v1`): `ArenaTable`, one per table (the dealer: the deck, both hands, the clocks, its sockets), and
+`ArenaLimits` (the per-IP and site-wide counts for making tables and opening sockets, each IP's kept as a salted hash,
+its counts deleted two days after its last use). No database, no secret, nothing stored about a player beyond the name
+typed at the table; a table deletes itself 30 minutes after its last move. The page (`web/src/features/arena/`, route
+`/lizard/arena`) is off until a build variable turns it on. The design is in the Multiplayer / HU arena row of
+`docs/FEATURE_MATRIX.md`.
+
+Checked live on 2026-11-22 (Version `b6cd5c89`): the health check answered `{"ok":true}`, a POST from another origin
+was refused (403), and the live check below passed, two WebSocket clients playing a hand to a showdown with neither sent
+the other's cards or a board card early:
+
+```bash
+curl -s https://www.michael-han.com/lizard/api/arena/health
+```
+
+```bash
+node arena-worker/scripts/live-check.mjs
+```
+
+To turn the page on (the owner's or coordinator's call): set the repo variable and run the deploy (any push to `main`,
+or the workflow by hand), then play a hand from two browsers on the live site. Then the matrix row can say it was clicked
+through live.
+
+```bash
+gh variable set LIZARD_ARENA --body on
+```
+
+```bash
+gh workflow run deploy.yml --ref main
+```
+
+A change to `arena-worker/` is deployed by hand from `arena-worker/` (nothing in CI deploys it; CI runs its tests). It
+has no dependencies of its own, so no `npm ci`; it shares `web/src/features/arena/protocol.ts` and `web/src/poker/`
+with the site, so a change there that touches the table's rules wants a Worker deploy too:
+
+```bash
+npx wrangler@4 deploy
+```
+
+Limits, in `arena-worker/src/limits.ts` and `web/src/features/arena/protocol.ts`: 10 tables an hour and 40 a day per IP
+(an IPv6 /64 counts as one), 2,000 a day across the site, 30 sockets a minute per IP; a message of at most 512 bytes and
+30 in 10 seconds (twice that closes the socket); two seats, no spectators, at most 4 sockets on a table at once (two
+seats and a reconnect each); names of 1-16 letters, digits, spaces and `._-`. On Cloudflare's free plan a hand costs
+about 20-40 socket messages and a few Durable Object writes, far inside the daily allowance.
+
+To switch it off: unset `LIZARD_ARENA` and redeploy the site (the page goes). `npx wrangler@4 delete` from
+`arena-worker/` removes the Worker, its route and its Durable Objects (open tables close).

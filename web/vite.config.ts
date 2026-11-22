@@ -22,7 +22,8 @@ const CSP = [
   "default-src 'self'",
   "script-src 'self' https://us-assets.i.posthog.com",
   "worker-src 'self' blob:",
-  "connect-src 'self' http://127.0.0.1:* http://localhost:* https://us.i.posthog.com https://us-assets.i.posthog.com",
+  // (wss: the arena's table sockets on the site's own host, features/arena; 'self' covers them in browsers that follow CSP 3)
+  "connect-src 'self' wss://www.michael-han.com http://127.0.0.1:* http://localhost:* ws://127.0.0.1:* ws://localhost:* https://us.i.posthog.com https://us-assets.i.posthog.com",
   "img-src 'self' data:",
   "style-src 'self' 'unsafe-inline'",
   "font-src 'self'",

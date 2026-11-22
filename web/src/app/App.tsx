@@ -33,6 +33,8 @@ const ReportsPage = page(() => import("@/features/reports/ReportsPage"), "Report
 const ComparePage = page(() => import("@/features/compare/ComparePage"), "ComparePage");
 const EquityPage = page(() => import("@/features/equity/EquityPage"), "EquityPage");
 const PloRiverPage = page(() => import("@/features/plo/PloRiverPage"), "PloRiverPage");
+// (only in a build with VITE_ARENA=on: without it the route, and every byte of the page, stay out)
+const ArenaPage = import.meta.env.VITE_ARENA === "on" ? page(() => import("@/features/arena/ArenaPage"), "ArenaPage") : null;
 const SolvePageWith = lazy(() =>
   freshChunk(() => import("@/features/solve/SolvePage")).then((m) => ({
     default: m.SolvePage,
@@ -79,6 +81,7 @@ export function App() {
             <Route path="compare" element={<ComparePage />} />
             <Route path="equity" element={<EquityPage />} />
             <Route path="plo" element={<PloRiverPage />} />
+            {ArenaPage && <Route path="arena" element={<ArenaPage />} />}
             <Route path="*" element={<NotFoundPage />} />
           </Route>
         </Route>

@@ -6534,3 +6534,46 @@ into, and fixed where it can be (ACCURACY 18.11):
   have shrunk the published spots flop by flop. Until the swap (`docs/library-depths.md`, "Rebuilding after a chart
   change") the spots stay served as built (`engine/hu_near.py`).
 - At the start it is queued: both heavy slots hold gtosolver's flop and 3-way library builds (since 2026-11-21 21:07).
+
+## 2026-11-22 — Play a friend (W8): private heads-up tables by share link, play money
+
+- **Scope (owner's).** Private heads-up games by share link only; guests need no account; no ranked queue,
+  matchmaking or ladder; play money only, said on the page ("No real money, prizes or wagering of any kind").
+- **Server.** `arena-worker/`, a Cloudflare Worker deployed by hand as `lizard-arena` on
+  `www.michael-han.com/lizard/api/arena*` (Version `b6cd5c89`, 47 KiB, `docs/DEPLOYMENT.md` §8). One SQLite-backed
+  Durable Object per table (`table.ts`, WebSocket Hibernation API, the table's state in one storage key, one alarm for
+  the clock and the 30-minute idle expiry) runs the room (`room.ts`): seats, tokens, clocks, views, rate limits. The
+  dealer (`game.ts`) shuffles by Fisher-Yates on `crypto.getRandomValues` with rejection sampling (`rng.ts`; a
+  chi-square test over 26,000 shuffles, and no `Math.random` in the built Worker) and plays by Lizard's own rules engine
+  (`web/src/poker/table.ts`) and evaluator, shared with the site, never imported from `solver/`. Each view is built per
+  seat: your cards, the board dealt so far, and the other's cards only at a showdown or an all-in runout. The table id is
+  128 random bits, put after the `#` of the link (never sent to a server); a seat token is 128 bits, kept only as its
+  SHA-256. `ArenaLimits` counts table making per IP (10/hour, 40/day, IPv6 by /64, salted hash) and site-wide
+  (2,000/day), and sockets per IP (30/minute); messages are capped at 512 bytes and 30 in 10 seconds (twice that cuts the
+  socket); 2 seats, no spectators, 4 sockets a table, 16-character names. The hand history is written per seat in
+  Practice's layout under the site `Lizard Arena`, with no table id in it.
+- **Client.** `web/src/features/arena/` (route `/arena`, "Play a friend", linked from Practice's header): make a table
+  (stacks 20-200bb, 15/30/60-second clock and a 60-second bank refilled 10 a hand), copy the link, sit down by it, play
+  on Practice's cards and seats, reconnect with the saved token, and after each hand "Review in Analyze", which keeps
+  the hand in Analyze's store through its own importer and links to it, graded there (never during a hand). Lazy and off
+  unless `VITE_ARENA=on` (repo variable `LIZARD_ARENA`, wired in `deploy.yml`, not set).
+- **Decisions made unattended.** Every hand restarts both at the chosen depth, the score a running net (so equal stacks
+  and no side pots heads-up; uncalled excess returned and short all-ins tested); the next hand waits for both players'
+  "Next hand" (the first deals itself); out of time checks or folds; leaving mid-hand plays the hand out by the clock,
+  then frees the seat; a returning page with a token sits back down at once; the e2e's server is the Worker's own room
+  code over Playwright's `routeWebSocket` (CI needs no Worker), with `ARENA_E2E_URL` to pipe it to a real one;
+  `review.ts` imports Analyze's importer statically: three dynamic imports had moved shared code into the first script
+  (+2 kB), the static version costs it nothing (the page is lazy).
+- **Bundle.** First script 355.94 kB without the variable (+0.16 kB over main: routes.ts's row) and 356.14 kB with it
+  (limit 358.4 kB). `ArenaPage` chunk 17.4 kB (6.4 kB gzipped), loaded only on `/arena`.
+- **Tests.** `arena-worker`: tsc clean, vitest 46/46 (rules, hidden cards on every message, the shuffle, reconnect,
+  hibernation mid-hand, clocks, expiry, size and rate caps, origin, create and socket limits), now a CI step. Web:
+  `npm run typecheck` and `npm run lint` clean; vitest 255 files, 4,185 passed (arena 11); `npm run build` with
+  `VITE_ARENA=on` passes postbuild's budget; `e2e/arena.e2e.ts` passes against the mocked socket and against
+  `wrangler dev`; `e2e/routes.e2e.ts` (desktop) 22/22 on that build. Live: `node arena-worker/scripts/live-check.mjs`
+  passed on the deployed Worker (two WebSocket clients, a hand to a showdown, no early card in any message, the history
+  without the id), a made-up id got no socket, another origin's POST got 403.
+- **Matrix.** Multiplayer / HU arena NOT IMPLEMENTED → PARTIAL (Other 6/2/0/1, total 50/17/4/1). It stays PARTIAL:
+  no ranked arena (out of scope), the page is off on the live site until `LIZARD_ARENA` is set, so no one has clicked
+  through it live, and it hasn't been tried in Safari or on a phone.
+- Nothing under `solver/` changed; the gtosolver builds were left alone; the long commands ran through `slot.sh`.

@@ -142,6 +142,11 @@ function HoldemPractice({ pace = PACE, pause, guard }: { pace?: number; pause?: 
           ))}
         </div>
         <SoundSwitch />
+        {import.meta.env.VITE_ARENA === "on" && (
+          <Link to="/arena" className="text-sm underline">
+            Play a friend
+          </Link>
+        )}
         <button type="button" aria-expanded={help} onClick={() => setHelp(!help)} className="hidden rounded-md border border-border px-2 py-1 text-xs text-muted hover:bg-surface-2 sm:inline-block">
           Keyboard<Kbd>?</Kbd>
         </button>
