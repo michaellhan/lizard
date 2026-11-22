@@ -42,8 +42,12 @@ from typing import NamedTuple, Optional
 
 ROOT = Path(__file__).resolve().parents[2]
 MAIN = Path("/Users/mhan/Desktop/projects/lizard")  # the main checkout, whose library-build/ is the build's home
-OUT = MAIN / "library-build" / "sources" / "depths"
-RUN = MAIN / "library-build" / "runs" / "depths"
+# DEPTHS_OUT / DEPTHS_RUN build elsewhere (the supervisor and the job inherit them): a rebuild of published spots after
+# a chart change goes to its own folder, since assemble.py reads sources/depths as it is (a 6-hourly publish mid-build
+# would take entries solved on the new charts under the old index's fingerprints, which the reader rejects); its spot
+# folders replace the old ones once it's done (docs/library-depths.md, "Rebuilding after a chart change").
+OUT = Path(os.environ.get("DEPTHS_OUT") or MAIN / "library-build" / "sources" / "depths")
+RUN = Path(os.environ.get("DEPTHS_RUN") or MAIN / "library-build" / "runs" / "depths")
 PY = MAIN / ".venv" / "bin" / "python"
 JOBS = 2  # worker processes (the machine is shared: at most 2)
 RETRIES = 5

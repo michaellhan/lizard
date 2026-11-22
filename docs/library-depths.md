@@ -119,6 +119,27 @@ the heads-up builds:
 
 The 6-hourly publish picks the spots up once this is on `main`.
 
+### Rebuilding after a chart change
+
+When the charts move under published spots (`scripts/library/test_published_fps.py` lists them stale; the lz4 equity
+table did it to the four 200bb spots on 2026-11-22, served as built by `engine/hu_near.py` meanwhile), rebuild into a
+folder of its own, not into `sources/depths`. The build rewrites its index every 20 entries and leaves out entries
+solved on other charts, and `assemble.py` reads `sources/depths` as it is, so an in-place rebuild would shrink the
+published spots flop by flop until it ended.
+
+```bash
+DEPTHS_OUT=library-build/sources/depths-lz4 DEPTHS_RUN=library-build/runs/depths-lz4 .venv/bin/python scripts/library/depths_build.py start --batch 200bb --max-mb 3000
+```
+
+(`status` and `stop` take the same two variables.) Once every entry is on disk:
+
+1. Move each rebuilt spot's folder from `sources/depths` aside (`sources/depths-replaced/`) and the new one in.
+2. Rewrite `sources/depths/index.json` from the frozen solver copy the build ran on (`runs/depths-lz4/solver-*`):
+   `python scripts/build_flop_library.py --index-only --format 40bb,200bb --out <main>/library-build/sources/depths`.
+3. `scripts/library/hu_built_ranges.py` (the rebuilt spots drop out of `engine/hu_built.py`) and
+   `scripts/library/published_fps.py` after the publish, then the tests, commit, and the 6-hourly publish or
+   `publish.sh`.
+
 ## Next batches
 
 In order:

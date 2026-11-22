@@ -6524,3 +6524,13 @@ into, and fixed where it can be (ACCURACY 18.11):
   5/4/0/0; total 72 rows, 12/42/5/13 and 50/16/4/2). PARTIAL until it is tried on real rooms' screenshots; sideways or
   fanned cards, oldstyle figures and light tables read worse, and the betting isn't read.
 - Nothing under `solver/` changed; the gtosolver builds were left alone.
+
+## 2026-11-22 — The four 200bb library spots rebuilding on lz4's charts
+
+- The owner approved rebuilding them (the depths build's 200bb batch, one worker at ~1.5 GB, ~18 h of solving once it
+  holds a heavy slot). Started 07:55 into `library-build/sources/depths-lz4` (`DEPTHS_OUT`/`DEPTHS_RUN`, new in
+  `scripts/library/depths_build.py`), not in place: the build rewrites its index every 20 entries and leaves out
+  entries solved on other charts, and `assemble.py` reads `sources/depths` as it is, so the 6-hourly publish would
+  have shrunk the published spots flop by flop. Until the swap (`docs/library-depths.md`, "Rebuilding after a chart
+  change") the spots stay served as built (`engine/hu_near.py`).
+- At the start it is queued: both heavy slots hold gtosolver's flop and 3-way library builds (since 2026-11-21 21:07).
