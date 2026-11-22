@@ -5,6 +5,7 @@
 // spot is planned to reach comes from lizard-library.json, which scripts/library/assemble.py writes from the
 // solver's SPOT_FLOPS; a library without it (the upstream one) shows counts only.
 import { LIBRARY_SOURCES, type LibrarySourceId } from "@/config";
+import { coveredFlops, parseSsIndex } from "./singleSize";
 import { libraryStamps, type LibraryStamp } from "./version";
 
 export interface LibrarySpotIndex {
@@ -68,6 +69,17 @@ export interface LibraryPlan {
   spots?: Record<string, { flops: number; target?: number | null }>;
   /** the 3-way spots' flop counts they are being built to (assemble.py MW_BUILD_PLANS) */
   multiwayTargets?: Record<string, number | null>;
+  /** the single-size library's publish (assemble.py add_single_size): the flop count it's being built to */
+  singleSize?: { target?: number | null };
+}
+
+/** The single-size library (ss_index.json, library/singleSize.ts): a separate source, one bet size a node. */
+export interface SingleSizeCoverage {
+  spots: { id: string; label: string; line: string; flops: number }[];
+  /** the flops every spot holds, in the build's order */
+  flops: string[];
+  /** the flop count it's being built to, when the library says */
+  target: number | null;
 }
 
 export interface LibraryCatalog {
@@ -75,8 +87,21 @@ export interface LibraryCatalog {
   base: string;
   available: boolean;
   spots: SpotCoverage[];
+  /** the single-size library beside it, where published */
+  singleSize?: SingleSizeCoverage;
   fetchedAt: number;
   error?: string;
+}
+
+/** The single-size library's coverage from its index (null where it holds nothing). */
+export function summarizeSingleSize(raw: unknown, plan?: LibraryPlan | null): SingleSizeCoverage | null {
+  const idx = parseSsIndex(raw);
+  if (!idx || !idx.spots.length) return null;
+  return {
+    spots: idx.spots.map((s) => ({ id: s.id, label: s.label, line: s.line, flops: Object.keys(s.flops).length })),
+    flops: coveredFlops(idx),
+    target: plan?.singleSize?.target ?? null,
+  };
 }
 
 function kindOf(id: string): SpotCoverage["kind"] {
@@ -133,15 +158,17 @@ export async function loadStamps(base: string, fetchImpl: typeof fetch = (...a) 
 
 export async function loadCatalog(source: LibrarySourceId, fetchImpl: typeof fetch = fetch): Promise<LibraryCatalog> {
   const src = LIBRARY_SOURCES.find((s) => s.id === source) ?? LIBRARY_SOURCES[0];
-  const [index, mw, plan] = await Promise.all([
+  const [index, mw, plan, ss] = await Promise.all([
     getJson<LibraryIndex>(`${src.base}index.json`, fetchImpl),
     getJson<LibraryIndex>(`${src.base}mw_index.json`, fetchImpl),
     getJson<LibraryPlan>(`${src.base}lizard-library.json`, fetchImpl),
+    getJson<unknown>(`${src.base}ss_index.json`, fetchImpl),
   ]);
   if (!index) {
     return { source: src.id, base: src.base, available: false, spots: [], fetchedAt: Date.now(), error: "index.json not found" };
   }
-  return { source: src.id, base: src.base, available: true, spots: summarize(index, mw, plan), fetchedAt: Date.now() };
+  const singleSize = summarizeSingleSize(ss, plan);
+  return { source: src.id, base: src.base, available: true, spots: summarize(index, mw, plan), ...(singleSize ? { singleSize } : {}), fetchedAt: Date.now() };
 }
 
 /** The first library source that is actually published (Lizard's own, else the upstream's). */

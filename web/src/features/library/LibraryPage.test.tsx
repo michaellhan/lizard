@@ -42,4 +42,26 @@ describe("LibraryPage", () => {
     const table = (await screen.findAllByRole("table"))[0]!;
     expect(within(table).getAllByRole("columnheader").map((c) => c.textContent)).toEqual(["Spot", "Type", "Flops", "Stored turns", "Open in Study"]);
   });
+
+  it("shows the single-size library as a source of its own, with the flops it covers and Study links that pick it", async () => {
+    load.mockResolvedValue({
+      source: "lizard-library",
+      base: "x/",
+      available: true,
+      fetchedAt: 0,
+      spots: [],
+      singleSize: {
+        spots: [{ id: "ss_srp_btn_bb", label: "BTN vs BB single-raised pot, single size", line: "UTG:f,HJ:f,CO:f,BTN:r2.5,SB:f,BB:c", flops: 2 }],
+        flops: ["Ac7d2h", "KcQc8d"],
+        target: 552,
+      },
+    } as LibraryCatalog);
+    open();
+    const cap = (await screen.findAllByText(/^Single-size library: 6-max 100bb, one bet size a node/))[0]!;
+    const table = cap.closest("table")!;
+    expect(within(table).getByText("2 / 552")).toBeInTheDocument();
+    expect(within(table).getByRole("link", { name: "Study →" }).getAttribute("href")).toContain("lib=ss");
+    expect(screen.getAllByText(/Flops covered on every spot \(2 of 552 planned\)/)[0]).toBeInTheDocument();
+    expect(screen.getAllByText("Ac7d2h KcQc8d")[0]).toBeInTheDocument();
+  });
 });

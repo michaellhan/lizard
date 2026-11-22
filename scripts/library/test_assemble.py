@@ -98,6 +98,7 @@ def make_mw(root: Path, spots: dict, tree=None, fp=None) -> dict:
 
 
 NO_BREADTH = Path(tempfile.gettempdir()) / "assemble-test-no-breadth"  # (never created: no breadth source)
+NO_SS = Path(tempfile.gettempdir()) / "assemble-test-no-single-size"  # (nor the single-size library's)
 
 
 def run(*args) -> subprocess.CompletedProcess:
@@ -109,6 +110,8 @@ def run(*args) -> subprocess.CompletedProcess:
         args = (*args, "--formats", NO_FORMATS)
     if "--breadth" not in args:
         args = (*args, "--breadth", NO_BREADTH)
+    if "--single-size" not in args:
+        args = (*args, "--single-size", NO_SS)
     return subprocess.run([sys.executable, str(HERE / "assemble.py"), *map(str, args)], capture_output=True, text=True)
 
 
@@ -640,6 +643,138 @@ class MultiwayTest(unittest.TestCase):
         self.assertEqual(spread(8), [0, 4, 2, 6, 1, 5, 3, 7])
         first = spread(1000)[:10]  # an early stop leaves an even sample, not one corner
         self.assertTrue(max(first) > 800 and min(first) < 100)
+
+
+def make_ss(root: Path, spots: dict, order=None, target=552) -> dict:
+    """A single-size build (build_single_size.py's ss-index.json): `spots` maps id -> {flop: (entry bytes, size %)};
+    each flop's tree keyed by its size, a turn file with every entry, a report row per flop."""
+    idx = {"format": 2, "ss_format": 1, "spots": []}
+    for sid, flops in spots.items():
+        d = root / sid
+        d.mkdir(parents=True, exist_ok=True)
+        listed, sizes, trees, ft = {}, {}, {}, {}
+        for f, (b, pct) in flops.items():
+            (d / f"{f}.bin").write_bytes(b)
+            (d / f"{f}.turn.bin").write_bytes(turn_file(b))
+            listed[f], sizes[f], ft[f] = h(b, 10), pct, f"b{pct:g}"
+            trees[f"b{pct:g}"] = {"sizes": {"flop_bet": [pct / 100]}, "model": {"version": 1}}
+        report = json.dumps({"id": sid, "flops": [{"f": f, "w": 10.0} for f in flops], "single_size": True}).encode()
+        (d / "report.json").write_bytes(report)
+        (d / "ranges.json").write_text("{}")
+        idx["spots"].append({"id": sid, "base": sid[3:], "label": sid, "line": "BTN:r2.5,BB:c", "seats": ["BB", "BTN"],
+                             "fp": [sid, "x"], "pot": 5.5, "stack": 97.5, "flops": listed, "sizes": sizes,
+                             "trees": trees, "flop_tree": ft, "turns": True, "report": h(report, 10),
+                             "single_size": True})
+    root.mkdir(parents=True, exist_ok=True)
+    (root / "ss-index.json").write_text(json.dumps(idx))
+    (root / "plan.json").write_text(json.dumps({"spots": {sid: target for sid in spots}, "phases": [184, target],
+                                                "flops": order or []}))
+    return idx
+
+
+class SingleSizeTest(unittest.TestCase):
+    """The single-size library (--single-size): its own ss_index.json, every spot on the same flops."""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+        self.base, self.hu, self.ss, self.out = (self.tmp / n for n in ("base", "hu", "ss", "stage"))
+        make_lib(self.base, "srp_btn_bb", ["a", "b"], {"Ks7d2c": b"entry-1"})
+        self.hu.mkdir()
+        # 10 spots: Kc7d2h and 8c7c6c on all of them, Ah9d4c on 9 (90%: in), 5c4d2h on 1 (out)
+        spots = {f"ss_srp_{i}": {"Kc7d2h": (b"k%d" % i, 25.0), "8c7c6c": (b"e%d" % i, 75.0)} for i in range(10)}
+        for i in range(9):
+            spots[f"ss_srp_{i}"]["Ah9d4c"] = (b"a%d" % i, 33.0)
+        spots["ss_srp_0"]["5c4d2h"] = (b"5-0", 50.0)
+        make_ss(self.ss, spots, order=["8c7c6c", "Kc7d2h", "Ah9d4c", "5c4d2h"])
+
+    def stage(self, *extra, out=None) -> subprocess.CompletedProcess:
+        return run("--out", out or self.out, "--base", self.base, "--hu", self.hu, "--single-size", self.ss, *extra)
+
+    def ss_index(self, root=None) -> dict:
+        return json.loads(((root or self.out) / "ss_index.json").read_text())
+
+    def index(self) -> dict:
+        return json.loads((self.out / "index.json").read_text())
+
+    def test_every_spot_goes_in_on_the_flops_most_spots_hold(self):
+        r = self.stage()
+        self.assertEqual(r.returncode, 0, r.stderr)
+        idx = self.ss_index()
+        spots = {s["id"]: s for s in idx["spots"]}
+        self.assertEqual(len(spots), 10)
+        self.assertEqual(sorted(spots["ss_srp_0"]["flops"]), ["8c7c6c", "Ah9d4c", "Kc7d2h"])  # (5c4d2h: 1 of 10)
+        self.assertEqual(sorted(spots["ss_srp_9"]["flops"]), ["8c7c6c", "Kc7d2h"])
+        self.assertEqual(idx["flops"], ["8c7c6c", "Kc7d2h"])  # (the flops every spot holds, in the build's order)
+        self.assertEqual(spots["ss_srp_0"]["sizes"], {"8c7c6c": 75.0, "Kc7d2h": 25.0, "Ah9d4c": 33.0})
+        self.assertEqual(set(spots["ss_srp_0"]["trees"]), {"b25", "b75", "b33"})
+        self.assertFalse((self.out / "ss_srp_0" / "5c4d2h.bin").exists())
+        self.assertTrue((self.out / "ss_srp_0" / "Ah9d4c.turn.bin").exists())
+        # the report is cut to the staged flops, its weights rescaled, its hash in the index
+        rb = (self.out / "ss_srp_0" / "report.json").read_bytes()
+        self.assertEqual(spots["ss_srp_0"]["report"], h(rb, 10))
+        rows = json.loads(rb)["flops"]
+        self.assertEqual(sorted(x["f"] for x in rows), ["8c7c6c", "Ah9d4c", "Kc7d2h"])
+        self.assertAlmostEqual(sum(x["w"] for x in rows), 40.0, places=2)
+        self.assertNotIn("ss_srp_0", [s["id"] for s in self.index()["spots"]])  # (not in index.json)
+        summary = json.loads((self.out / "lizard-library.json").read_text())
+        self.assertEqual(summary["singleSize"]["spots"]["ss_srp_0"], 3)
+        self.assertEqual(summary["singleSize"]["target"], 552)
+        self.assertEqual(summary["singleSize"]["flops"], ["8c7c6c", "Kc7d2h"])
+
+    def test_no_build_means_no_ss_index(self):
+        r = run("--out", self.out, "--base", self.base, "--hu", self.hu)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertFalse((self.out / "ss_index.json").exists())
+        self.assertNotIn("singleSize", json.loads((self.out / "lizard-library.json").read_text()))
+
+    def test_a_non_single_size_id_is_left_out(self):
+        idx = json.loads((self.ss / "ss-index.json").read_text())
+        idx["spots"][1]["id"] = "srp_btn_bb"
+        (self.ss / "ss-index.json").write_text(json.dumps(idx))
+        r = self.stage()
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertNotIn("srp_btn_bb", [s["id"] for s in self.ss_index()["spots"]])
+        self.assertIn("not a single-size id", r.stdout)
+
+    def test_flops_stop_at_the_byte_budget_in_the_build_order(self):
+        sys.path.insert(0, str(HERE))
+        try:
+            import assemble
+        finally:
+            sys.path.remove(str(HERE))
+        self.out.mkdir()
+        old = assemble.SS_BYTES
+        try:  # the reports, ranges and one flop's entries and turn files fit, not two
+            per_flop = sum(p.stat().st_size for p in self.ss.glob("*/8c7c6c*.bin"))
+            fixed = sum(p.stat().st_size for p in self.ss.glob("*/*.json"))
+            assemble.SS_BYTES = fixed + per_flop + 10
+            log = []
+            idx, summary = assemble.add_single_size(self.ss, self.out, set(), None, False, 0, log)
+        finally:
+            assemble.SS_BYTES = old
+        self.assertEqual(sorted(idx["spots"][0]["flops"]), ["8c7c6c"])
+        self.assertEqual(idx["flops"], ["8c7c6c"])
+        self.assertTrue(any("1 of 3 complete flops fit" in x for x in log), log)
+
+    def test_a_spot_never_shrinks_below_the_previous_release(self):
+        prev = self.tmp / "prev"
+        self.assertEqual(self.stage(out=prev).returncode, 0)
+        idx = json.loads((self.ss / "ss-index.json").read_text())
+        for s in idx["spots"]:  # (a rebuilt source lost a flop)
+            s["flops"].pop("Ah9d4c", None)
+            (self.ss / s["id"] / "Ah9d4c.bin").unlink(missing_ok=True)
+        (self.ss / "ss-index.json").write_text(json.dumps(idx))
+        r = self.stage("--previous", prev)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        spots = {s["id"]: s for s in self.ss_index()["spots"]}
+        self.assertEqual(sorted(spots["ss_srp_3"]["flops"]), ["8c7c6c", "Ah9d4c", "Kc7d2h"])
+        self.assertIn("ss_srp_3: kept the previous release", r.stdout)
+        self.assertEqual(spots["ss_srp_3"]["report"], h((self.out / "ss_srp_3" / "report.json").read_bytes(), 10))
+
+    def test_the_source_is_not_modified(self):
+        before = {p: p.read_bytes() for p in self.ss.rglob("*") if p.is_file()}
+        self.assertEqual(self.stage().returncode, 0)
+        self.assertEqual(before, {p: p.read_bytes() for p in self.ss.rglob("*") if p.is_file()})
 
 
 if __name__ == "__main__":

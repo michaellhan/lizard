@@ -24,7 +24,7 @@ reviewed and passes its gates.
 | W1 | Tournaments depth: ICM preflop on Lizard's calibrated solver, bounty spots, a bigger final-table set, satellites, chip EV, tournament files, real payout presets | ICM, chipEV, Satellites, KO/PKO, Mystery bounty, ICM final-table library, Real tournament presets, MTT | `engine/pf_icm*`, `scripts/pf_icm/`, `web/src/features/tournaments/` | queued |
 | W2 | Preflop depth: 4bet sizes, straddle from any seat, 5bet rules, limp and per-position checks, unequal-stack grades | Preflop, Preflop trainer, Preflop solves, Preflop tree builder, EV-loss scoring | `engine/pf_*` (not `pf_icm*`), `web/src/features/study/pf*` | queued |
 | W3 | Analyze: decision grading, leak thresholds, reports | Decision grading, Leak finding, Reports | `web/src/features/analyze/`, `web/src/features/history/` | queued |
-| W4 | Library: single-size library, more breadth, under 1 GB | Single-size library | `library-build/`, `scripts/library/`, `web/src/library/` | queued |
+| W4 | Library: single-size library, more breadth, under 1 GB | Single-size library | `library-build/`, `scripts/library/`, `web/src/library/` | code done on its branch 2026-11-17; the build is solving (`docs/single-size-library.md`); not merged or published |
 | W5 | PLO4: turn and flop solves, registry, Study, Practice and Analyze | PLO4 | `web/src/engine/plo/`, `features/*/Plo*` | queued |
 | W6 | AI explanations proxy and client | AI explanations | `explain-worker/` (new), Explain buttons | queued |
 | W7 | Screenshot import | (new row) | `web/src/features/analyze/screenshot/` (new) | queued |

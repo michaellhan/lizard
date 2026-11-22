@@ -22,6 +22,8 @@ import {
   streetOf,
   studyKey,
   studyRequest,
+  sameSources,
+  withLib,
   toSearch,
   type StudyHand,
 } from "./studyState";
@@ -233,5 +235,25 @@ describe("pfRakeRequest (Settings' Study preflop with rake)", () => {
   it("leaves the default request without rake", async () => {
     const { studyRequest } = await import("./studyState");
     expect(studyRequest(freshHand()).rake).toBeUndefined();
+  });
+});
+
+describe("the single-size flop source", () => {
+  const h: StudyHand = { ...freshHand(), preflop: parseLine(LINE), board: "Ac7d2h" };
+  const SS = { single_size: true as const, sizes: { flop: [25], turn: [75], river: [75] } };
+  it("is kept in the link as lib=ss, and a new hand keeps it", () => {
+    const ss = withLib(h, "ss");
+    expect(toSearch(ss)).toContain("lib=ss");
+    expect(fromSearch(toSearch(ss))?.lib).toBe("ss");
+    expect(fromSearch(toSearch(h))?.lib).toBeUndefined();
+    expect(withLib(ss, "library").lib).toBeUndefined();
+    expect(sameSources(ss, freshHand()).lib).toBe("ss");
+    expect(sameSources(h, freshHand()).lib).toBeUndefined();
+  });
+  it("sends single_size and the flop's own size after the flop with the single-size source only", () => {
+    expect(studyRequest(withLib(h, "ss"), SS)).toMatchObject(SS);
+    expect(studyRequest(h, SS).single_size).toBeUndefined();
+    expect(studyRequest(withLib(h, "ss"), null).single_size).toBeUndefined();
+    expect(studyRequest(withLib({ ...h, board: "" }, "ss"), SS).single_size).toBeUndefined();
   });
 });

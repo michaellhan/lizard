@@ -34,8 +34,13 @@ builds of new spots (lines the other sources don't have). They go in last, each 
 the file cap (MAX_FILES, less a reserve), in the source index's order (its value order), so a breadth build can never
 make a publish fail; a spot another source holds (by id or by ranges, pot and stack) is left to that source.
 
+The single-size source (--single-size; by default library-build/sources/single-size, scripts/library/build_single_size.py)
+goes in after everything else as its own index, ss_index.json (engine/single_size.py reads it): every spot on the same
+flops, flop by flop in the build's order while it stays within SS_BYTES and the file cap, never fewer flops a spot than
+the previous release.
+
 Usage: assemble.py --out library-build/stage [--previous library-build/lizard-library] [--hu DIR ...] [--mw DIR ...]
-       [--formats DIR ...] [--extend DIR ...] [--breadth DIR ...]
+       [--formats DIR ...] [--extend DIR ...] [--breadth DIR ...] [--single-size DIR]
 Exit status 0 when the stage is complete and consistent; the summary goes to stdout and the stage's
 lizard-library.json.
 """
@@ -79,7 +84,15 @@ ENTRY_MAGIC = b"GTOFL3"  # gto/flop_library.py MAGIC
 HEADS_FORMAT = 1  # <mw spot>/heads.json (web/src/library/mwReport.ts reads it)
 MAX_FILE = 50 * 2**20
 MAX_TOTAL = 900 * 2**20
-MAX_FILES = 90_000  # (GitHub Pages: 1 GB a site, no file limit; 49,298 files deployed in 80 s on 2026-11-15)
+# (GitHub Pages: 1 GB a site, no file limit; 49,298 files deployed in 80 s on 2026-11-15. 120,000 for the single-size
+# library's ~63 files a flop: 552 flops on its 38 spots take ~35k more beside the 78.6k of release b3d8a40c)
+MAX_FILES = 120_000
+SS_SOURCE = SOURCES / "single-size"  # scripts/library/build_single_size.py
+SS_FORMAT = 1  # engine/single_size.py SS_FORMAT
+# The single-size library's own byte budget: the library (482 MB at b3d8a40c) + this + the app (~28 MB) stays well
+# under MAX_TOTAL and GitHub Pages' 1 GB (docs/single-size-library.md)
+SS_BYTES = 250 * 2**20
+SS_SHARE_PCT = 90  # a single-size flop is published once this share of the spots hold it (a few may have failed)
 
 
 # Build plans that differ from the snapshot's SPOT_FLOPS (solver/gto/flop_library.py): the heads-up SRP build goes on
@@ -553,6 +566,158 @@ def add_breadth(src: Path, out: Path, merged: list[dict], tree: dict, log: list[
                     "plan": {k: int(v) for k, v in plan.items()}}
 
 
+def ss_flop_order(src: Path, idx: dict) -> list[str]:
+    """The single-size flops in the order the build solves them (plan.json's `order`, its phases' flops; else its
+    `flops`), then any other flop a spot holds."""
+    try:
+        plan = json.loads((src / "plan.json").read_bytes())
+    except (OSError, ValueError):
+        plan = {}
+    order = [f for f in (plan.get("order") or plan.get("flops") or []) if isinstance(f, str)]
+    seen = set(order)
+    for s in idx.get("spots", []):
+        for f in sorted(s.get("flops", {})):
+            if f not in seen:
+                seen.add(f)
+                order.append(f)
+    return order
+
+
+def stage_ss_spot(src_root: Path, out: Path, spot: dict, flops: list[str], link: bool, log: list[str]) -> dict | None:
+    """One single-size spot on `flops` (those it holds): its entries and turn files validated by copy_spot, its
+    per-flop fields kept to those flops, and its report.json cut to them (weights rescaled, so they still sum to the
+    flops the report stood for), with the index's report hash updated."""
+    held = [f for f in flops if f in spot.get("flops", {})]
+    if not held:
+        return None
+    keep = set(held)
+    sub = dict(spot, flops={f: spot["flops"][f] for f in held})
+    t = spot.get("turns")
+    if isinstance(t, list):
+        sub["turns"] = [f for f in t if f in keep] or None
+        if sub["turns"] is None:
+            sub.pop("turns")
+    staged = copy_spot(src_root, out, sub, link, log)
+    if staged is None:
+        return None
+    got = set(staged["flops"])
+    staged["sizes"] = {f: v for f, v in (spot.get("sizes") or {}).items() if f in got}
+    staged["flop_tree"] = {f: v for f, v in (spot.get("flop_tree") or {}).items() if f in got}
+    staged["trees"] = {k: v for k, v in (spot.get("trees") or {}).items() if k in set(staged["flop_tree"].values())}
+    old = [f for f in spot.get("old") or [] if f in got]
+    staged.pop("old", None)
+    if old:
+        staged["old"] = old
+    rp = out / spot["id"] / "report.json"
+    if rp.exists():
+        rep = json.loads(rp.read_bytes())
+        rows = rep.get("flops") or []
+        kept = [r for r in rows if r.get("f") in got]
+        if len(kept) != len(rows):
+            total, part = sum(r.get("w", 0) for r in rows), sum(r.get("w", 0) for r in kept)
+            for r in kept:
+                r["w"] = round(r.get("w", 0) * total / part, 3) if part else r.get("w", 0)
+            rep["flops"] = kept
+            rb = json.dumps(rep, separators=(",", ":")).encode()
+            rp.unlink()  # (a hard link to the previous release's file: never written through)
+            rp.write_bytes(rb)
+            staged["report"] = sha(rb, 10)
+    return staged
+
+
+def add_single_size(src: Path, out: Path, taken: set[str], prev: Path | None, allow_shrink: bool, n_files: int,
+                    log: list[str]) -> tuple[dict | None, dict | None]:
+    """Stage the single-size library (scripts/library/build_single_size.py) as ss_index.json beside the library.
+
+    Every spot on the same flops (the owner: every preflop line on fewer flops beats a few lines on every flop): a flop
+    goes in when SS_SHARE of the spots hold it, in the build's order, while the single-size files stay within SS_BYTES
+    and the stage within the file cap (MAX_FILES less BREADTH_RESERVE); each spot lists the flops it holds. A spot that
+    would hold fewer flops than in the previous release (--previous's ss_index.json) keeps that release's copy. Returns
+    (the index, the summary) or (None, None)."""
+    ip = src / "ss-index.json"
+    if not ip.exists():
+        log.append(f"{src}: no ss-index.json yet")
+        return None, None
+    idx = json.loads(ip.read_bytes())  # written by os.replace: never torn
+    if idx.get("format") != FORMAT or idx.get("ss_format") != SS_FORMAT:
+        log.append(f"{src}: ss-index.json format differs, left out")
+        return None, None
+    spots = []
+    for s in idx.get("spots", []):
+        if not str(s.get("id", "")).startswith("ss_") or s["id"] in taken:
+            log.append(f"{s.get('id')}: not a single-size id of its own, left out")
+            continue
+        spots.append(s)
+    order = ss_flop_order(src, idx)
+    need = max(1, -(-len(spots) * SS_SHARE_PCT // 100))
+    common = [f for f in order if sum(f in s.get("flops", {}) for s in spots) >= need]
+    # the flops that fit: bytes (entries, turn files) and files, flop by flop in the build's order
+    nbytes, files = 0, 2 * len(spots)  # (each spot's report.json and ranges.json)
+    for s in spots:
+        for name in ("report.json", "ranges.json"):
+            p = src / s["id"] / name
+            nbytes += p.stat().st_size if p.exists() else 0
+    chosen: list[str] = []
+    for f in common:
+        b = c = 0
+        for s in spots:
+            if f not in s.get("flops", {}):
+                continue
+            for p in (src / s["id"] / f"{f}.bin", src / s["id"] / f"{f}.turn.bin"):
+                if p.exists():
+                    b += p.stat().st_size
+                    c += 1
+        if nbytes + b > SS_BYTES or n_files + files + c > MAX_FILES - BREADTH_RESERVE:
+            log.append(f"single-size: {len(chosen)} of {len(common)} complete flops fit "
+                       f"({SS_BYTES / 2**20:.0f} MB, the {MAX_FILES:,} file cap)")
+            break
+        chosen.append(f)
+        nbytes += b
+        files += c
+    staged_spots = []
+    for s in spots:
+        st = stage_ss_spot(src, out, s, chosen, link=False, log=log)
+        if st is not None:
+            staged_spots.append(st)
+    # never publish a single-size spot on fewer flops than the previous release
+    pp = prev / "ss_index.json" if prev else None
+    if pp is not None and pp.exists():
+        try:
+            pidx = json.loads(pp.read_bytes())
+        except ValueError:
+            pidx = {}
+        if pidx.get("format") == FORMAT and pidx.get("ss_format") == SS_FORMAT:
+            now = {s["id"]: s for s in staged_spots}
+            for ps in pidx.get("spots", []):
+                cur = now.get(ps["id"])
+                if cur is not None and len(cur["flops"]) >= len(ps["flops"]):
+                    continue
+                if allow_shrink:
+                    log.append(f"{ps['id']}: shrinks from {len(ps['flops'])} flops (allowed)")
+                    continue
+                if (out / ps["id"]).exists():
+                    shutil.rmtree(out / ps["id"])
+                kept = stage_ss_spot(prev, out, ps, list(ps["flops"]), link=True, log=log)
+                if kept is None:
+                    sys.exit(f"{ps['id']}: shrank and the previous release failed validation; not publishing")
+                log.append(f"{ps['id']}: kept the previous release ({len(kept['flops'])} flops)")
+                staged_spots = [kept if s["id"] == ps["id"] else s for s in staged_spots]
+                if cur is None:
+                    staged_spots.append(kept)
+    if not staged_spots:
+        return None, None
+    try:
+        plan = json.loads((src / "plan.json").read_bytes())
+    except (OSError, ValueError):
+        plan = {}
+    covered = [f for f in order if all(f in s["flops"] for s in staged_spots)]
+    ss_idx = {"format": FORMAT, "ss_format": SS_FORMAT, "flops": covered, "spots": staged_spots}
+    summary = {"spots": {s["id"]: len(s["flops"]) for s in staged_spots}, "flops": covered,
+               "target": max([int(v) for v in (plan.get("spots") or {}).values()] or [0]) or None,
+               "phases": plan.get("phases"), "indexMtime": ip.stat().st_mtime}
+    return ss_idx, summary
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--out", required=True, type=Path)
@@ -568,6 +733,8 @@ def main() -> int:
     ap.add_argument("--nuts", type=Path, default=NUTS, help="where nuts.py wrote each spot's nut shares")
     ap.add_argument("--formats", type=Path, action="append",
                     help="a build directory of other games' spots, e.g. other depths (repeatable; default FORMAT_SOURCES)")
+    ap.add_argument("--single-size", type=Path, default=SS_SOURCE,
+                    help="the single-size library's build (default: library-build/sources/single-size)")
     a = ap.parse_args()
     hu_sources = a.hu if a.hu else HU_SOURCES
     ext_sources = a.extend if a.extend else EXTEND_SOURCES
@@ -577,7 +744,7 @@ def main() -> int:
     builds = [(p, "heads-up build") for p in hu_sources] + [(p, "format build") for p in format_sources]
 
     out = a.out.resolve()
-    for p in [a.base, *hu_sources, *ext_sources, *mw_sources, *format_sources, *breadth_sources]:
+    for p in [a.base, *hu_sources, *ext_sources, *mw_sources, *format_sources, *breadth_sources, a.single_size]:
         if out == p.resolve() or p.resolve() in out.parents:
             sys.exit(f"refusing: --out {out} is inside a source")
     if out == PROTECTED or PROTECTED in out.parents:
@@ -692,15 +859,25 @@ def main() -> int:
 
     nut_flops = {s["id"]: attach_nuts(a.nuts, out, s, log) for s in merged}
 
+    # the single-size library last: its own index, its own byte budget, within what the file cap leaves
+    taken = {s["id"] for s in merged} | {s["id"] for s in (mw or {}).get("spots", [])}
+    n_now = sum(1 for p in out.rglob("*") if p.is_file())
+    ss_idx, ss_summary = add_single_size(a.single_size, out, taken, a.previous, a.allow_shrink, n_now, log)
+    if ss_summary is not None:
+        sources.append({"path": str(a.single_size), "kind": "single-size build",
+                        "indexMtime": ss_summary["indexMtime"], "spots": ss_summary["spots"]})
+
     index = {"format": FORMAT, "tree": tree, "spots": merged}
     (out / "index.json").write_text(json.dumps(index, separators=(",", ":")))
     if mw is not None:
         (out / "mw_index.json").write_text(json.dumps(mw, separators=(",", ":")))
+    if ss_idx is not None:
+        (out / "ss_index.json").write_text(json.dumps(ss_idx, separators=(",", ":")))
     (out / ".nojekyll").write_text("")
 
     # consistency: every listed file exists, nothing unexpected, within GitHub Pages limits
-    listed = {"index.json", "mw_index.json", ".nojekyll", STAGE_MARK, "lizard-library.json"}
-    for s in merged:
+    listed = {"index.json", "mw_index.json", "ss_index.json", ".nojekyll", STAGE_MARK, "lizard-library.json"}
+    for s in [*merged, *(ss_idx or {}).get("spots", [])]:
         listed |= {f"{s['id']}/report.json", f"{s['id']}/ranges.json"}
         if s.get("nuts"):
             listed.add(f"{s['id']}/nuts.json")
@@ -745,6 +922,7 @@ def main() -> int:
         },
         "multiway": {s["id"]: len(s["flops"]) for s in (mw or {}).get("spots", [])},
         "multiwayTargets": {s["id"]: MW_BUILD_PLANS.get(s["id"]) for s in (mw or {}).get("spots", [])},
+        **({"singleSize": {k: v for k, v in ss_summary.items() if k != "indexMtime"}} if ss_summary else {}),
         "files": n,
         "bytes": total,
         "notes": log,

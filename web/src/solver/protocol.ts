@@ -2,6 +2,7 @@
 // optional local Python server (solver/gto/server.py). These types describe the messages exactly as the
 // upstream code sends and reads them; the typed, user-facing API is in ./types.ts.
 import type { BunchingBlock } from "./bunching";
+import type { SingleSizeBlock } from "./singleSize";
 import type { Confidence } from "./types";
 
 /** A game state as gto/advisor.py reads it (money in big blinds unless `bb` is given). Open-ended on purpose:
@@ -25,6 +26,8 @@ export interface AdvisorState {
   /** weigh the ranges entering the flop by the preflop folds (engine/bunching.py, solver/bunching.ts; the worker's alone):
    * whose fold ranges, the charts' or the preflop solve's */
   bunching?: "charts" | "solve";
+  /** read the flop from the single-size library (engine/single_size.py, library/singleSize.ts; the worker's alone) */
+  single_size?: boolean;
   ranges?: Record<string, string>;
   /** "fast" (default) or "accurate"; Quick is `quick: true`. */
   speed?: "fast" | "accurate";
@@ -172,6 +175,8 @@ export interface AdvisorResponse {
   tree?: { raises?: number; max_cells?: number };
   /** the ranges' weighing by the preflop folds, where the request asked for it (engine/bunching.py) */
   bunching?: BunchingBlock;
+  /** a single-size request's answer: stored, read off a stored flop, or solved live on its one-size tree (engine/single_size.py) */
+  single_size?: SingleSizeBlock;
   [key: string]: unknown;
 }
 
