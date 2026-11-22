@@ -50,6 +50,9 @@ jobs:
       - name: Explain proxy tests (the Worker on its real schema, Anthropic's API stubbed, D1 stood in for by SQLite; nothing here deploys it)
         working-directory: explain-worker
         run: npm ci --ignore-scripts && ../node_modules/.bin/tsc --noEmit -p . && ../node_modules/.bin/vitest run --root . src
+      - name: Arena tests (private heads-up tables: the Worker's dealing, rules, hidden cards and limits, Durable Objects stood in for; nothing here deploys it)
+        working-directory: arena-worker
+        run: ../node_modules/.bin/tsc --noEmit -p . && ../node_modules/.bin/vitest run --root . src
 
   python:
     runs-on: ubuntu-24.04
@@ -96,6 +99,7 @@ jobs:
         env:
           VITE_SYNC: ${{ vars.LIZARD_SYNC }}
           VITE_EXPLAIN: ${{ vars.LIZARD_EXPLAIN }}
+          VITE_ARENA: ${{ vars.LIZARD_ARENA }}
       - name: The built site, for the browser tests
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:

@@ -1,0 +1,23 @@
+# Lizard's private heads-up tables (docs/DEPLOYMENT.md §8). No secrets: nothing here is one, and the Worker needs none.
+# Durable Objects on the free plan must be SQLite-backed (new_sqlite_classes).
+name = "lizard-arena"
+main = "src/index.ts"
+compatibility_date = "2026-10-01"
+workers_dev = false
+# (more specific than the sync worker's /lizard/api/*, so Cloudflare sends these paths here and the rest there)
+routes = [{ pattern = "www.michael-han.com/lizard/api/arena*", zone_name = "michael-han.com" }]
+
+[vars]
+SITE_ORIGIN = "https://www.michael-han.com"
+
+[[durable_objects.bindings]]
+name = "TABLES"
+class_name = "ArenaTable"
+
+[[durable_objects.bindings]]
+name = "LIMITS"
+class_name = "ArenaLimits"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["ArenaTable", "ArenaLimits"]

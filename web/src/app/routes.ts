@@ -74,6 +74,7 @@ export const GRADES: Record<string, Grade> = {
   "Study plans": "WORKING",
   "Preferences / progress": "WORKING",
   "Solution comparisons": "WORKING",
+  "Multiplayer / HU arena": "PARTIAL",
 };
 
 /** A page's badge: working only where every row it names is WORKING, else how many are, and the others by grade. */
@@ -96,6 +97,7 @@ export const ROUTES: RouteDef[] = [
   { path: "compare", label: "Compare", nav: false, status: "partial", summary: "Two spots side by side (a tournament in chip EV, with and without rake, two stacks): the actions, the range and each hand class's change, each side with its own source.", rows: ["Solution comparisons"] },
   { path: "equity", label: "PLO equity", nav: false, status: "partial", summary: "PLO4 hand and range equity, exact or Monte Carlo, each number labelled as such: a calculator, not a solver.", rows: ["PLO4"] },
   { path: "plo", label: "PLO flop, turn and river", nav: true, status: "partial", summary: "One heads-up PLO4 river, a turn and every river after it, or a flop and every turn and river after it, solved exactly at the sizes you list, from ranges you type. Preflop isn't solved, and there's no rake.", rows: ["PLO4"] },
+  { path: "arena", label: "Play a friend", nav: false, status: "partial", summary: "A private heads-up table by link, for play money.", rows: ["Multiplayer / HU arena"] },
   { path: "library", label: "Library", nav: false, status: "working", summary: "Which spots are precomputed, and how much of each is built." },
   { path: "history", label: "History", nav: false, status: "partial", summary: "Every session kept in this browser by day (full hands, drills, leak drills, range builds), lifetime totals, full hands by pot type, decisions by street, and the trend across sessions.", rows: ["Session stats", "Preferences / progress"] },
   { path: "plan", label: "Review", nav: false, status: "partial", summary: "The old address of the plan, now on Progress: it goes there.", rows: ["Study plans"] },
