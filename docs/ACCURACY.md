@@ -3269,3 +3269,56 @@ before).
 - The 38 held decisions keep their pure choices until the 16 library spots they feed are rebuilt on smoothed ranges.
 - Smoothing is a prior (neighbouring classes play alike), not a solve: σ = 1 kicker step was picked by the sweep and
   the references, not measured against a combo-level solve of a format game.
+
+## 33. Leaks read by chance's bar, measured by simulation (2026-11-22)
+
+Analyze's leak list (`web/src/features/analyze/report.ts` `readLeaks`) used to mark a leak by fixed lines: a frequency
+10 points or more off the answer's with its 95% range clear of that, a preflop situation under 80% in the mix, a spot
+losing 0.5bb a decision, each over 30 decisions. Those lines ignore how much a sample can say: a 6-point shift is never
+a leak however many hands show it, and a database read on many rows at once gets no correction for the number of looks.
+
+**Now** (`web/src/features/analyze/leakStats.ts`): every row is a test against the answer for the same hands.
+
+- A frequency row pairs each decision's action (took that kind of action or not) with that hand's own answer share; the
+  test is on the mean difference, its spread no narrower than the answer's own mix makes (`pairTest`: the larger of the
+  sample variance and the mean m(1 - m)), so a player who draws from the answer's mix is no leak.
+- A preflop situation graded by frequency (the charts, push/fold) is tested on how often you were in the mix against how
+  often the answer's own mix would be (`okChance`: the most played, any tied with it, anything 10% or more, as
+  `grade.ts` grades), one-sided.
+- Rows graded by EV (the flop library, the preflop solve's class-level model, kept apart) test the EV given up past the
+  answer's noise against zero (`meanTest`).
+- The bar is Bonferroni over the tests a report makes on rows of 30 decisions or more: |z| at least the normal quantile
+  of 1 - 0.05/(2m), so about one report in twenty shows any false leak however many rows it reads (1.96 for one test,
+  3.48 for a hundred). Rows of 10 to 29 decisions past the bar, and rows of 30 or more between 1.96 and the bar, are
+  listed as thin ("not yet past the bar"), not as leaks.
+- Leaks that cost EV come first, by bb per 100 hands (the EV given up past the noise over the report's hands, times
+  100); frequency-only leaks follow by the size of the gap. Each preflop row is also read per seat, the seat named when
+  one seat says more than the pooled row; rows that are the same decisions as another (VPIP and PFR when only opens are
+  in the sample) are listed once.
+
+**Simulation** (`web/src/features/analyze/leaks.sim.test.ts`, `LEAK_SIM=1`, about 30 s through `slot.sh`): seeded
+6-max databases of made-up hands through the real `readLeaks` and `grade`: RFI from each seat, BB defence, SB facing an
+open, facing an open, facing a 3bet, mixes shaped like the charts (70% of hands pure, the rest split between two
+actions), and a flop c-bet in about one hand in six graded by EV. Play is drawn from the answer's own mix, or with one
+leak that moves a share of the rest of the mix to one kind of action. A false alarm is a database whose report shows
+any leak at all; a leak is found when a row naming its situation is listed. The same databases through the old lines
+(the `report.ts` of commit 1d02275):
+
+| case | 500 hands | 1,500 hands | 5,000 hands | old lines at 500 / 1,500 / 5,000 |
+|---|---:|---:|---:|---:|
+| no leak: any false leak, of 400 databases | 0.5% | 2.0% | 1.8% | 0% / 0% / 0% |
+| BB folds 20% of the rest more (about 11 points), of 100 | 51% | 100% | 100% | 0% / 2% / 5% |
+| BB folds 10% of the rest more (about 5.5 points) | 3% | 62% | 100% | 0% / 0% / 0% |
+| opens 15% of the rest more (about 10 points) | 100% | 100% | 100% | 0% / 0% / 0% |
+| c-bets 30% of the rest more, graded by EV | 63% | 100% | 100% | 7% / 36% / 94% |
+
+The false-alarm rate stays under the 5% the bar is set for (it is conservative because the tests overlap: VPIP, PFR and
+Open read many of the same decisions). The old lines never cried wolf, and found almost nothing either: a leak had to
+be over 10 points and its whole 95% range past the line. The suite runs a small version (40 databases of 1,500 hands
+with no leak: 10% at most; 20 of 3,000 hands with the 20% BB leak: 80% found at least).
+
+**Limits.** The preflop rows are tested against whatever graded them: outside the stored preflop games that is the
+charts, which are approximate, so a "leak" there is a gap to the charts, said on the row ("against the charts, by
+frequency, not a solve"). The simulation's mixes are chart-shaped, not the charts themselves; real databases have
+correlated decisions (one player, one style), which this does not model. Report time over 150,000 decisions is 1.45 s
+(`scale.test.ts`, limit 6 s).

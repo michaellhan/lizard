@@ -6611,3 +6611,38 @@ into, and fixed where it can be (ACCURACY 18.11):
 - Not done: a flop both wide and sound; rake in the river reference (the flop reference's covers river showdowns);
   merging this branch.
   The other project's builds were left alone; everything over a minute went through slot.sh.
+
+## 2026-11-22 — Analyze (W3): leaks read by chance's bar, a node view by seat and spot
+
+- Leaks (`web/src/features/analyze/leakStats.ts`, `report.ts` `readLeaks`): the fixed lines (10 points, 80% in the mix,
+  0.5bb a decision) are gone. Each row is a test against the answer for the same hands: a frequency pairs each action
+  with that hand's own answer share (spread no narrower than the answer's own mix, so playing the mix is no leak); a
+  preflop situation graded by frequency is your in-the-mix share against what the answer's own mix would score
+  (`okChance`, grade.ts's rule); EV-graded rows (library spots, the preflop solve's class-level model apart) test the EV
+  past the noise. One bar for the whole report, Bonferroni at 5% over the tests on rows of 30 or more, said under the
+  list ("How leaks are read"). Leaks that cost EV rank first by bb/100, then frequency-only ones by the gap; preflop
+  rows are also read per seat ("Open (RFI) · CO"); rows on the same decisions are listed once; "vs 4bet or more: fold"
+  joins the frequencies; the top 10 show, the rest fold away. The Plan's reading of a preflop leak says the same.
+- Measured by seeded simulation through the real code (`leaks.sim.test.ts`, `LEAK_SIM=1`, ACCURACY 33): no-leak play
+  shows any false leak in 0.5%, 2.0%, 1.8% of 400 databases at 500, 1,500, 5,000 hands; a BB folding about 5.5 points
+  too often is found in 3%, 62%, 100% of 100 databases, an open about 10 points too wide in 100% at every size, an
+  EV-graded c-bet leak in 63%, 100%, 100%. The old lines on the same databases: no false leaks, and 0% / 0% / 0%,
+  0% / 0% / 0% and 7% / 36% / 94% found.
+- "Your play at each node, by seat and by spot" (`nodes.ts`, `NodeTables.tsx`, in the lazy Analyze chunk, worked out
+  only when opened): preflop rows by seat against the charts and, apart, the preflop solve, each cell you / the answer
+  for the same hands / count, marked ▲▼ past 95% for that cell on 10 or more (the page says one in twenty is chance);
+  after the flop each spot's fold, check or call and bet or raise against the answer, with the EV given up. A cell opens
+  its decisions, misses worst first.
+- Report time over 150,000 decisions (`scale.test.ts` fixture, one run on a loaded machine): 1.0 s against 0.8 s
+  before; the dedupe first hashed every decision id of every row (0.15 s), now it compares only rows of one kind and
+  size.
+- Grades: Leak finding, Reports and Decision grading stay PARTIAL (FEATURE_MATRIX); Decision grading's remaining gaps
+  are W1's and W2's.
+- Gates: typecheck and lint clean; full vitest through slot.sh (`--maxWorkers=3`): 261 files, 4227 passed, 26
+  skipped; root `npm run build` with postbuild, first script 356.98 kB (unchanged); e2e desktop on the built preview
+  through slot.sh, 12 of 12: `chains.e2e.ts` Phase 6 (now also the bar line, the node view opened, a seat cell opening
+  its decisions), `qa.e2e.ts` 7b, 7g, 7j, 10, 10b, 10c, 10d, and `checks.e2e.ts`'s session stats and leak drills. The
+  spot table isn't reached by an e2e (that sample's flops aren't graded by EV); it is unit-tested (`nodes.test.ts`).
+- Calls made: the old fixed lines measured on the same simulated databases for comparison; the node view kept out of
+  the leak bar (its marks are per cell at 95% and say so); "Open limp (RFI)" kept in the grid only (in the frequency
+  rows it changed the trend's rows); nothing in `web/src/grading/` changed.
