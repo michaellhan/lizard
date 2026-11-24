@@ -6752,3 +6752,36 @@ Every figure below is lz4's.
   `scripts/engine/test_flop_model.py` (6) and `scripts/benchmarks/test_reference.py` (33, 21 s, 0.99 GB peak). The
   Pyodide tests weren't run: nothing in the worker's import chain changed.
 - About 3 CPU hours, all through slot.sh.
+
+## 2026-11-24 — Flop board view in Analyze, preflop blockers (W10)
+
+- Analyze (W10a): "Your flop play by board, against the answer's", a fold in the report under the node view
+  (`web/src/features/analyze/boards.ts`, `BoardsPanel.tsx`). Each flop frequency of the report's (c-bet, fold to and
+  raise a c-bet, raise a bet out of position, check-raise) by the flop's texture class, one texture group at a time
+  (high card, suits, pairing, connectedness: `practice/texture.ts`, shared with Drills, Reports and the breakdowns), and
+  under each class the flops behind it, flops alike but for their suits in one row (`flopClass`, the least of the 24
+  suit relabellings; 1,755 classes of the 22,100 flops, tested). The method is the frequency table's: your share
+  against the mean of the answer's own mix for the hand you held at each of the same decisions, so the whole-flop row
+  equals the table's (tested). Counts, 95% Wilson ranges, "few" under 30, the gap in points, what each row's answers
+  stand on, decisions worst first; pot type and position choices; what can't say is counted with why. Worked only
+  while the fold is open.
+- Study (W10b): preflop blockers on the Tools tab of a preflop node (`web/src/features/study/pfBlockers.ts`,
+  `PfBlockersPanel.tsx`), from the class-level preflop solve only. After a raise of ours, each seat still to act is
+  read in turn (the earlier ones folding: one solve request a seat, answered from the stored solve), and our classes are
+  ranked by how often all fold with our cards out, the seats' cards taken as apart as the model has them; facing a
+  raise, the raiser's range (reach times its mix) and how much of it each hand takes out. A hand or combo picked shows
+  combos out by seat, folds before and after, and the classes taken most out of the hands that don't fold. Card removal
+  is exact for the model (each class's combos alike, per-card sums so 169 classes rank at once); the figure before is
+  the model's own, which counts no card removal, and the panel says so. Seats read alike share one provenance badge.
+  The charts and the push/fold model give a reason and no blockers.
+- Browser check on the built preview (root `npm run build`, served from this worktree's `web/dist`): 8 sample hands
+  graded at Quick triage gave 5 flop c-bets (every flop 80% against the answer's 100%, K high 2 over two flops), the
+  flops and decisions opened, no sideways scroll at 375px. Preflop: UTG's open at 6-max 100bb read HJ to BB (all fold
+  39.9%, AA +5.8 points, 22 -2.5; AKo takes 101 of each seat's 1,326 combos); BB facing BTN's 2.5bb open offered the
+  reply to a 3bet (BTN folds 62.2%, badged approximate after a 3bet) and BTN's opening range (561.2 combos); the charts'
+  node showed the reason. A hand-typed line `SB:a` at 20bb read as an SB open the BB can still jam over: the line's
+  mapping, not this change (left alone).
+- FEATURE_MATRIX: Frequency comparison vs GTO (WORKING, unchanged), Reports in Analysis (PARTIAL, unchanged; its
+  "spot table isn't split by flop texture" is answered for the flop frequencies) and Equity & EQR (WORKING, unchanged;
+  the blockers note now covers preflop).
+- No long builds, no CPU-heavy jobs beyond the full vitest run through slot.sh.
