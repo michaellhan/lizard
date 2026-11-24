@@ -2240,6 +2240,89 @@ now the BTN's call of a 60bb all-in over an open and a 3bet (0.48% of its range,
 **Not checked in a browser:** the Analyze note, Practice's form at 2 to 5 players and Study's 5bet field are covered by
 unit tests only (`grading.test.ts`, `SetupForm.test.tsx`, `pfSolve.test.tsx`).
 
+### 18.13 Stored games with antes and straddles (2026-11-24)
+
+**The set** (`engine/pf_solve.py` `forced_games`, 240 games, keyed by `Spec.key` like the grid: `lz4_6max_100bb_s`,
+`lz4_6max_100bb_s_r5c3_ch`, `lz4_9max_40bb_a0.11_ch`):
+
+| | Players | Depths (bb) | Rake | Sizes | Games |
+|---|---|---|---|---|---|
+| 2bb straddle from the first seat (UTG from 4 players, the button at 3) | 3 to 9 | 50, 100, 150, 200 | none, 5% capped at 3bb | tree's, charts' | 112 |
+| a 1bb big-blind ante's share a seat, to the cent | 2 to 9 | 20, 25, 30, 40, 50, 60, 80, 100 | none | tree's, charts' | 128 |
+
+The ante is what a 1bb big-blind ante comes to a seat (0.5 heads-up, then 0.33, 0.25, 0.2, 0.17, 0.14, 0.13, 0.11 at 9
+players), the convention Practice's tables already use (`stageAnte`), so a Practice ante asks the stored key exactly. A
+site's hand averages its antes over the seats (a 1bb big-blind ante at 6 players is 0.1667bb a seat); within 0.005bb of
+the stored share it is read against the stored game, and the grade says so (`grading.ts` `pfSiteGame`, `pfAnteNote`).
+Only the first seat's straddle is stored, as it is the only one the tables and the history parser play. Rake is stored
+with straddles only (the cash games that straddle are raked; the antes are tournament-like). The ante depths stop at
+100bb: a 6-max 200bb anted game is about 1.1 GB to solve, past what a process here keeps under. Order: the straddled
+100bb and 200bb games, then the antes at 20 to 60bb, then the rest, so a build stopped part way has the most played.
+
+**The charts' sizes hold with a straddle and an ante.** Over 40 sampled nodes each of the chart-sized trees (6-, 9- and
+4-max straddled; 6-, 9-, 8- and 2-max anted, and 6-max at 100bb anted), every raise size in the tree was the Advisor
+charts' own size at that node: 0 mismatches.
+
+**Target.** The grid holds a game to 1.5 mbb/hand a seat. Straddled games don't get there: the 4-max 100bb straddled
+chart game measured (stored strategy, mbb/hand a seat) 2.82 at 500 iterations, 2.45 at 1,500, 2.44 at 3,000, 2.45 at
+4,500 and 2.47 at 9,000, a floor of the class-level game rather than a lack of iterations. A straddle's and an ante's
+chips make every pot bigger, and a strategy's error costs in proportion, so a forced game is held to 1.5 mbb per 1.5bb
+of chips in before anyone acts (`build_stored.py` `target`): 3.5 with a straddle (1.5 in units of its 2bb and 1bb
+blinds), 2.52 at 6-max with the 0.17 ante, 2.49 at 9-max with 0.11. It is solved 1,500 iterations at a time until
+within that or 4,500, and installed if within it at 1,500 or within 1.2 times it after more, as the grid's games are
+held to 1.8 against 1.5.
+
+**The sample** (built through the CPU slot, one process; the first nine ran before the target above, to 4,500 where the
+old 1.5 target wasn't met):
+
+| Game | Iterations | Seconds | mbb/hand a seat | Bytes |
+|---|---|---|---|---|
+| `lz4_4max_100bb_s_ch` | 4,500 | 12.9 | 2.450 | 1,982 |
+| `lz4_4max_100bb_s` | 4,500 | 17.9 | 2.264 | 2,584 |
+| `lz4_6max_100bb_s_ch` | 4,500 | 129.4 | 3.049 | 13,068 |
+| `lz4_6max_100bb_s` | 4,500 | 237.3 | 3.008 | 16,908 |
+| `lz4_6max_100bb_s_r5c3_ch` | 1,500 | 40.8 | 1.027 | 15,057 |
+| `lz4_9max_100bb_s_ch` | 1,500 | 52.3 | 0.184 | 13,442 |
+| `lz4_9max_100bb_s` | 1,500 | 51.9 | 0.181 | 15,917 |
+| `lz4_6max_30bb_a0.17_ch` | 4,500 | 37.7 | 1.962 | 4,380 |
+| `lz4_6max_30bb_a0.17` | 4,500 | 97.3 | 1.887 | 6,922 |
+| `lz4_3max_40bb_a0.33_ch` | 1,500 | 0.7 | 0.781 | 477 |
+| `lz4_3max_40bb_a0.33` | 1,500 | 1.3 | 0.480 | 769 |
+| `lz4_9max_40bb_a0.11_ch` | 1,500 | 22.1 | 0.113 | 6,030 |
+| `lz4_9max_40bb_a0.11` | 1,500 | 58.2 | 0.159 | 13,745 |
+| `lz4_6max_100bb_a0.17` | 4,500 | 651.8 | 2.132 | 49,876 |
+| `lz4_6max_100bb_a0.17_ch` | 1,500 | 86.9 | 2.173 | 32,163 |
+
+Raked and 9-handed games converge fast; unraked straddled ones level off between 2.3 and 3.0. The largest game of the
+set, 6-max 100bb with antes, peaked at 828 MB resident (957 MB footprint) while solving and measuring in place
+(`stored_mbb` measures the packed strategy on the solving game itself instead of a second copy). The 15 files are 193 KB;
+at the sample's 10 bytes per decision (7 to 34) the 240 come to about 1.7 MB. The whole set was estimated at about 3.75
+CPU hours at 1,500 iterations each, plus the games that need 3,000 or 4,500.
+
+**The stored answer is a live solve's** (`scripts/engine/test_pf_forced.py` `SameAsLive`). Run for the file's
+iterations, a live solve's strategy is the file's within 2.5/255 wherever a class reaches a node (the file's 1/255 steps).
+A live solve run to its own stop (the worker's Solve: its target, the stall rule or 2,000 iterations), against the file,
+first in:
+
+| Game | Live iterations | Live mbb | Stored mbb | Largest gap, an action's share of the range | Mean class gap | Largest single class |
+|---|---|---|---|---|---|---|
+| `lz4_4max_100bb_s` | 2,000 | 2.341 | 2.264 | 0.08% | 0.16% | 0.311 |
+| `lz4_4max_100bb_s_ch` | 2,000 | 2.454 | 2.450 | 0.08% | 0.11% | 0.179 |
+| `lz4_3max_40bb_a0.33` | 2,000 | 0.475 | 0.480 | 0.10% | 0.10% | 0.196 |
+| `lz4_3max_40bb_a0.33_ch` | 2,000 | 0.733 | 0.781 | 0.22% | 0.17% | 0.305 |
+| `lz4_6max_30bb_a0.17_ch` | 2,000 | 1.964 | 1.962 | 0.10% | 0.13% | 0.408 |
+| `lz4_6max_100bb_s_ch` | 1,000 | 3.282 | 3.049 | 0.15% | 0.25% | 0.409 |
+| `lz4_9max_40bb_a0.11_ch` | 200 | 1.378 | 0.113 | 0.65% | 0.97% | 0.615 |
+
+The ranges agree within a quarter of a percent wherever the live solve gets near the stored game's distance; a single
+class near indifference between two moves can sit 0.2 to 0.4 apart, as two runs of the same game settle it differently.
+The 9-handed live solve stops after 200 iterations by its own rule, 12 times further from equilibrium than the file, and
+is 0.65% of the range off: the stored game is the better answer there. The test holds the two small games to 0.5% (share)
+and 0.5% (mean class gap).
+
+**Not measured:** how far these games are from a fuller solve with antes or a straddle. The model's flop values are
+fitted to published solves without either, and every answer says so. The rows stay APPROXIMATE.
+
 ## 19. Nut advantage on Reports (2026-11-06)
 
 Reports' Nut adv is each range's nut share and the lead between them, by flop: a range's weight at 80% equity or more against the

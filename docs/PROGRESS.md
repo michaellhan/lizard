@@ -6752,3 +6752,44 @@ Every figure below is lz4's.
   `scripts/engine/test_flop_model.py` (6) and `scripts/benchmarks/test_reference.py` (33, 21 s, 0.99 GB peak). The
   Pyodide tests weren't run: nothing in the worker's import chain changed.
 - About 3 CPU hours, all through slot.sh.
+
+## 2026-11-24 — Stored preflop games with antes and straddles (W11)
+
+Workstream W11 of the second GAP_PLAN run (ACCURACY section 18.13).
+
+- A stored set of 240 preflop games on `lz4` with a forced bet (`engine/pf_solve.py` `forced_games`): a 2bb straddle
+  from the first seat at 3 to 9 players and 50, 100, 150 or 200bb, unraked or 5% capped at 3bb; a 1bb big-blind
+  ante's share a seat (0.5 heads-up to 0.11 at 9 players, to the cent, Practice's `stageAnte`) at 2 to 9 players and
+  20 to 100bb (eight depths), unraked; each at the tree's and the charts' sizes. Keys as the grid's (`lz4_6max_100bb_s`,
+  `lz4_9max_40bb_a0.11_ch`). About 1.7 MB in all (estimated from the sample's bytes per decision).
+- `scripts/pf/build_stored.py --forced [--out DIR] [--missing]` solves them 1,500 iterations at a time until each is
+  within its target, 1.5 mbb/hand a seat per 1.5bb of chips in before anyone acts (3.5 with a straddle: unraked
+  straddled games level off at 2.3 to 3.0 however long they run), or 4,500; it measures the packed strategy on the
+  solving game itself, so the largest game (6-max 100bb anted) peaks at 828 MB. `--forced --install DIR` copies the
+  finished files that are their tree and within bound into `engine/pf/`, appends their log lines to
+  `engine/pf/lz4_forced_built.jsonl`, and writes the built lists `engine/pf_forced_built.py` and
+  `web/src/solver/pfForcedBuilt.ts`. Only built games are in `STORED_KEYS`/`PF_KEYS`, so a game not built yet is
+  offered as unsolved, as before.
+- 15 games built through slot.sh and installed (0.11 to 3.05 mbb/hand a seat, 193 KB). The other 225 were started
+  detached through slot.sh on 2026-11-24 06:46 from a frozen copy of the code, writing to
+  `library-build/runs/pf-forced/` (log `full.log`); about 4 to 5 CPU hours.
+- Study's Solver source answers them at once; Practice's preflop grade covers tables with a straddle or the stored ante
+  wherever built, its form naming the stored stacks and the nearest, and refusing an ante with a straddle, another
+  ante, or an ante with rake; Analyze reads a site's averaged big-blind ante as the stored share within 0.005bb, saying
+  so, and a first-seat straddle as the stored straddled game. Provenance: "stored preflop solve (class-level model) with
+  ante/straddle: a 2bb straddle from the UTG (the flop values are fitted to published solves without antes or a
+  straddle: ...)".
+- Measured: a live solve run to its own stop gives the stored first-in ranges within 0.08% to 0.22% of the range over
+  five games (a 9-handed live solve stopping at 200 iterations, 0.65%); the same iterations give the file's strategy to
+  its 1/255 steps; the charts-sized trees with a straddle or ante raise the Advisor charts' sizes at all 40 sampled
+  nodes per tree.
+- Tests: `scripts/engine/test_pf_forced.py` (new, 9), `test_pf_engine.py` (43), `test_pf_stored.py` (4),
+  `npm run test:scripts` (27); the full vitest through slot.sh, 4,242 passed, 2 failed and one file not loaded, all for
+  `tesseract.js` missing from the shared node_modules (run with a scratch config without the OCR plugin, which needs
+  it at startup); typecheck clean but for the same module; lint clean. `AnalyzePage.test.tsx` updated (its
+  straddled GG hand's big blind is now asked as the stored straddled game).
+- FEATURE_MATRIX: Preflop, Preflop trainer and Preflop solves stay APPROXIMATE (class-level model, flop values never
+  fitted with antes or a straddle); notes updated.
+- Not done: the 225 games still building, to be installed, tested and committed when it finishes
+  (`build_stored.py --forced --install library-build/runs/pf-forced`); no browser check; not measured against a fuller
+  solve with antes or a straddle; a straddle from another seat, or an ante with a straddle, still solves on request.
