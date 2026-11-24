@@ -5,7 +5,7 @@
 // spot is planned to reach comes from lizard-library.json, which scripts/library/assemble.py writes from the
 // solver's SPOT_FLOPS; a library without it (the upstream one) shows counts only.
 import { LIBRARY_SOURCES, type LibrarySourceId } from "@/config";
-import { coveredFlops, gameSpots, gameWords, parseSsIndex } from "./singleSize";
+import { coveredFlops, gameSpots, gameWords, parseSsIndex, ssPlayers } from "./singleSize";
 import { libraryStamps, type LibraryStamp } from "./version";
 
 export interface LibrarySpotIndex {
@@ -76,7 +76,7 @@ export interface LibraryPlan {
   /** the 3-way spots' flop counts they are being built to (assemble.py MW_BUILD_PLANS) */
   multiwayTargets?: Record<string, number | null>;
   /** the single-size library's publish (assemble.py add_single_size): the flop count it's being built to */
-  singleSize?: { target?: number | null; games?: { target?: number | null } };
+  singleSize?: { target?: number | null; games?: { target?: number | null }; multiway?: { target?: number | null } };
   /** the sets served from R2 rather than the library's own base (assemble.py assign_hosts) */
   r2?: { base: string; sets: string[]; files: number; bytes: number };
 }
@@ -92,6 +92,9 @@ export interface SingleSizeCoverage {
     target?: number | null;
     game?: { ante: number; straddle: boolean };
     gameWords?: string;
+    /** 3: a row of the 3-way set (W15), with its convergence */
+    players?: 3;
+    conv?: { iters?: number; expl?: number };
   }[];
   /** the flops every 100bb spot (no ante or straddle) holds, in the build's order */
   flops: string[];
@@ -105,6 +108,9 @@ export interface SingleSizeCoverage {
     flops: string[];
     target: number | null;
   }[];
+  /** the 3-way set (rows with `players: 3`): the flops every one of its spots holds, the flop count it's built to, and
+   * its one flop size (% of the pot) where every flop has the same */
+  multiway?: { flops: string[]; target: number | null; pct: number | null } | null;
 }
 
 export interface LibraryCatalog {
@@ -123,6 +129,9 @@ export function summarizeSingleSize(raw: unknown, plan?: LibraryPlan | null): Si
   const idx = parseSsIndex(raw);
   if (!idx || !idx.spots.length) return null;
   const gamesTarget = plan?.singleSize?.games?.target ?? null;
+  const mwTarget = plan?.singleSize?.multiway?.target ?? null;
+  const mwSpots = gameSpots(idx, undefined, 3);
+  const mwPcts = new Set(mwSpots.flatMap((s) => Object.values(s.sizes)));
   const games: SingleSizeCoverage["games"] = [];
   for (const s of idx.spots) {
     if (!s.game) continue;
@@ -134,10 +143,12 @@ export function summarizeSingleSize(raw: unknown, plan?: LibraryPlan | null): Si
     spots: idx.spots.map((s) => ({
       id: s.id, label: s.label, line: s.line, flops: Object.keys(s.flops).length,
       ...(s.game ? { target: gamesTarget, game: { ante: s.game.ante ?? 0, straddle: !!s.game.straddle }, gameWords: gameWords(s.game, s.pf) } : {}),
+      ...(ssPlayers(s) === 3 ? { players: 3 as const, target: mwTarget, ...(s.conv ? { conv: { iters: s.conv.iters, expl: s.conv.expl } } : {}) } : {}),
     })),
     flops: gameSpots(idx).length ? coveredFlops(idx) : [],
     target: plan?.singleSize?.target ?? null,
     games,
+    multiway: mwSpots.length ? { flops: coveredFlops(idx, undefined, 3), target: mwTarget, pct: mwPcts.size === 1 ? [...mwPcts][0]! : null } : null,
   };
 }
 

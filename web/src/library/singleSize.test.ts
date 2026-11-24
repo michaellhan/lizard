@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { parseLine } from "@/features/study/studyState";
-import { clearSingleSizeCache, coveredFlops, gameWords, LATER_PCT, loadSingleSize, parseSsIndex, sameGame, sizeWords, ssHandGame, ssMatch, ssRequest, type SsIndex } from "./singleSize";
+import { clearSingleSizeCache, coveredFlops, gameSpots, gameWords, LATER_PCT, loadSingleSize, MW_LATER_PCT, parseSsIndex, sameGame, sizeWords, ssHandGame, ssMatch, ssRequest, type SsIndex } from "./singleSize";
 import { summarizeSingleSize } from "./catalog";
 
 const SRP = "UTG:f,HJ:f,CO:f,BTN:r2.5,SB:f,BB:c";
@@ -226,6 +226,61 @@ describe("the ante and straddle games' spots", () => {
     })!;
     expect(only.flops).toEqual([]);
     expect(only.games).toHaveLength(2);
+  });
+});
+
+const MW_LINE = "UTG:f,HJ:f,CO:f,BTN:r2.5,SB:c,BB:c";
+const MW3: SsIndex = {
+  ...IDX,
+  spots: [
+    ...IDX.spots,
+    {
+      id: "ss_mw_btn_sb_bb",
+      base: "mw_btn_sb_bb",
+      label: "BTN open, SB and BB call, 3-way single size",
+      line: MW_LINE,
+      seats: ["SB", "BB", "BTN"],
+      pot: 7.5,
+      stack: 97.5,
+      players: 3,
+      flops: { Ac7d2h: "8888888888", Qs9h4c: "9999999999" },
+      sizes: { Ac7d2h: 33, Qs9h4c: 33 },
+      conv: { iters: 400, expl: 0.08, max_expl: 0.1, target: 0.1 },
+    },
+  ],
+};
+
+describe("the 3-way set", () => {
+  it("matches a 3-way line and asks its flop with 50% turn and river bets", () => {
+    const m = ssMatch(MW3, hand(MW_LINE, "7dAc2h"));
+    expect(m?.spot.id).toBe("ss_mw_btn_sb_bb");
+    expect(m?.flop).toBe("Ac7d2h");
+    expect(m?.pct).toBe(33);
+    expect(ssRequest(m)).toEqual({ single_size: true, sizes: { flop: [33], turn: [MW_LATER_PCT], river: [MW_LATER_PCT] } });
+    expect(MW_LATER_PCT).toBe(50);
+    // a heads-up line still asks 75%
+    expect(ssRequest(ssMatch(MW3, hand(SRP, "Ac7d2h")))?.sizes?.turn).toEqual([LATER_PCT]);
+    // a flop the 3-way spot doesn't hold: asked as without
+    expect(ssRequest(ssMatch(MW3, hand(MW_LINE, "KcQc8d")))).toBeNull();
+  });
+
+  it("keeps its spots and flops apart from the heads-up ones", () => {
+    expect(gameSpots(MW3).map((s) => s.id)).toEqual(["ss_srp_btn_bb", "ss_4bp_utg_sb"]);
+    expect(gameSpots(MW3, undefined, 3).map((s) => s.id)).toEqual(["ss_mw_btn_sb_bb"]);
+    expect(coveredFlops(MW3)).toEqual(["Ac7d2h", "KcQc8d"]);
+    expect(coveredFlops(MW3, undefined, 3)).toEqual(["Ac7d2h", "Qs9h4c"]);
+    // (an ante game holds no 3-way rows)
+    expect(gameSpots(MW3, { ante: 0.17, straddle: false }, 3)).toEqual([]);
+  });
+
+  it("parses its rows and goes into the catalogue with its own flops, size, target and convergence", () => {
+    expect(parseSsIndex(JSON.parse(JSON.stringify(MW3)))?.spots.find((s) => s.players === 3)?.conv?.iters).toBe(400);
+    const c = summarizeSingleSize(MW3, { singleSize: { target: 552, multiway: { target: 552 } } });
+    expect(c?.multiway).toEqual({ flops: ["Ac7d2h", "Qs9h4c"], target: 552, pct: 33 });
+    expect(c?.flops).toEqual(["Ac7d2h", "KcQc8d"]);
+    const row = c?.spots.find((s) => s.id === "ss_mw_btn_sb_bb");
+    expect(row).toMatchObject({ players: 3, target: 552, flops: 2, conv: { iters: 400, expl: 0.08 } });
+    expect(summarizeSingleSize(IDX)?.multiway).toBeNull();
   });
 });
 
