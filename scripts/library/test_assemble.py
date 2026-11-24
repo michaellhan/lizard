@@ -797,7 +797,7 @@ class HostsTest(unittest.TestCase):
             script.write_text(src)
             sys.path_importer_cache.clear()
         args = ["--out", self.out, "--base", self.base, "--hu", self.hu, "--mw-game", self.game, "--extend", NO_EXT,
-                "--mw", NO_MW, "--formats", NO_FORMATS, "--breadth", NO_BREADTH, "--single-size", NO_SS, *extra]
+                "--mw", NO_MW, "--formats", NO_FORMATS, "--breadth", NO_BREADTH, "--single-size", NO_SS, "--ss-games", NO_SS_GAMES, *extra]
         env = {k: v for k, v in os.environ.items() if k != "LIZARD_R2_BASE"}
         # (depths_build is imported from the script's own folder)
         env["PYTHONPATH"] = str(HERE)
@@ -996,13 +996,13 @@ class SingleSizeTest(unittest.TestCase):
         prev = self.tmp / "prev"
         self.assertEqual(self.stage(out=prev).returncode, 0)
         self.out.mkdir()
-        old = assemble.MAX_FILES
+        old = assemble.CAPS["files"]
         try:  # the stage nearly full: no flop fits, and the previous release's copies don't either
-            assemble.MAX_FILES = 1000 + assemble.LATE_FILES + 4
+            assemble.CAPS["files"] = 1000 + assemble.LATE_FILES + 4
             with self.assertRaises(SystemExit) as cm:
                 assemble.add_single_size(self.ss, self.out, set(), prev, False, 1000, [])
         finally:
-            assemble.MAX_FILES = old
+            assemble.CAPS["files"] = old
         self.assertIn("would pass the", str(cm.exception))
 
     def test_the_source_is_not_modified(self):
@@ -1086,13 +1086,13 @@ class SingleSizeGamesTest(unittest.TestCase):
         self.assertEqual(len(pg), 3)
         per = assemble.spot_files(pg[0])
         self.out.mkdir()
-        old = assemble.MAX_FILES
+        old = assemble.CAPS["files"]
         try:  # a source before the games grew: the stage holds 1000 files, room for no flop and one kept copy
-            assemble.MAX_FILES = 1000 + assemble.LATE_FILES + per
+            assemble.CAPS["files"] = 1000 + assemble.LATE_FILES + per
             log = []
             idx, _ = assemble.add_single_size(self.games, self.out, set(), prev, False, 1000, log, games=True)
         finally:
-            assemble.MAX_FILES = old
+            assemble.CAPS["files"] = old
         self.assertEqual([s["id"] for s in idx["spots"]], [pg[0]["id"]])
         self.assertEqual(sorted(idx["spots"][0]["flops"]), sorted(pg[0]["flops"]))
         self.assertTrue(any(f"{pg[0]['id']}: kept the previous release" in x for x in log), log)

@@ -857,13 +857,13 @@ def add_single_size(src: Path, out: Path, taken: set[str], prev: Path | None, al
                     log.append(f"{ps['id']}: shrinks from {len(ps['flops'])} flops (allowed)")
                     continue
                 have = dir_files(out / ps["id"])
-                if n_stage - have + spot_files(ps) > MAX_FILES - LATE_FILES:
+                if n_stage - have + spot_files(ps) > CAPS["files"] - LATE_FILES:
                     # (the games come last, held to what the cap leaves: they yield to a source before them that grew)
                     if games:
                         log.append(f"{ps['id']}: shrinks from {len(ps['flops'])} flops (its previous copy would pass "
-                                   f"the {MAX_FILES:,} file cap)")
+                                   f"the {CAPS['files']:,} file cap)")
                         continue
-                    sys.exit(f"{ps['id']}: shrank and its previous copy would pass the {MAX_FILES:,} file cap; not "
+                    sys.exit(f"{ps['id']}: shrank and its previous copy would pass the {CAPS['files']:,} file cap; not "
                              f"publishing (--allow-shrink publishes it smaller)")
                 if (out / ps["id"]).exists():
                     shutil.rmtree(out / ps["id"])
