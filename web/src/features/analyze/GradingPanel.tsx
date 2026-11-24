@@ -1,9 +1,9 @@
 // Analyze's grading: the queue that grades your kept hands' decisions in this browser (grading.ts gradeHands, through
 // the page's solver: the charts and the flop library, or every street by Quick triage or at Fast, the doubtful reads
 // then checked at Fast: triage.ts), and the report over what's graded (report.ts): the grades, what they stand on, the
-// leaks and what's too few to call one, the breakdowns (BreakdownPanel.tsx), the frequencies against the answer's, the
-// decisions that lost the most, and CSV and JSON export. Every number
-// says what it stands on: the charts (by frequency, not a solve), the stored preflop solve (by EV, of a class-level model),
+// leaks and what's too few to call one, the breakdowns (BreakdownPanel.tsx), your flop play by board (BoardsPanel.tsx),
+// the frequencies against the answer's, the decisions that lost the most, and CSV and JSON export. Every number says
+// what it stands on: the charts (by frequency, not a solve), the stored preflop solve (by EV, of a class-level model),
 // the library, a read or a solve.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router";
@@ -17,6 +17,7 @@ import { useSolver } from "@/solver/useSolver";
 import { useKept } from "@/state/kept";
 import { useSettings } from "@/state/settings";
 import { STREETS } from "./analyze";
+import { BoardsPanel } from "./BoardsPanel";
 import { Breakdowns } from "./BreakdownPanel";
 import { DecisionList, GroupTable, RangeCell } from "./DecisionTables";
 import { answeredIds, gradeHands, SCOPES, type Ask, type GradeScope } from "./grading";
@@ -237,6 +238,7 @@ export function GradeReport({ decisions, hands, of, exploits = NO_EXPLOITS }: { 
   const apart = useMemo(() => ds.length && ds.reduce((n, d) => n + Number(isGraded(d)), 0) - eq.reduce((n, d) => n + Number(isGraded(d)), 0), [ds, eq]);
   const [leak, setLeak] = useState<Leak | null>(null);
   const [nodesOpen, setNodesOpen] = useState(false); // (the node tables are worked out only once asked for)
+  const [boardsOpen, setBoardsOpen] = useState(false); // (and the board view)
   const [freq, setFreq] = useState<string | null>(null);
   const [params] = useSearchParams();
   const streetOf = useCallback((d: DecisionRecord) => d.street, []);
@@ -400,6 +402,11 @@ export function GradeReport({ decisions, hands, of, exploits = NO_EXPLOITS }: { 
       <details className="space-y-2" onToggle={(e) => setNodesOpen(e.currentTarget.open)}>
         <summary className="cursor-pointer font-semibold">Your play at each node, by seat and by spot</summary>
         {nodesOpen && <NodeTables ds={eq} byId={byId} />}
+      </details>
+
+      <details className="space-y-2" onToggle={(e) => setBoardsOpen(e.currentTarget.open)}>
+        <summary className="cursor-pointer font-semibold">Your flop play by board, against the answer's</summary>
+        {boardsOpen && <BoardsPanel ds={ds} byId={byId} />}
       </details>
 
       <details className="space-y-4">
