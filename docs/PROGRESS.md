@@ -6991,7 +6991,7 @@ Workstream W11 of the second GAP_PLAN run (ACCURACY section 18.13).
   straddled GG hand's big blind is now asked as the stored straddled game).
 - FEATURE_MATRIX: Preflop, Preflop trainer and Preflop solves stay APPROXIMATE (class-level model, flop values never
   fitted with antes or a straddle); notes updated.
-- Not done: the 225 games still building, to be installed, tested and committed when it finishes
+- Done the same day: the 225 games finished (2.2 CPU hours, 0.012-3.136 mbb/hand a seat) and were installed, tested and committed; the install step was
   (`build_stored.py --forced --install library-build/runs/pf-forced`); no browser check; not measured against a fuller
   solve with antes or a straddle; a straddle from another seat, or an ante with a straddle, still solves on request.
 - Review fix (2026-11-24): at 6, 7 and 8 players Analyze graded no anted decision by the stored game. It asked the
