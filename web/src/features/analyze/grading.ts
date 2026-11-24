@@ -18,7 +18,7 @@ import { pfPlayed, pfReadAt, type PfAsked, type PfSpot } from "@/features/practi
 import { PF_ICM_WORDS, pfIcmStage } from "@/features/practice/pfIcmStored";
 import { pfBlocked } from "@/features/practice/practice";
 import { tournamentRequest } from "@/features/tournaments/tournament";
-import { nearestDepth, PF_DEPTHS, PF_DEPTHS_WORDS, pfGradeSizes } from "@/solver/pfStored";
+import { depthsWords, nearestOf, PF_ANTE_TOL, PF_DEPTHS, PF_DEPTHS_WORDS, pfForcedOf, pfGradeDepths, pfGradeSizes, pfStoredAnte, type PfForced } from "@/solver/pfStored";
 import { gradeAnswer, type AnswerBasis, type Grade, type Verdict } from "@/grading/grade";
 import { basisOf } from "@/grading/basis";
 import { versionOf } from "@/grading/version";
@@ -242,11 +242,27 @@ export function pfOut(hand: Pick<HandRecord, "tournament" | "setup"> & Partial<P
   }
   if (r.setup.limit === "pot" || h.hole.length !== 2) return "The preflop solve is of no-limit hold'em.";
   const { sizes, rake = 0, rakeCap = 0 } = hand.setup ?? {};
-  // (a site's hand is read against the stored depth nearest its stacks, decision by decision: pfDepthAt)
-  if (hand.site !== PRACTICE_SITE) return pfBlocked(h.players, nearestDepth(h.stack), { ante: h.ante, straddle: !!h.straddle, sizes, rake, rakeCap });
+  // (a site's hand is read against the stored depth nearest its stacks, decision by decision: pfDepthAt; its averaged
+  // ante as the table size's stored one where within PF_ANTE_TOL: pfSiteGame)
+  if (hand.site !== PRACTICE_SITE) {
+    const g = pfSiteGame(h.players, h.ante, !!h.straddle);
+    return pfBlocked(h.players, nearestOf(g.depths.length ? g.depths : PF_DEPTHS, h.stack), { ante: g.ante, straddle: !!h.straddle, sizes, rake, rakeCap });
+  }
   if (Object.values(r.setup.stacks).some((v) => Math.abs(v - h.stack) > EPS)) return "The preflop solve is stored for equal stacks only.";
   return pfBlocked(h.players, h.stack, { ante: h.ante, straddle: !!h.straddle, sizes, rake, rakeCap });
 }
+
+/** A site's hand's game as the stored games have it: its forced bets, its ante (the table size's stored ante where the
+ * averaged ante is within PF_ANTE_TOL of it, as a 1bb big-blind ante always is; else its own), and the depths stored for
+ * it (asked with no rake: PF_NO_RAKE). */
+export function pfSiteGame(players: number, ante: number, straddle: boolean): { forced: PfForced | null; ante: number; depths: readonly number[] } {
+  const forced = pfForcedOf(players, ante, straddle, PF_ANTE_TOL);
+  return { forced, ante: forced === "ante" ? pfStoredAnte(players) : ante, depths: pfGradeDepths(players, forced, false) };
+}
+
+/** What a site's decision read against the stored game's ante, not its own, says with it. */
+export const pfAnteNote = (stored: number, own: number) =>
+  `read against the stored game's ${stored}bb ante a seat (a 1bb big-blind ante's share, to the cent); this hand's antes average ${Math.round(own * 1e4) / 1e4}bb a seat`;
 
 /** What a site's hand graded by the solve says with it. */
 export const PF_NO_RAKE = "this history doesn't say its rake or cap, so it's read against the stored game with no rake";
@@ -263,19 +279,20 @@ export function pfDepthAt(
   stacks: Readonly<Record<string, number>>,
   live: readonly string[],
   hero: string,
+  depths: readonly number[] = PF_DEPTHS,
 ): { depth: number; eff: number; dev: number; exact: boolean } | { why: string } {
   const eff = (q: string) => {
     const others = live.filter((x) => x !== q).map((x) => stacks[x] ?? 0);
     return others.length ? Math.min(stacks[q] ?? 0, Math.max(...others)) : (stacks[q] ?? 0);
   };
   const mine = eff(hero);
-  const depth = PF_DEPTHS.reduce((a, b) => (Math.abs(Math.log(mine / b)) < Math.abs(Math.log(mine / a)) ? b : a));
+  const depth = depths.reduce((a, b) => (Math.abs(Math.log(mine / b)) < Math.abs(Math.log(mine / a)) ? b : a));
   const worst = live.map((q) => ({ q, e: eff(q), dev: Math.abs(eff(q) / depth - 1) })).reduce((a, b) => (b.dev > a.dev ? b : a));
   const pct = (x: number) => `${Math.round(x * 100)}%`;
   if (worst.dev > PF_DEPTH_TOL + EPS) {
     const whose = worst.q === hero ? "yours" : `${worst.q}'s`;
     return {
-      why: `The stacks are too far from the stored games' (${PF_DEPTHS_WORDS}): the nearest to your ${r2(mine)}bb effective is ${depth}bb, and ${whose} ${r2(worst.e)}bb effective is ${pct(worst.dev)} off it, past the ${pct(PF_DEPTH_TOL)} the grade takes.`,
+      why: `The stacks are too far from the stored games' (${depths === PF_DEPTHS ? PF_DEPTHS_WORDS : depthsWords(depths)}): the nearest to your ${r2(mine)}bb effective is ${depth}bb, and ${whose} ${r2(worst.e)}bb effective is ${pct(worst.dev)} off it, past the ${pct(PF_DEPTH_TOL)} the grade takes.`,
     };
   }
   return { depth, eff: r2(mine), dev: worst.dev, exact: Object.values(stacks).every((v) => Math.abs(v - depth) <= EPS) };
@@ -407,23 +424,28 @@ export async function gradeDecision(
     if (!again.data.error && !again.data.skipped && Array.isArray(again.data.actions)) ans = again;
   }
   const tri = read(ans.data);
-  let pf: { pfWhy?: string; noRake?: boolean; depth?: { depth: number; eff: number; dev: number } } = {};
+  let pf: { pfWhy?: string; noRake?: boolean; depth?: { depth: number; eff: number; dev: number }; ante?: [number, number] } = {};
   if (street === "preflop" && !pfOut(hand, r)) {
     const practice = hand.site === PRACTICE_SITE;
-    const spot: PfSpot = { hero: r.hand.hero, hole: r.hand.hole.join(""), sim: simulate(r.setup, linesBefore(r, street, i), 0), table: r.setup, ownSizes: !!hand.setup?.pfSizes, ownOptions: !!hand.setup?.pfOptions };
-    // (a site's hand: the stored game nearest its stacks, asked as that game, equal stacks at its depth; the chips in are
-    // still checked against the hand's own, so a line past an all-in at other stacks stays with the chart)
-    const at = practice ? null : pfDepthAt(r.setup.stacks, [...spot.sim.active], r.hand.hero);
+    // (a site's hand: the stored game nearest its stacks, asked as that game, equal stacks at its depth and the stored
+    // ante; the chips in are still checked against the hand's own stacks and bets, so a line past an all-in at other
+    // stacks stays with the chart, but with the stored ante in: the hand's averaged ante is the stored one only to the
+    // cent, and at 6 to 8 players its antes are 0.02 to 0.04bb off the stored game's, past a chip's width)
+    const game = practice ? null : pfSiteGame(r.hand.players, r.hand.ante, !!r.hand.straddle);
+    const anteOff = !!game && Math.abs(game.ante - r.hand.ante) > EPS;
+    const asTable = game && anteOff ? { ...r.setup, ante: game.ante } : r.setup;
+    const spot: PfSpot = { hero: r.hand.hero, hole: r.hand.hole.join(""), sim: simulate(asTable, linesBefore(r, street, i), 0), table: asTable, ownSizes: !!hand.setup?.pfSizes, ownOptions: !!hand.setup?.pfOptions };
+    const at = game ? pfDepthAt(r.setup.stacks, [...spot.sim.active], r.hand.hero, game.depths) : null;
     if (at && "why" in at) pf = { pfWhy: at.why };
     else {
-      const equal: AdvisorState = { ...state, stack: at?.depth ?? state.stack };
+      const equal: AdvisorState = { ...state, stack: at?.depth ?? state.stack, ...(game?.ante ? { ante: game.ante } : {}) };
       delete equal.stacks;
-      const asked = await askPf(at && !at.exact ? equal : state, ask);
+      const asked = await askPf(at && (!at.exact || anteOff) ? equal : state, ask);
       const by = practice ? pfReadAt(spot, ans.data, asked) : pfPlayed(spot, m, asked, ans.data);
       if ("why" in by) pf = { pfWhy: by.why };
       else {
         ans = by;
-        pf = { noRake: !practice, ...(at && !at.exact ? { depth: at } : {}) };
+        pf = { noRake: !practice, ...(at && !at.exact ? { depth: at } : {}), ...(game && anteOff ? { ante: [game.ante, r.hand.ante] as [number, number] } : {}) };
       }
     }
   }
@@ -436,7 +458,7 @@ export async function gradeDecision(
   const flopPot = source === "library" && street === "flop" ? potBefore(r, "flop", 0) : undefined;
   const g = gradeAgainst(ans.data, m, basisOf(ans.provenance, { res: ans.data, ...(flopPot ? { flopPot } : {}) }));
   // (the site's words beside any the grade has)
-  const note = [g?.note, pf.depth ? pfDepthNote(pf.depth) : "", pf.noRake ? PF_NO_RAKE : ""].filter(Boolean).join("; ");
+  const note = [g?.note, pf.depth ? pfDepthNote(pf.depth) : "", pf.ante ? pfAnteNote(...pf.ante) : "", pf.noRake ? PF_NO_RAKE : ""].filter(Boolean).join("; ");
   if (!g) return ungraded(matchMove(ans.data, m) ? "the answer gave no pot to measure the EV lost against" : `your ${moveLabel(m)} isn't among the answer's actions`, source, label, tri);
   // (the grade's best: by EV, of the actions within the answer's noise of the top the most played; by frequency the most
   // played, yours where you tie it)

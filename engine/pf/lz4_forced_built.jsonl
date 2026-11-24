@@ -1,0 +1,15 @@
+{"key": "lz4_4max_100bb_s_ch", "iterations": 4500, "seconds": 12.9, "mbb": 2.45, "bytes": 1982}
+{"key": "lz4_4max_100bb_s", "iterations": 4500, "seconds": 17.9, "mbb": 2.264, "bytes": 2584}
+{"key": "lz4_6max_100bb_s_ch", "iterations": 4500, "seconds": 129.4, "mbb": 3.049, "bytes": 13068}
+{"key": "lz4_6max_100bb_s", "iterations": 4500, "seconds": 237.3, "mbb": 3.008, "bytes": 16908}
+{"key": "lz4_6max_100bb_s_r5c3_ch", "iterations": 1500, "seconds": 40.8, "mbb": 1.027, "bytes": 15057}
+{"key": "lz4_9max_100bb_s_ch", "iterations": 1500, "seconds": 52.3, "mbb": 0.184, "bytes": 13442}
+{"key": "lz4_9max_100bb_s", "iterations": 1500, "seconds": 51.9, "mbb": 0.181, "bytes": 15917}
+{"key": "lz4_6max_30bb_a0.17_ch", "iterations": 4500, "seconds": 37.7, "mbb": 1.962, "bytes": 4380}
+{"key": "lz4_6max_30bb_a0.17", "iterations": 4500, "seconds": 97.3, "mbb": 1.887, "bytes": 6922}
+{"key": "lz4_3max_40bb_a0.33_ch", "iterations": 1500, "seconds": 0.7, "mbb": 0.781, "bytes": 477}
+{"key": "lz4_3max_40bb_a0.33", "iterations": 1500, "seconds": 1.3, "mbb": 0.48, "bytes": 769}
+{"key": "lz4_9max_40bb_a0.11_ch", "iterations": 1500, "seconds": 22.1, "mbb": 0.113, "bytes": 6030}
+{"key": "lz4_9max_40bb_a0.11", "iterations": 1500, "seconds": 58.2, "mbb": 0.159, "bytes": 13745}
+{"key": "lz4_6max_100bb_a0.17_ch", "iterations": 1500, "seconds": 86.9, "mbb": 2.173, "bytes": 32163}
+{"key": "lz4_6max_100bb_a0.17", "iterations": 4500, "seconds": 651.8, "mbb": 2.132, "bytes": 49876}
