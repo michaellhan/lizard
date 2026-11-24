@@ -60,6 +60,12 @@ def main() -> int:
     ap.add_argument("--commit", default="5b49b94")
     ap.add_argument("--index", type=Path, default=ROOT / "library-build" / "lizard-library" / "mw_index.json")
     ap.add_argument("--out", type=Path, default=ROOT / "engine" / "mw_built.py")
+    ap.add_argument("--spots", default="", help="only these spot ids (default: every spot of the index)")
+    ap.add_argument("--merge", action="store_true",
+                    help="keep the out file's other spots (each with its own commit and date)")
+    ap.add_argument("--source", default="",
+                    help="who built these spots, in words (e.g. \"gtosolver's 3-way build on gto-solver 5e7dbc8's "
+                    "game\"): kept on each spot as `source` (engine/mw_near.py says it)")
     a = ap.parse_args()
     if not a.index.exists():
         print(f"no 3-way index at {a.index} (pass --index)", file=sys.stderr)
@@ -75,30 +81,54 @@ def main() -> int:
         got = subprocess.run([sys.executable, "-I", "-c", CHILD, str(Path(tmp) / "solver"), str(a.index)],
                              check=True, capture_output=True, text=True).stdout
     spots = json.loads(got)
+    want = [s for s in a.spots.split(",") if s]
+    if want:
+        missing = [s for s in want if s not in spots]
+        if missing:
+            print(f"not in {a.index}: {', '.join(missing)}", file=sys.stderr)
+            return 1
+        spots = {k: spots[k] for k in want}
     bad = [k for k, s in spots.items() if s["fp"] != s["index_fp"] or s["seats"] != s["index_seats"]]
     if bad:
         print(f"{commit}'s ranges don't reproduce the index's fingerprints for {', '.join(bad)}: not writing",
               file=sys.stderr)
         return 1
+    rows: dict = {}
+    default_commit, default_date = commit, date
+    if a.merge and a.out.exists():
+        old: dict = {}
+        exec(compile(a.out.read_text(), str(a.out), "exec"), old)  # (a file this script wrote)
+        default_commit, default_date = old["COMMIT"], old["DATE"]
+        for k, s in old["SPOTS"].items():
+            if k not in spots:
+                rows[k] = dict(s, commit=s.get("commit", old["COMMIT"]), date=s.get("date", old["DATE"]),
+                               ranges={seat: dict(x.split(":") for x in r.split()) for seat, r in s["ranges"].items()})
+    for k, s in spots.items():
+        rows[k] = dict(s, commit=commit, date=date, **({"source": a.source} if a.source else {}))
     lines = [
         '"""The ranges each published 3-way library spot was built on (written by scripts/library/mw_built_ranges.py from',
-        f'solver/gto at {commit}; don\'t edit by hand). The entries store fingerprints, not ranges, so these were',
-        'recomputed from that commit\'s code and checked to reproduce the published fingerprints. Per spot: its preflop',
-        'line, seats (postflop order), fingerprints, pot, stack, and each seat\'s range as hand class -> weight x 10000',
-        '(every combo of a class the same weight). engine/mw_near.py reads them."""',
+        'solver/gto at each spot\'s commit; don\'t edit by hand). The entries store fingerprints, not ranges, so these',
+        'were recomputed from that commit\'s code and checked to reproduce the published fingerprints. Per spot: its',
+        'preflop line, seats (postflop order), fingerprints, pot, stack, the commit and date whose code reproduces them',
+        '(COMMIT and DATE where a spot names none), who built it where that isn\'t Lizard (`source`), and each seat\'s',
+        'range as hand class -> weight x 10000 (every combo of a class the same weight). engine/mw_near.py reads them."""',
         "from __future__ import annotations",
         "",
         "import numpy as np",
         "",
-        f"COMMIT = {commit!r}",
-        f"DATE = {date!r}",
+        f"COMMIT = {default_commit!r}",
+        f"DATE = {default_date!r}",
         "SPOTS = {",
     ]
-    for k, s in spots.items():
+    for k, s in rows.items():
         lines.append(f"    {k!r}: {{")
         lines.append(f"        \"line\": {s['line']!r}, \"seats\": {s['seats']!r}, \"pot\": {s['pot']!r}, "
                      f"\"stack\": {s['stack']!r},")
         lines.append(f"        \"fp\": {s['fp']!r},")
+        if s["commit"] != default_commit or s["date"] != default_date or s.get("source"):
+            lines.append(f"        \"commit\": {s['commit']!r}, \"date\": {s['date']!r},")
+        if s.get("source"):
+            lines.append(f"        \"source\": {s['source']!r},")
         lines.append("        \"ranges\": {")
         for seat, r in s["ranges"].items():
             body = " ".join(f"{c}:{v}" for c, v in r.items())
@@ -127,7 +157,7 @@ def main() -> int:
         "",
     ]
     a.out.write_text("\n".join(lines))
-    print(f"wrote {a.out} ({len(spots)} spots, {commit} of {date})")
+    print(f"wrote {a.out} ({len(rows)} spots; {len(spots)} from {commit} of {date})")
     return 0
 
 

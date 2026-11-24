@@ -83,6 +83,8 @@ class PublishedSpots(unittest.TestCase):
         for sp in [s for s in SPOTS if s.get("now")]:
             with self.subTest(spot=sp["id"]):
                 mod, name, near_dist, near_cover = files[sp["kind"]]
+                if sp["kind"] == "mw":
+                    near_dist = mw_near.near_dist(sp["id"])     # (a spot's own measured distance, if it has one)
                 built = mod.ranges(sp["id"])
                 self.assertIsNotNone(built, f"{sp['id']}: engine/{name}.py doesn't hold it "
                                             f"(scripts/library/{name}_ranges.py): {FIX}")
@@ -96,13 +98,18 @@ class PublishedSpots(unittest.TestCase):
                 self.assertGreaterEqual(min(cover), near_cover, f"{sp['id']}: cover {cover}: {FIX}")
 
     def test_built_ranges_reproduce_their_index(self):
-        """engine/mw_built.py's and engine/hu_built.py's spots are published ones, with their seats, pot and stack."""
+        """engine/mw_built.py's and engine/hu_built.py's spots are published ones, with their seats, pot and stack (a
+        3-way spot from another game's build, with a `source`, may be assembled and not yet published)."""
         from engine import hu_built, mw_built
         built = [("mw", sid, b, mw_built.ranges(sid)) for sid, b in mw_built.SPOTS.items()] + \
                 [("hu", sid, b, hu_built.ranges(sid)) for sid, b in hu_built.SPOTS.items()]
         for kind, sid, b, rs in built:
             pub = {s["id"]: s for s in SPOTS if s["kind"] == kind}
             with self.subTest(spot=sid):
+                if sid not in pub and b.get("source"):
+                    # (another game's spot, assembled but not yet published: published_fps.py lists it once it is)
+                    self.assertEqual([fl.range_fp(r) for r in rs], b["fp"])
+                    continue
                 self.assertIn(sid, pub)
                 self.assertEqual(b["fp"], pub[sid]["fp"])
                 self.assertEqual(b["seats"], pub[sid]["seats"])

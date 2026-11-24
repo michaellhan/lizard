@@ -8,6 +8,7 @@ import { pct } from "@/components/actions";
 import { describe as describeProvenance } from "@/solver/provenance";
 import type { Provenance, SolveMode } from "@/solver/types";
 import { flopCards } from "@/library/entry";
+import type { LibrarySpotIndex } from "@/library/catalog";
 import type { LibraryReport, ReportFlop } from "@/library/files";
 import { potAt, texture, TEXTURE_GROUPS, type Texture, type TextureFilter, type TextureKey } from "@/features/practice/drills";
 import { gameSetup } from "@/features/solve/setup";
@@ -279,13 +280,28 @@ export function studyLink(rep: LibraryReport, f: string, view: ReportView): stri
 }
 
 /** what the numbers are: the library's stored solves, summed up by the report built with them, read in the page */
-export function reportProvenance(rep: LibraryReport, mode: SolveMode, version?: string): Provenance {
+/** A 3-way spot from another game's build (its index entry's `source`, scripts/library/assemble.py add_mw_game), in
+ * words: whose build, that it's on its own charts and tree, and how settled its entries are on their own ranges. */
+export function sourceWords(src: LibrarySpotIndex["source"]): string | null {
+  if (!src || typeof src.build !== "string" || !src.build) return null;
+  const conv =
+    typeof src.iters === "number" && typeof src.expl === "number"
+      ? `; median ${src.iters} iterations, ${src.expl.toFixed(2)}% of the pot from equilibrium on its own ranges`
+      : "";
+  return `as built by ${src.build}, not Lizard's (its own charts and bet tree, later streets bucketed by weight times equity${conv})`;
+}
+
+/** The report's provenance. A spot from another game's build (`source`) is approximate, its build named: its stored
+ * mixes are that game's, on its charts, not what Lizard's own solve of this spot gives. */
+export function reportProvenance(rep: LibraryReport, mode: SolveMode, version?: string, source?: LibrarySpotIndex["source"]): Provenance {
   const c = coverage(rep);
+  const from = sourceWords(source);
+  const label = rep.seats.length > 2 ? `3-way flop report over its ${c.flops} stored flops, built in the page from their entries` : `flop report over its ${c.flops} stored flops`;
   return {
     source: "library",
-    approximate: false,
+    approximate: from !== null,
     librarySpot: rep.id,
-    approximateLabel: rep.seats.length > 2 ? `3-way flop report over its ${c.flops} stored flops, built in the page from their entries` : `flop report over its ${c.flops} stored flops`,
+    approximateLabel: from ? `${label}, ${from}` : label,
     mode,
     transport: "file",
     solverVersion: `library report${version ? ` ${version}` : ""}`,

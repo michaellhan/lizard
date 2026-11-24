@@ -31,6 +31,12 @@ export interface LibrarySpotIndex {
   nuts?: string;
   /** a 3-way spot's sha1(heads.json)[:10]: its entries' stored mixes in one file (scripts/library/assemble.py) */
   heads?: string;
+  /** the host its files are served from, where that isn't the library's own base: a name in hosts.json (assemble.py
+   * assign_hosts: "r2", the R2 bucket; library/hosts.ts) */
+  host?: string;
+  /** a 3-way spot from another game's build (assemble.py add_mw_game): whose build, and its entries' convergence on
+   * their own ranges (median iterations, mean exploitability as % of the pot) */
+  source?: { build: string; iters?: number; expl?: number };
 }
 
 /** the flops of a spot with a stored turn file */
@@ -71,6 +77,8 @@ export interface LibraryPlan {
   multiwayTargets?: Record<string, number | null>;
   /** the single-size library's publish (assemble.py add_single_size): the flop count it's being built to */
   singleSize?: { target?: number | null };
+  /** the sets served from R2 rather than the library's own base (assemble.py assign_hosts) */
+  r2?: { base: string; sets: string[]; files: number; bytes: number };
 }
 
 /** The single-size library (ss_index.json, library/singleSize.ts): a separate source, one bet size a node. */

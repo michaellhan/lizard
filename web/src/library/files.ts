@@ -3,6 +3,7 @@
 // index gives it, so a republished file is fetched again and an unchanged one comes from the HTTP cache.
 import type { LibraryIndex, LibrarySpotIndex } from "./catalog";
 import { decodeEntry, decodeHead, type Entry, type EntryHead, type LibraryRanges } from "./entry";
+import { hostedUrl, loadHosts, type LibraryHosts } from "./hosts";
 import { reportFromHeads, reportFromHeadsFile, type MwHeads } from "./mwReport";
 import { decodeTurns, type TurnFile } from "./turns";
 
@@ -67,14 +68,24 @@ export class LibraryFiles {
   private turnFiles = new Map<string, Promise<TurnFile>>();
   private spots = new Map<string, Promise<{ report: LibraryReport; ranges: LibraryRanges }>>();
   private mw = new Map<string, LibraryReport>();
+  private hosts: Promise<LibraryHosts> | null = null;
 
   constructor(
     readonly base: string,
     private readonly fetchImpl: typeof fetch = (...a) => fetch(...a),
   ) {}
 
-  private async get(path: string, init?: RequestInit): Promise<Response> {
-    const r = await this.fetchImpl(this.base + path, init);
+  /** a library path's URL. A spot whose index entry names a `host` (assemble.py assign_hosts: its set moved to R2)
+   * has its files from the base hosts.json gives that set (read once, the first time one is asked for); every other
+   * file comes from `base`, with no hosts.json request. */
+  async url(path: string, host?: string): Promise<string> {
+    if (!host || !path.includes("/")) return this.base + path;
+    this.hosts ??= loadHosts(this.base, this.fetchImpl);
+    return hostedUrl(this.base, await this.hosts, path);
+  }
+
+  private async get(path: string, init?: RequestInit, host?: string): Promise<Response> {
+    const r = await this.fetchImpl(await this.url(path, host), init);
     if (!r.ok) throw new Error(`couldn't load ${path.split("?")[0]} (${r.status})`);
     return r;
   }
@@ -98,7 +109,7 @@ export class LibraryFiles {
     if (kept) return kept;
     if (sp.heads) {
       try {
-        const r = await this.get(`${sp.id}/heads.json?v=${sp.heads}`, { signal: opts.signal });
+        const r = await this.get(`${sp.id}/heads.json?v=${sp.heads}`, { signal: opts.signal }, sp.host);
         const rep = reportFromHeadsFile(sp, (await r.json()) as MwHeads);
         if (rep) {
           this.mw.set(sp.id, rep);
@@ -117,7 +128,7 @@ export class LibraryFiles {
       while (next < flops.length) {
         const i = next++;
         const f = flops[i]!;
-        const r = await this.get(`${sp.id}/${f}.bin?v=${sp.flops[f] ?? ""}`, { signal: opts.signal });
+        const r = await this.get(`${sp.id}/${f}.bin?v=${sp.flops[f] ?? ""}`, { signal: opts.signal }, sp.host);
         heads[i] = await decodeHead(await r.arrayBuffer());
         opts.onProgress?.(++done, flops.length);
       }
@@ -133,8 +144,8 @@ export class LibraryFiles {
     let s = this.spots.get(sp.id);
     if (!s) {
       s = Promise.all([
-        this.get(`${sp.id}/report.json?v=${sp.report ?? ""}`).then((r) => r.json() as Promise<LibraryReport>),
-        this.get(`${sp.id}/ranges.json?v=${(sp.fp ?? []).join("")}`).then((r) => r.json() as Promise<LibraryRanges>),
+        this.get(`${sp.id}/report.json?v=${sp.report ?? ""}`, undefined, sp.host).then((r) => r.json() as Promise<LibraryReport>),
+        this.get(`${sp.id}/ranges.json?v=${(sp.fp ?? []).join("")}`, undefined, sp.host).then((r) => r.json() as Promise<LibraryRanges>),
       ]).then(([report, ranges]) => {
         if (sp.fp && String(ranges.fp) !== String(sp.fp)) throw new Error(`${sp.id}'s ranges.json is out of date`);
         return { report, ranges };
@@ -151,7 +162,7 @@ export class LibraryFiles {
     const { report } = await this.spot(sp);
     if (!sp.nuts) return report;
     try {
-      return withNuts(report, (await (await this.get(`${sp.id}/nuts.json?v=${sp.nuts}`)).json()) as LibraryNuts, sp.fp);
+      return withNuts(report, (await (await this.get(`${sp.id}/nuts.json?v=${sp.nuts}`, undefined, sp.host)).json()) as LibraryNuts, sp.fp);
     } catch {
       return report;
     }
@@ -164,7 +175,7 @@ export class LibraryFiles {
     let t = this.turnFiles.get(k);
     if (!t) {
       const v = sp.flops[flop] ?? "";
-      t = this.get(`${k}.turn.bin?v=${v}`, signal ? { signal } : undefined).then(async (r) => {
+      t = this.get(`${k}.turn.bin?v=${v}`, signal ? { signal } : undefined, sp.host).then(async (r) => {
         const file = await decodeTurns(await r.arrayBuffer());
         if (file.head.board !== flop || !v || !file.head.entry.startsWith(v)) throw new Error(`${k}'s turn file isn't its entry's`);
         return file;
@@ -181,7 +192,7 @@ export class LibraryFiles {
     const k = `${sp.id}/${flop}`;
     let e = this.entries.get(k);
     if (!e) {
-      e = this.get(`${k}.bin?v=${sp.flops[flop] ?? ""}`, signal ? { signal } : undefined).then(async (r) => decodeEntry(await r.arrayBuffer()));
+      e = this.get(`${k}.bin?v=${sp.flops[flop] ?? ""}`, signal ? { signal } : undefined, sp.host).then(async (r) => decodeEntry(await r.arrayBuffer()));
       e.catch(() => this.entries.delete(k));
       if (this.entries.size >= 40) this.entries.delete(this.entries.keys().next().value!);
       this.entries.set(k, e);

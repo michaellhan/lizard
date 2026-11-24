@@ -100,6 +100,8 @@ jobs:
           VITE_SYNC: ${{ vars.LIZARD_SYNC }}
           VITE_EXPLAIN: ${{ vars.LIZARD_EXPLAIN }}
           VITE_ARENA: ${{ vars.LIZARD_ARENA }}
+          # (the R2 bucket's public origin, where the library serves spots Pages can't hold: docs/DEPLOYMENT.md)
+          VITE_LIBRARY_HOSTS: ${{ vars.LIZARD_LIBRARY_HOSTS }}
       - name: The built site, for the browser tests
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:

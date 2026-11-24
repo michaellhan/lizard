@@ -9,6 +9,13 @@
 # is a persistent local clone (library-build/lizard-library, gitignored), so each publish pushes only the files that
 # changed, not the whole ~255 MB. Low CPU by design: niced, single-threaded git packing, no recompression of the
 # already-compressed .bin files. Safe to run while the builds run, by hand or on a timer.
+#
+# What Pages can't hold (900 MiB, 120k files) goes to a Cloudflare R2 bucket, whole spot directories at a time, when an
+# R2 config is there: ~/.config/lizard/r2.env (or $LIZARD_R2_ENV) setting LIZARD_R2_BASE (the bucket's public https
+# base, ending in /) and R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET (docs/DEPLOYMENT.md, "The
+# library on R2"). assemble.py then writes hosts.json naming the moved sets, r2_upload.py sends what changed in them
+# before Pages is pushed, the clone leaves them out, and library-build/release-full keeps the whole release for the
+# next run's --previous. Without the config nothing changes: the library must fit Pages, or assemble.py stops.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 REPO=michaellhan/lizard-library
@@ -26,9 +33,42 @@ if [ -f "$STAGE/index.json" ]; then
   nice -n 10 "$PY" "$ROOT/scripts/library/nuts.py" --stage "$STAGE" || echo "nuts: left for the next run"
 fi
 
+# R2 (above): the config, if there is one
+R2_ENV="${LIZARD_R2_ENV:-$HOME/.config/lizard/r2.env}"
+if [ -f "$R2_ENV" ]; then
+  set -a
+  # shellcheck disable=SC1090
+  . "$R2_ENV"
+  set +a
+fi
+FULL="$BUILD/release-full"   # (the last release whole, R2 sets and all: the clone lacks those)
+
+# the last release, for spots that fail or shrink: the whole one where the clone is it less its R2 sets
 prev=()
-[ -f "$CLONE/index.json" ] && prev=(--previous "$CLONE")
+if [ -f "$FULL/index.json" ] && [ -f "$CLONE/index.json" ] && cmp -s "$FULL/index.json" "$CLONE/index.json"; then
+  prev=(--previous "$FULL")
+elif [ -f "$CLONE/index.json" ]; then
+  prev=(--previous "$CLONE")
+fi
 nice -n 10 "$PY" "$ROOT/scripts/library/assemble.py" --out "$STAGE" ${prev[@]+"${prev[@]}"}
+
+# the sets served from R2: sent (only what changed) before Pages is pushed, and left out of the clone
+r2_sets=()
+if [ -f "$STAGE/hosts.json" ]; then
+  [ -n "${LIZARD_R2_BASE:-}" ] || { echo "the stage has hosts.json but LIZARD_R2_BASE isn't set ($R2_ENV)" >&2; exit 1; }
+  sets_txt=$("$PY" -c '
+import json, re, sys
+for s in sorted(json.load(open(sys.argv[1]))["sets"]):
+    if not re.fullmatch(r"[A-Za-z0-9_.-]+", s) or s in (".", ".."):
+        sys.exit(f"hosts.json: set id {s!r}")
+    print(s)' "$STAGE/hosts.json")
+  for s in $sets_txt; do r2_sets+=("$s"); done
+  if [ "${DRY_RUN:-0}" = "1" ]; then
+    nice -n 10 "$PY" "$ROOT/scripts/library/r2_upload.py" --stage "$STAGE" --dry-run
+  else
+    nice -n 10 "$PY" "$ROOT/scripts/library/r2_upload.py" --stage "$STAGE"
+  fi
+fi
 
 if [ ! -d "$CLONE/.git" ]; then
   mkdir -p "$CLONE"
@@ -41,7 +81,15 @@ if [ ! -d "$CLONE/.git" ]; then
 fi
 G=(git -C "$CLONE" -c core.compression=0 -c pack.threads=1 -c pack.compression=0)
 
-rsync -a --delete --exclude .git --exclude .lizard-stage "$STAGE/" "$CLONE/"
+excl=(--exclude .git --exclude .lizard-stage)
+for s in ${r2_sets[@]+"${r2_sets[@]}"}; do excl+=(--exclude "/$s/"); done
+rsync -a --delete ${excl[@]+"${excl[@]}"} "$STAGE/" "$CLONE/"
+# (an R2 set that Pages served before: gone from the clone, as rsync leaves excluded paths alone)
+for s in ${r2_sets[@]+"${r2_sets[@]}"}; do [ -d "$CLONE/$s" ] && rm -rf "${CLONE:?}/$s"; done
+# the whole release, R2 sets and all, for the next run's --previous (none needed while Pages holds it all)
+if [ ${#r2_sets[@]} -gt 0 ]; then
+  rsync -a --delete --exclude .lizard-stage "$STAGE/" "$FULL/"
+fi
 "${G[@]}" add -A
 if "${G[@]}" diff --cached --quiet; then
   # A push that failed leaves its commit here, with nothing new to commit: it's still to send, or it never would be.
@@ -57,8 +105,10 @@ import json, sys
 s = json.load(open(sys.argv[1]))
 hu = [f"{k} {v['flops']}" for k, v in s["spots"].items() if (v.get("game") or {}).get("players") == 2]
 deep = [f"{k} {v['flops']}" for k, v in s["spots"].items() if (v.get("game") or {}).get("players") == 6]
+r2 = s.get("r2")
 print(f"lizard-library: {len(s['spots'])} spots, {s['files']} files" + (f"; heads-up: {', '.join(hu)}" if hu else "")
-      + (f"; other depths: {', '.join(deep)}" if deep else ""))
+      + (f"; other depths: {', '.join(deep)}" if deep else "")
+      + (f"; {len(r2['sets'])} set(s), {r2['files']} files on R2" if r2 else ""))
 PY
 )
 "${G[@]}" commit --quiet -m "$msg"

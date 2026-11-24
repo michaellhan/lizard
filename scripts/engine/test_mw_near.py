@@ -21,6 +21,7 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import gto.advisor as A  # noqa: E402
+from gto import flop_approx as fl_approx  # noqa: E402
 from gto import flop_library as fl  # noqa: E402
 from gto import multiway_solver as MW  # noqa: E402
 from gto import mw_library as ML  # noqa: E402
@@ -56,10 +57,20 @@ class ServedAsBuilt(unittest.TestCase):
                 ranges, pot, stack = today(sid)
                 self.assertIsNone(lib.spot([fl.range_fp(r) for r in ranges], pot, stack))   # (upstream misses it)
                 spot, b = lib._pick(ranges, pot, stack, 6)
+                bs = mw_built.SPOTS[sid]
+                built = [np.asarray(r) for r in mw_built.ranges(sid)]
+                dist = sum(fl_approx.range_dist(np.asarray(x), y) for x, y in zip(ranges, built))
+                if dist > mw_near.near_dist(sid):
+                    # (moved past the spot's distance: left to the live solve)
+                    self.assertEqual((spot, b), (None, None))
+                    continue
                 self.assertEqual(spot["id"], sid)
-                self.assertEqual(b["built"], {"commit": mw_built.COMMIT, "date": mw_built.DATE,
-                                              "seats": mw_built.SPOTS[sid]["seats"]})
-                self.assertLessEqual(sum(b["dist"]), mw_near.NEAR_DIST)
+                want = {"commit": bs.get("commit", mw_built.COMMIT), "date": bs.get("date", mw_built.DATE),
+                        "seats": bs["seats"]}
+                if bs.get("source"):
+                    want["source"] = bs["source"]
+                self.assertEqual(b["built"], want)
+                self.assertLessEqual(sum(b["dist"]), mw_near.near_dist(sid))
                 self.assertGreaterEqual(min(b["cover"]), mw_near.NEAR_COVER)
                 # (custom ranges, players None: never borrowed)
                 self.assertEqual(lib._pick(ranges, pot, stack, None), (None, None))
@@ -129,6 +140,47 @@ class Labels(unittest.TestCase):
                         "built": {"commit": "5b49b94", "date": "2026-11-16", "seats": ["BB", "CO", "BTN"]}}
         self.assertTrue(sol.borrowed_text().startswith("this spot as built on the charts of 2026-11-16"))
 
+
+    def test_another_games_build_names_its_source_and_convergence(self):
+        b = {"built": {"commit": "ee80ff5", "date": "2026-11-17", "seats": ["SB", "BB", "CO"],
+                       "source": "gtosolver's 3-way build on gto-solver 5e7dbc8's game", "iters": 300, "expl": 0.093},
+             "dist": (0.0, 0.1432, 0.0), "cover": (1.0, 0.982, 1.0)}
+        self.assertEqual(mw_near.built_text(b), "this spot as built by gtosolver's 3-way build on gto-solver 5e7dbc8's "
+                                                "game (its charts of 2026-11-17, and its later streets bucketed by "
+                                                "weight times equity, 300 iterations, 0.09% of the pot from "
+                                                "equilibrium on its own ranges), not Lizard's: BB's range differs "
+                                                "from this pot's by 7.2% of its weight; SB and CO's are the same")
+        b["built"].pop("iters")
+        self.assertNotIn("iterations", mw_near.built_text(b))
+
+    def test_another_games_spot_is_marked_with_its_stored_convergence(self):
+        class Sol:
+            label = "CO open, SB and BB call"
+            borrowed = None
+            iters = 300
+
+            def exploitability(self):
+                return 0.0933
+        b = {"spot": {"id": "mw_co_sb_bb"}, "cover": (1.0, 0.982, 1.0), "dist": (0.0, 0.1432, 0.0),
+             "built": {"commit": "ee80ff5", "date": "2026-11-17", "seats": ["SB", "BB", "CO"], "source": "x"}}
+        s = ML.MWLibrary._mark(Sol(), b)
+        self.assertEqual((s.borrowed["built"]["iters"], s.borrowed["built"]["expl"]), (300, 0.093))
+        self.assertNotIn("iters", b["built"])      # (the spot's own built dict untouched)
+
+    def test_a_spot_on_its_own_tree_reads_its_entries_by_that_tree(self):
+        seen = []
+
+        def upstream(self, spot, name):
+            seen.append(self.index()["tree"])
+            return name
+        entry = mw_near._wrap_entry(upstream)
+        lib = fake_library([])
+        index_tree = lib.index()["tree"]
+        own = dict(index_tree, bucket_power=1.0)
+        self.assertEqual(entry(lib, {"id": "x", "tree": own}, "KcTd5h"), "KcTd5h")
+        self.assertEqual(entry(lib, {"id": "y"}, "KcTd5h"), "KcTd5h")
+        self.assertEqual(seen, [own, index_tree])
+        self.assertEqual(lib.index()["tree"], index_tree)     # (put back)
 
     def test_the_pots_own_seats_are_named(self):
         """HJ opens, CO and BB call reads the spot built on HJ opens, BTN and BB call: the text names CO."""

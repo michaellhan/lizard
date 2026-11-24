@@ -39,8 +39,19 @@ goes in after everything else as its own index, ss_index.json (engine/single_siz
 flops, flop by flop in the build's order while it stays within SS_BYTES and the file cap, never fewer flops a spot than
 the previous release.
 
+Another game's 3-way library (--mw-game; by default MW_GAME_SOURCES, gtosolver's .work/oneshot/mw-all/lib, read only)
+adds the 3-way spots the library lacks (by id, or by line and seats) on that build's own tree, kept on the spot as
+`tree` in mw_index.json (engine/mw_near.py reads its entries by it); each entry is checked by its sha1, and its header's
+fingerprints, tree and board. A spot the library already publishes is left as it is.
+
+Library data past GitHub Pages' budget goes to Cloudflare R2 when --r2-base (or LIZARD_R2_BASE) names the bucket's
+public base: whole spot directories move there (assign_hosts) until the rest fits MAX_TOTAL and MAX_FILES, hosts.json
+names them, and their index entries say `host`. The stage keeps every file (so local reads and --previous work);
+publish.sh uploads the R2 sets (scripts/library/r2_upload.py) and leaves them out of the Pages clone.
+
 Usage: assemble.py --out library-build/stage [--previous library-build/lizard-library] [--hu DIR ...] [--mw DIR ...]
-       [--formats DIR ...] [--extend DIR ...] [--breadth DIR ...] [--single-size DIR]
+       [--formats DIR ...] [--extend DIR ...] [--breadth DIR ...] [--single-size DIR] [--mw-game DIR ...]
+       [--r2-base https://.../]
 Exit status 0 when the stage is complete and consistent; the summary goes to stdout and the stage's
 lizard-library.json.
 """
@@ -93,6 +104,26 @@ SS_FORMAT = 1  # engine/single_size.py SS_FORMAT
 # under MAX_TOTAL and GitHub Pages' 1 GB (docs/single-size-library.md)
 SS_BYTES = 250 * 2**20
 SS_SHARE_PCT = 90  # a single-size flop is published once this share of the spots hold it (a few may have failed)
+# Another game's 3-way library (gtosolver's build of all eight 3-way spots on every flop, on gto-solver 5e7dbc8's game:
+# the later streets' buckets split by weight times equity, bucket_power 1.0). Read only (the directory is that build's),
+# by the owner's decision of 2026-11-24; its spots the library lacks go in on their own tree (add_mw_game).
+MW_GAME_SOURCES = [WORK / "oneshot" / "mw-all" / "lib"]
+MW_GAME_PLAN = 1755  # (that build's plan: every flop of each spot)
+MW_GAME_NAME = "gtosolver's 3-way build on gto-solver 5e7dbc8's game"  # (said on each spot as source.build)
+
+# Library data past GitHub Pages' budget is served from Cloudflare R2 (the owner's decision of 2026-11-24): with
+# --r2-base (or LIZARD_R2_BASE), whole spot directories ("sets") move there, lowest priority first (host_tier), until
+# what Pages serves fits MAX_TOTAL and MAX_FILES; hosts.json beside index.json names each moved set and the base it's
+# served from, and its index entry says `host`. The worker and the web read hosts.json (scripts/pyodide/worker-edits.mjs,
+# web/src/library/hosts.ts); scripts/library/r2_upload.py puts the sets in the bucket before publish.sh pushes Pages.
+# Without an R2 base nothing moves and the caps are as before.
+R2_ENV = "LIZARD_R2_BASE"
+R2_HOST = "r2"
+HOSTS_FORMAT = 1
+R2_MAX_BYTES = 8 * 2**30  # (R2's free tier stores 10 GB-month)
+R2_EXTRA_FILES = 300_000  # files the breadth and single-size builds may add past Pages' cap, served from R2
+R2_SS_BYTES = 2 * 2**30   # the single-size library's byte budget with R2 (250 MB without)
+CAPS = {"files": MAX_FILES, "ss_bytes": SS_BYTES}  # (main raises them when R2 is configured)
 
 
 # Build plans that differ from the snapshot's SPOT_FLOPS (solver/gto/flop_library.py): the heads-up SRP build goes on
@@ -362,17 +393,96 @@ def replace_mw(src: Path, stage: Path, cur: dict, s: dict, log: list[str]) -> in
     return len(flops)
 
 
+def tree_hash(tree: dict) -> str:
+    """gto/flop_library.py tree_hash: the hash an entry's header names its tree by."""
+    return sha(json.dumps(tree, sort_keys=True, separators=(",", ":")).encode(), 12)
+
+
+def add_mw_game(src: Path, stage: Path, mw: dict | None, log: list[str]) -> tuple[dict | None, dict | None]:
+    """Add the 3-way spots another game's 3-way library holds and the staged one lacks (gtosolver's build of all eight
+    spots on every flop, on gto-solver 5e7dbc8's game: MW_GAME_SOURCES), each on its own tree: a spot whose tree
+    differs from the index's carries it as `tree` (engine/mw_near.py reads its entries by it; upstream reads one tree
+    an index), and every spot `source`: the build's name and its entries' convergence (median iterations, mean
+    exploitability as % of the pot, on its own ranges), which the Reports page and the engine say. A spot the staged library publishes (by id, or by ranges, pot and stack) is left to it, so a source never
+    replaces a published spot, only adds spots. Every entry is checked by its sha1 in the source's index and by its
+    header (its spot's fingerprints, the source's tree); one that fails is left out. Returns (the 3-way index, the
+    source's summary) or (mw, None) where the source is left out."""
+    p = src / "mw_index.json"
+    if not p.exists():
+        log.append(f"{src}: no mw_index.json yet")
+        return mw, None
+    try:
+        idx = json.loads(p.read_bytes())  # written by os.replace: never torn
+    except ValueError:
+        log.append(f"{src}: mw_index.json won't read, left out")
+        return mw, None
+    tree = idx.get("tree")
+    if idx.get("format") != MW_FORMAT or not isinstance(tree, dict) or tree.get("version") != 1 or tree.get("rake"):
+        log.append(f"{src}: 3-way index format or tree version differs (or raked), left out")
+        return mw, None
+    if mw is None:
+        mw = {"format": MW_FORMAT, "tree": tree, "spots": []}
+    own = None if tree == mw.get("tree") else tree
+    th = tree_hash(tree)
+    got: dict[str, int] = {}
+    for s in idx.get("spots", []):
+        if any(x["id"] == s["id"] or mw_same_spot(x, s) for x in mw["spots"]):
+            log.append(f"{src}: {s['id']} is published already, left to the published spot")
+            continue
+        keep: dict[str, str] = {}
+        iters: list[int] = []
+        expl: list[float] = []
+        bad = 0
+        for flop, h in sorted(s.get("flops", {}).items()):
+            sp = src / s["id"] / f"{flop}.bin"
+            if not sp.exists():
+                bad += 1
+                continue
+            dst = stage / s["id"] / f"{flop}.bin"
+            data = place(sp, dst, link=False)
+            head = read_head(data, ENTRY_MAGIC) if sha(data, 10) == h else None
+            if head is None or head.get("fp") != s.get("fp") or head.get("tree") != th or head.get("board") != flop:
+                dst.unlink()
+                bad += 1
+                continue
+            keep[flop] = h
+            iters.append(int(head.get("iters", 0)))
+            expl.append(float(head.get("expl", 0.0)))
+        if bad:
+            log.append(f"{s['id']}: {bad} 3-way flop(s) from {src} missing or failing their hash or header, left out")
+        if not keep:
+            continue
+        spot = {k: v for k, v in s.items() if k not in ("flops", "heads", "tree", "host")}
+        spot["flops"] = keep
+        if own is not None:
+            spot["tree"] = own
+        iters.sort()
+        spot["source"] = {"build": MW_GAME_NAME, "iters": iters[len(iters) // 2],
+                          "expl": round(sum(expl) / len(expl), 4)}
+        mw["spots"].append(spot)
+        got[s["id"]] = len(keep)
+    return mw, {"path": str(src), "kind": "3-way game build", "indexMtime": p.stat().st_mtime, "spots": got,
+                "tree": tree}
+
+
 def keep_previous_mw(prev: Path, stage: Path, mw: dict, allow_shrink: bool, log: list[str]) -> None:
-    """Never publish a 3-way spot with fewer flops than the previous release: carry the previous spot over."""
+    """Never publish a 3-way spot with fewer flops than the previous release: carry the previous spot over. A spot on
+    the index's tree is carried only while the index's tree is the same; one on its own tree (`tree`, add_mw_game) is
+    carried on that tree."""
     p = prev / "mw_index.json"
     if not p.exists():
         return
     old = json.loads(p.read_bytes())
-    if old.get("format") != MW_FORMAT or old.get("tree") != mw.get("tree"):
+    if old.get("format") != MW_FORMAT:
         return
     now = {s["id"]: s for s in mw.get("spots", [])}
     for ps in old.get("spots", []):
         cur = now.get(ps["id"])
+        own = ps.get("tree")
+        if own is None and old.get("tree") != mw.get("tree"):
+            continue
+        if cur is not None and (cur.get("tree") or mw.get("tree")) != (own or old.get("tree")):
+            continue    # (the spot is on another tree now: a new game's, not a shrink)
         if cur is not None and len(cur["flops"]) >= len(ps["flops"]):
             continue
         if allow_shrink:
@@ -387,6 +497,9 @@ def keep_previous_mw(prev: Path, stage: Path, mw: dict, allow_shrink: bool, log:
                 sys.exit(f"{ps['id']}: shrank and the previous release failed validation; not publishing")
             kept["flops"][flop] = h
         kept.pop("heads", None)
+        kept.pop("host", None)  # (where it's served is this run's choice: assign_hosts)
+        if kept.get("tree") == mw.get("tree"):
+            kept.pop("tree")
         log.append(f"{ps['id']}: kept the previous release ({len(kept['flops'])} flops)")
         if cur is None:
             mw["spots"].append(kept)
@@ -540,8 +653,8 @@ def add_breadth(src: Path, out: Path, merged: list[dict], tree: dict, log: list[
         if cur is not None and len(cur["flops"]) >= len(s.get("flops", {})):
             continue
         need = spot_files({"flops": s.get("flops", {}), "turns": s.get("turns")}) - (spot_files(cur) if cur else 0)
-        if n_files + need > MAX_FILES - BREADTH_RESERVE:
-            log.append(f"{s['id']}: left out, {need} more files would pass the {MAX_FILES:,} file cap")
+        if n_files + need > CAPS["files"] - BREADTH_RESERVE:
+            log.append(f"{s['id']}: left out, {need} more files would pass the {CAPS['files']:,} file cap")
             continue
         held = out / f".{s['id']}.held"  # the copy carried from --previous, put back if the new one falls short
         if cur is not None:
@@ -667,9 +780,9 @@ def add_single_size(src: Path, out: Path, taken: set[str], prev: Path | None, al
                 if p.exists():
                     b += p.stat().st_size
                     c += 1
-        if nbytes + b > SS_BYTES or n_files + files + c > MAX_FILES - BREADTH_RESERVE:
+        if nbytes + b > CAPS["ss_bytes"] or n_files + files + c > CAPS["files"] - BREADTH_RESERVE:
             log.append(f"single-size: {len(chosen)} of {len(common)} complete flops fit "
-                       f"({SS_BYTES / 2**20:.0f} MB, the {MAX_FILES:,} file cap)")
+                       f"({CAPS['ss_bytes'] / 2**20:.0f} MB, the {CAPS['files']:,} file cap)")
             break
         chosen.append(f)
         nbytes += b
@@ -718,6 +831,68 @@ def add_single_size(src: Path, out: Path, taken: set[str], prev: Path | None, al
     return ss_idx, summary
 
 
+def host_tier(spot: dict, kind: str) -> int:
+    """Which sets move to R2 first (lower first): the single-size library, then the breadth builds' spots, the 3-way
+    spots on another game's tree, other games' spots (depths, heads-up, 8-max), and last the default game's 6-max
+    spots and the 3-way spots on the index's tree, which every Study session reads."""
+    if kind == "ss":
+        return 0
+    if kind == "breadth":
+        return 1
+    if kind == "mw":
+        return 2 if spot.get("tree") else 5
+    return 3 if spot.get("game") else 4
+
+
+def dir_size(d: Path) -> tuple[int, int]:
+    """(files, bytes) under d."""
+    n = b = 0
+    for p in d.rglob("*"):
+        if p.is_file():
+            n += 1
+            b += p.stat().st_size
+    return n, b
+
+
+def assign_hosts(out: Path, sets: list[tuple[dict, str]], r2_base: str | None, log: list[str]) -> dict | None:
+    """Move whole sets (spot directories) to R2, lowest host_tier first and the larger first within a tier, until what
+    Pages serves (the rest of the stage) fits MAX_TOTAL and MAX_FILES; each moved spot's index entry gets
+    `host: "r2"`. Returns hosts.json's content, or None when nothing moves (no R2 base, or Pages holds it all). Exits
+    when Pages can't hold what's left or R2 would pass R2_MAX_BYTES."""
+    for s, _ in sets:
+        s.pop("host", None)
+    sizes = {s["id"]: dir_size(out / s["id"]) for s, _ in sets}
+    files = bytes_ = 0
+    for p in out.rglob("*"):
+        if p.is_file():
+            files += 1
+            bytes_ += p.stat().st_size
+    # (index files still to be written: a margin for them)
+    margin_files, margin_bytes = 8, 16 * 2**20
+    moved: list[dict] = []
+    order = sorted(sets, key=lambda x: (host_tier(*x), -sizes[x[0]["id"]][1], x[0]["id"]))
+    for s, kind in order:
+        if files + margin_files <= MAX_FILES and bytes_ + margin_bytes <= MAX_TOTAL:
+            break
+        if r2_base is None:
+            break
+        n, b = sizes[s["id"]]
+        if n == 0:
+            continue
+        s["host"] = R2_HOST
+        moved.append(s)
+        files -= n
+        bytes_ -= b
+    if not moved:
+        return None
+    r2_bytes = sum(sizes[s["id"]][1] for s in moved)
+    if r2_bytes > R2_MAX_BYTES:
+        sys.exit(f"R2 would hold {r2_bytes} bytes, over R2_MAX_BYTES ({R2_MAX_BYTES}); not publishing")
+    log.append(f"R2: {len(moved)} set(s) served from {r2_base} ({sum(sizes[s['id']][0] for s in moved)} files, "
+               f"{r2_bytes / 2**20:.1f} MB): {', '.join(s['id'] for s in moved)}")
+    return {"format": HOSTS_FORMAT, "hosts": {R2_HOST: r2_base}, "sets": {s["id"]: R2_HOST for s in moved}}
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--out", required=True, type=Path)
@@ -735,16 +910,29 @@ def main() -> int:
                     help="a build directory of other games' spots, e.g. other depths (repeatable; default FORMAT_SOURCES)")
     ap.add_argument("--single-size", type=Path, default=SS_SOURCE,
                     help="the single-size library's build (default: library-build/sources/single-size)")
+    ap.add_argument("--mw-game", type=Path, action="append",
+                    help="another game's 3-way library whose spots the library lacks go in on their own tree "
+                    "(repeatable; default MW_GAME_SOURCES)")
+    ap.add_argument("--r2-base", default=os.environ.get(R2_ENV) or None,
+                    help=f"the public https base of the R2 bucket's library (default ${R2_ENV}); without it nothing "
+                    "moves to R2")
     a = ap.parse_args()
+    if a.r2_base is not None and (not re.fullmatch(r"https://[A-Za-z0-9.-]+(:\d+)?/[A-Za-z0-9._/-]*", a.r2_base)
+                                  or not a.r2_base.endswith("/")):
+        sys.exit(f"--r2-base {a.r2_base!r}: an https URL ending in '/' expected")
+    if a.r2_base is not None:
+        CAPS["files"], CAPS["ss_bytes"] = MAX_FILES + R2_EXTRA_FILES, R2_SS_BYTES
     hu_sources = a.hu if a.hu else HU_SOURCES
     ext_sources = a.extend if a.extend else EXTEND_SOURCES
     mw_sources = a.mw if a.mw else MW_SOURCES
+    mw_game_sources = a.mw_game if a.mw_game else MW_GAME_SOURCES
     format_sources = a.formats if a.formats else FORMAT_SOURCES
     breadth_sources = a.breadth if a.breadth else BREADTH_SOURCES
     builds = [(p, "heads-up build") for p in hu_sources] + [(p, "format build") for p in format_sources]
 
     out = a.out.resolve()
-    for p in [a.base, *hu_sources, *ext_sources, *mw_sources, *format_sources, *breadth_sources, a.single_size]:
+    for p in [a.base, *hu_sources, *ext_sources, *mw_sources, *mw_game_sources, *format_sources, *breadth_sources,
+              a.single_size]:
         if out == p.resolve() or p.resolve() in out.parents:
             sys.exit(f"refusing: --out {out} is inside a source")
     if out == PROTECTED or PROTECTED in out.parents:
@@ -776,6 +964,12 @@ def main() -> int:
         if added is not None:
             mp = src / "mw_index.json"
             sources.append({"path": str(src), "kind": "3-way build", "indexMtime": mp.stat().st_mtime, "spots": added})
+    game_spots: set[str] = set()
+    for src in mw_game_sources:
+        mw, summary = add_mw_game(src, out, mw, log)
+        if summary is not None:
+            game_spots |= set(summary["spots"])
+            sources.append(summary)
 
     for src in ext_sources:
         got = extend_spots(src, out, spots, a.base, log)
@@ -856,6 +1050,7 @@ def main() -> int:
         if summary is not None:
             breadth_plan.update(summary.pop("plan"))
             sources.append(summary)
+    breadth_ids = set(breadth_plan) | {sid for x in sources if x.get("kind") == "breadth build" for sid in x["spots"]}
 
     nut_flops = {s["id"]: attach_nuts(a.nuts, out, s, log) for s in merged}
 
@@ -867,16 +1062,25 @@ def main() -> int:
         sources.append({"path": str(a.single_size), "kind": "single-size build",
                         "indexMtime": ss_summary["indexMtime"], "spots": ss_summary["spots"]})
 
+    # what Pages can't hold goes to R2, whole sets at a time (none without an R2 base)
+    sets = [(s, "breadth" if s["id"] in breadth_ids else "hu") for s in merged]
+    sets += [(s, "mw") for s in (mw or {}).get("spots", [])] + [(s, "ss") for s in (ss_idx or {}).get("spots", [])]
+    hosts = assign_hosts(out, sets, a.r2_base, log)
+    r2_sets = set((hosts or {}).get("sets", {}))
+
     index = {"format": FORMAT, "tree": tree, "spots": merged}
     (out / "index.json").write_text(json.dumps(index, separators=(",", ":")))
     if mw is not None:
         (out / "mw_index.json").write_text(json.dumps(mw, separators=(",", ":")))
     if ss_idx is not None:
         (out / "ss_index.json").write_text(json.dumps(ss_idx, separators=(",", ":")))
+    if hosts is not None:
+        (out / "hosts.json").write_text(json.dumps(hosts, separators=(",", ":")))
     (out / ".nojekyll").write_text("")
 
     # consistency: every listed file exists, nothing unexpected, within GitHub Pages limits
-    listed = {"index.json", "mw_index.json", "ss_index.json", ".nojekyll", STAGE_MARK, "lizard-library.json"}
+    listed = {"index.json", "mw_index.json", "ss_index.json", "hosts.json", ".nojekyll", STAGE_MARK,
+              "lizard-library.json"}
     for s in [*merged, *(ss_idx or {}).get("spots", [])]:
         listed |= {f"{s['id']}/report.json", f"{s['id']}/ranges.json"}
         if s.get("nuts"):
@@ -897,7 +1101,7 @@ def main() -> int:
         for f in s["flops"]:
             if not (out / s["id"] / f"{f}.bin").exists():
                 sys.exit(f"{s['id']}/{f}.bin listed but missing")
-    total = n = 0
+    total = n = r2_total = r2_n = 0
     for p in out.rglob("*"):
         if not p.is_file():
             continue
@@ -907,10 +1111,15 @@ def main() -> int:
         size = p.stat().st_size
         if size > MAX_FILE:
             sys.exit(f"{rel} is {size} bytes, over the {MAX_FILE} limit")
+        if rel.split("/", 1)[0] in r2_sets:
+            r2_total += size
+            r2_n += 1
+            continue
         total += size
         n += 1
     if total > MAX_TOTAL or n > MAX_FILES:
-        sys.exit(f"stage is {total} bytes in {n} files, over the limits")
+        sys.exit(f"stage is {total} bytes in {n} files on Pages, over the limits"
+                 + ("" if a.r2_base else f" (no R2 base: set {R2_ENV} to serve the rest from R2)"))
 
     planned = {**breadth_plan, **planned_flops()}
     summary = {
@@ -921,10 +1130,13 @@ def main() -> int:
             for s in merged
         },
         "multiway": {s["id"]: len(s["flops"]) for s in (mw or {}).get("spots", [])},
-        "multiwayTargets": {s["id"]: MW_BUILD_PLANS.get(s["id"]) for s in (mw or {}).get("spots", [])},
+        "multiwayTargets": {s["id"]: MW_BUILD_PLANS.get(s["id"], MW_GAME_PLAN if s["id"] in game_spots or s.get("tree") else None)
+                            for s in (mw or {}).get("spots", [])},
         **({"singleSize": {k: v for k, v in ss_summary.items() if k != "indexMtime"}} if ss_summary else {}),
+        # (served by Pages; the sets on R2 apart)
         "files": n,
         "bytes": total,
+        **({"r2": {"base": a.r2_base, "sets": sorted(r2_sets), "files": r2_n, "bytes": r2_total}} if hosts else {}),
         "notes": log,
     }
     # a run that changes nothing keeps the previous summary's time, so the stage matches the release and publish.sh
