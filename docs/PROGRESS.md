@@ -6752,3 +6752,86 @@ Every figure below is lz4's.
   `scripts/engine/test_flop_model.py` (6) and `scripts/benchmarks/test_reference.py` (33, 21 s, 0.99 GB peak). The
   Pyodide tests weren't run: nothing in the worker's import chain changed.
 - About 3 CPU hours, all through slot.sh.
+
+
+## 2026-11-24 — Library hosting (W12): gtosolver's 3-way spots, and R2 for what Pages can't hold
+
+### gtosolver's 3-way library
+
+**What it is.** `.work/oneshot/mw-all/lib` (read only, through `assemble.py`) holds all eight 3-way 6-max 100bb spots
+as a format-1 `mw_index.json`, with GTOFL3 entries and one tree. The game is gto-solver 5e7dbc8's:
+- flop bets of 33% and 75%, one raise, and all-in;
+- turn and river bets of 50%;
+- later streets played by 12 buckets split by weight times equity (`bucket_power` 1.0, part of the tree key).
+
+The ranges are the charts as of Lizard's ee80ff5 (2026-11-17), and every fingerprint reproduced. On 2026-11-24 it held
+1,755 flops for six spots, 1,606 for `mw_hj_sb_bb` and 185 for `mw_utg_sb_bb`, and was still building.
+
+**The re-pin.** `claude/hopeful-carson-c97373` re-pins gto-solver at 5e7dbc8. It was not merged: the library doesn't
+need it. A spot's entries are read by the tree the spot carries (`engine/mw_near.py` `_wrap_entry`), so Lizard's own
+game stays as it is.
+
+**What was added:**
+- `assemble.py` `add_mw_game` adds the four spots Lizard didn't publish (`mw_utg_ip_bb`, `mw_co_sb_bb`, `mw_hj_sb_bb`,
+  `mw_utg_sb_bb`):
+  - each on its own tree, with a `source` (the build's name and its entries' convergence);
+  - every entry checked by its sha1 and its header;
+  - each spot kept by `keep_previous_mw` on its own tree.
+- `mw_built_ranges.py` gained `--spots`, `--merge` and `--source`. `engine/mw_built.py` has the four spots with their
+  own commit, date and source.
+- `engine/mw_near.py` serves them as built. The text names the source, the bucketing, and the stored solve's iterations
+  and exploitability. `NEAR_DIST_SPOT` holds per-spot distances (empty).
+- The Reports page's provenance marks such a spot's report approximate and names the build (`reports.ts`
+  `sourceWords`).
+
+Local stage `library-build/runs/w12/stage`:
+- assembled with exit 0, nothing failing validation;
+- 8 3-way spots, 116,960 files, 574.9 MiB.
+
+**Accuracy** (ACCURACY section 35, `scripts/library/bench_mw_game.py`, 24 flops, 561 s through slot.sh):
+- `mw_utg_ip_bb` and `mw_co_sb_bb` beat the live Fast solve: 0.047 and 0.041% of the pot given up, against 0.059. They
+  are served as built.
+- `mw_hj_sb_bb` (0.051 against 0.047) and `mw_utg_sb_bb` (0.080 against 0.048, 0.66 at worst) are past `NEAR_DIST` and
+  stay with the live solve.
+- Checked end to end against the stage, natively: `mw_utg_ip_bb` and `mw_co_sb_bb` answered from their entries with the
+  source text; the other two weren't served.
+
+**3-way single size.** gtosolver's trees aren't single-size (33/75% on the flop, 50% later), and nothing else holds
+3-way solves at one size a node. A set would need new solves, about 12-16 CPU-hours estimated, and wasn't started.
+
+### Cloudflare R2
+
+**What was built:**
+- `assemble.py` takes `--r2-base`, or `LIZARD_R2_BASE`. It moves whole spot directories to R2 by `host_tier` until
+  Pages' part fits, then writes `hosts.json`, a `host` on each moved spot, and an `r2` block in the summary.
+- `scripts/library/r2_upload.py` uploads them:
+  - standard library only, with AWS Signature V4 checked against AWS's own example;
+  - only changed files, with a resumable manifest;
+  - `--verify`, `--prune`, and `--via wrangler`.
+- `scripts/library/r2-cors.json` holds the bucket's CORS policy.
+- `publish.sh`:
+  - reads `~/.config/lizard/r2.env`;
+  - uploads before the Pages push;
+  - leaves the R2 sets out of the clone;
+  - keeps `library-build/release-full` for `--previous`.
+- The web: `web/src/library/hosts.ts`, and `LibraryFiles.url`, which reads hosts.json only for a spot marked `host`.
+- The worker: a declared edit in `worker-edits.mjs` and `UPSTREAM.json`.
+- `VITE_LIBRARY_HOSTS` feeds both the allowed origins and the CSP `connect-src`. The deploy sets it from the repository
+  variable `LIZARD_LIBRARY_HOSTS`.
+
+**State:**
+- Wrangler is logged in on this Mac as the owner, but R2 isn't enabled on the account, so no bucket was created.
+- CI needs no Cloudflare token.
+- The owner's steps are in DEPLOYMENT §2, "The library on R2".
+- Nothing was published or deployed.
+
+### Gates
+
+- Python: `scripts/library` (64: test_assemble 45, test_r2_upload 9, test_published_fps 3, test_nuts 7) and
+  `scripts/engine/test_mw_near.py` (20).
+- Pyodide `node --test scripts/pyodide/*.test.mjs`: 25.
+- Web: lint clean. Typecheck clean except `tesseract.js`, which this checkout's `node_modules` lacks (the same before
+  W12). Full vitest through slot.sh (`--maxWorkers=3`, with a local config that leaves out the OCR plugin for that
+  reason): 262 files passed, 4240 tests, 26 skipped. The only failures were `ocr.test.ts` (2) and
+  `ScreenshotImport.test.tsx` (it won't load), both for the missing `tesseract.js`.
+- FEATURE_MATRIX: the Multiway and Single-size library rows have notes added; grades unchanged.
