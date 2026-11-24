@@ -6780,7 +6780,8 @@ Workstream W11 of the second GAP_PLAN run (ACCURACY section 18.13).
   ante/straddle: a 2bb straddle from the UTG (the flop values are fitted to published solves without antes or a
   straddle: ...)".
 - Measured: a live solve run to its own stop gives the stored first-in ranges within 0.08% to 0.22% of the range over
-  five games (a 9-handed live solve stopping at 200 iterations, 0.65%); the same iterations give the file's strategy to
+  six games; the seventh, 9-handed, is 0.65% off, since its live solve stops after 200 iterations, 12 times further
+  from equilibrium than the file (there the stored game is the better answer); the same iterations give the file's strategy to
   its 1/255 steps; the charts-sized trees with a straddle or ante raise the Advisor charts' sizes at all 40 sampled
   nodes per tree.
 - Tests: `scripts/engine/test_pf_forced.py` (new, 9), `test_pf_engine.py` (43), `test_pf_stored.py` (4),
@@ -6793,3 +6794,11 @@ Workstream W11 of the second GAP_PLAN run (ACCURACY section 18.13).
 - Not done: the 225 games still building, to be installed, tested and committed when it finishes
   (`build_stored.py --forced --install library-build/runs/pf-forced`); no browser check; not measured against a fuller
   solve with antes or a straddle; a straddle from another seat, or an ante with a straddle, still solves on request.
+- Review fix (2026-11-24): at 6, 7 and 8 players Analyze graded no anted decision by the stored game. It asked the
+  stored ante (0.17, 0.14, 0.13bb a seat) but checked the chips in against the hand's own averaged ante, so a 1bb
+  big-blind ante's 1bb of antes was 0.02 to 0.04bb off the stored game's 1.02, 0.98 or 1.04bb, past the grade's 0.011bb
+  chip width, and every decision fell back to the chart. The hand is now replayed with the stored ante for that check
+  (`grading.ts`); its stacks and bets stay its own. Test: `grading.test.ts` grades a 6-handed hand with 1bb of antes by
+  the stored game, with the ante note, and leaves a node whose pot holds only the hand's own antes to the chart.
+  FEATURE_MATRIX and this section now say six games for the live-against-stored range gap, with the 9-handed
+  exception, where they had said five and a bound of 0.5% for all.

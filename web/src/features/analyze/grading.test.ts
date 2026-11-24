@@ -554,6 +554,20 @@ describe("preflop by the stored solve", () => {
     expect(asked[1]).toMatchObject({ preflop_solve: true, stack: 100, ante: 0.17, pf_tree: { sizing: "chart" } });
     expect(asked[1]).not.toHaveProperty("stacks");
     expect(pfAnteNote(0.17, 0.1667)).toBe("read against the stored game's 0.17bb ante a seat (a 1bb big-blind ante's share, to the cent); this hand's antes average 0.1667bb a seat");
+    // graded by the stored game, with the hand's antes in as the replay sets them (1bb in all) against the stored game's
+    // 6 x 0.17 = 1.02bb: the chips in are checked with the stored ante, not left to the chart for the 0.02bb
+    const played = { ...h, setup: { ...h.setup, ante: 1 / 6 }, hand: { ...h.hand, ante: 1 / 6 } } as ReplayedHand;
+    const node = { ...NODES.opened, pot_bb: (NODES.opened.pot_bb ?? 0) + 6 * 0.17 };
+    const on = pair(CHART_OPENED, node);
+    const g = await gradeDecision({ id: "x", site: "PokerStars" }, played, "preflop", 3, on.ask);
+    expect(on.asked[1]).toMatchObject({ preflop_solve: true, stack: 100, ante: 0.17 });
+    expect(g).toMatchObject({ source: "preflop-solve", byEv: true, matched: "raise" });
+    expect(g.pfWhy).toBeUndefined();
+    expect(g.note).toContain(pfAnteNote(0.17, 1 / 6));
+    // (a node whose pot is the hand's own ante's, not the stored game's, isn't the stored game's tree)
+    const off = await gradeDecision({ id: "x", site: "PokerStars" }, played, "preflop", 3, pair(CHART_OPENED, { ...NODES.opened, pot_bb: (NODES.opened.pot_bb ?? 0) + 1 }).ask);
+    expect(off).toMatchObject({ source: "charts", byEv: false });
+    expect(off.pfWhy).toMatch(/chips in aren't the solve's/);
     // an ante no stored game has stays with the chart, saying the ante it's stored for
     const other = { ...anted, hand: { ...anted.hand, ante: 0.25 } } as ReplayedHand;
     expect(pfOut({ site: "PokerStars" }, other)).toMatch(/stored for no ante, or a 0\.17bb ante a seat/);

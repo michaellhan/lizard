@@ -427,15 +427,17 @@ export async function gradeDecision(
   let pf: { pfWhy?: string; noRake?: boolean; depth?: { depth: number; eff: number; dev: number }; ante?: [number, number] } = {};
   if (street === "preflop" && !pfOut(hand, r)) {
     const practice = hand.site === PRACTICE_SITE;
-    const spot: PfSpot = { hero: r.hand.hero, hole: r.hand.hole.join(""), sim: simulate(r.setup, linesBefore(r, street, i), 0), table: r.setup, ownSizes: !!hand.setup?.pfSizes, ownOptions: !!hand.setup?.pfOptions };
     // (a site's hand: the stored game nearest its stacks, asked as that game, equal stacks at its depth and the stored
-    // ante; the chips in are still checked against the hand's own, so a line past an all-in at other stacks stays with
-    // the chart)
+    // ante; the chips in are still checked against the hand's own stacks and bets, so a line past an all-in at other
+    // stacks stays with the chart, but with the stored ante in: the hand's averaged ante is the stored one only to the
+    // cent, and at 6 to 8 players its antes are 0.02 to 0.04bb off the stored game's, past a chip's width)
     const game = practice ? null : pfSiteGame(r.hand.players, r.hand.ante, !!r.hand.straddle);
+    const anteOff = !!game && Math.abs(game.ante - r.hand.ante) > EPS;
+    const asTable = game && anteOff ? { ...r.setup, ante: game.ante } : r.setup;
+    const spot: PfSpot = { hero: r.hand.hero, hole: r.hand.hole.join(""), sim: simulate(asTable, linesBefore(r, street, i), 0), table: asTable, ownSizes: !!hand.setup?.pfSizes, ownOptions: !!hand.setup?.pfOptions };
     const at = game ? pfDepthAt(r.setup.stacks, [...spot.sim.active], r.hand.hero, game.depths) : null;
     if (at && "why" in at) pf = { pfWhy: at.why };
     else {
-      const anteOff = !!game && Math.abs(game.ante - r.hand.ante) > EPS;
       const equal: AdvisorState = { ...state, stack: at?.depth ?? state.stack, ...(game?.ante ? { ante: game.ante } : {}) };
       delete equal.stacks;
       const asked = await askPf(at && (!at.exact || anteOff) ? equal : state, ask);
