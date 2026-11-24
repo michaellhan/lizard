@@ -5,7 +5,7 @@
 // spot is planned to reach comes from lizard-library.json, which scripts/library/assemble.py writes from the
 // solver's SPOT_FLOPS; a library without it (the upstream one) shows counts only.
 import { LIBRARY_SOURCES, type LibrarySourceId } from "@/config";
-import { coveredFlops, parseSsIndex } from "./singleSize";
+import { coveredFlops, gameSpots, gameWords, parseSsIndex } from "./singleSize";
 import { libraryStamps, type LibraryStamp } from "./version";
 
 export interface LibrarySpotIndex {
@@ -34,11 +34,20 @@ export interface LibrarySpotIndex {
 }
 
 /** the flops of a spot with a stored turn file */
-export const storedTurnFlops = (s: Pick<LibrarySpotIndex, "turns" | "flops">): string[] =>
-  s.turns === true ? Object.keys(s.flops) : Array.isArray(s.turns) ? s.turns.filter((f) => Object.hasOwn(s.flops, f)) : [];
+export const storedTurnFlops = (
+  s: Pick<LibrarySpotIndex, "turns" | "flops">,
+): string[] =>
+  s.turns === true
+    ? Object.keys(s.flops)
+    : Array.isArray(s.turns)
+      ? s.turns.filter((f) => Object.hasOwn(s.flops, f))
+      : [];
 
 /** A spot Practice's drills can deal: two players, with its report and a stored flop. */
-export const isDrillable = (s: LibrarySpotIndex) => s.seats.length === 2 && Boolean(s.report) && Object.keys(s.flops ?? {}).length > 0;
+export const isDrillable = (s: LibrarySpotIndex) =>
+  s.seats.length === 2 &&
+  Boolean(s.report) &&
+  Object.keys(s.flops ?? {}).length > 0;
 
 export interface LibraryIndex {
   format: number;
@@ -70,16 +79,33 @@ export interface LibraryPlan {
   /** the 3-way spots' flop counts they are being built to (assemble.py MW_BUILD_PLANS) */
   multiwayTargets?: Record<string, number | null>;
   /** the single-size library's publish (assemble.py add_single_size): the flop count it's being built to */
-  singleSize?: { target?: number | null };
+  singleSize?: { target?: number | null; games?: { target?: number | null } };
 }
 
 /** The single-size library (ss_index.json, library/singleSize.ts): a separate source, one bet size a node. */
 export interface SingleSizeCoverage {
-  spots: { id: string; label: string; line: string; flops: number }[];
-  /** the flops every spot holds, in the build's order */
+  /** each spot; an ante or straddle game's (W13) with its game, the game in words and the flop count it's built to */
+  spots: {
+    id: string;
+    label: string;
+    line: string;
+    flops: number;
+    target?: number | null;
+    game?: { ante: number; straddle: boolean };
+    gameWords?: string;
+  }[];
+  /** the flops every 100bb spot (no ante or straddle) holds, in the build's order */
   flops: string[];
   /** the flop count it's being built to, when the library says */
   target: number | null;
+  /** the ante and straddle games: each one's flops every one of its spots holds, and the flop count they're built to */
+  games: {
+    ante: number;
+    straddle: boolean;
+    words: string;
+    flops: string[];
+    target: number | null;
+  }[];
 }
 
 export interface LibraryCatalog {
@@ -94,13 +120,43 @@ export interface LibraryCatalog {
 }
 
 /** The single-size library's coverage from its index (null where it holds nothing). */
-export function summarizeSingleSize(raw: unknown, plan?: LibraryPlan | null): SingleSizeCoverage | null {
+export function summarizeSingleSize(
+  raw: unknown,
+  plan?: LibraryPlan | null,
+): SingleSizeCoverage | null {
   const idx = parseSsIndex(raw);
   if (!idx || !idx.spots.length) return null;
+  const gamesTarget = plan?.singleSize?.games?.target ?? null;
+  const games: SingleSizeCoverage["games"] = [];
+  for (const s of idx.spots) {
+    if (!s.game) continue;
+    const g = { ante: s.game.ante ?? 0, straddle: !!s.game.straddle };
+    if (games.some((x) => x.ante === g.ante && x.straddle === g.straddle))
+      continue;
+    games.push({
+      ...g,
+      words: gameWords(g, s.pf),
+      flops: coveredFlops(idx, g),
+      target: gamesTarget,
+    });
+  }
   return {
-    spots: idx.spots.map((s) => ({ id: s.id, label: s.label, line: s.line, flops: Object.keys(s.flops).length })),
-    flops: coveredFlops(idx),
+    spots: idx.spots.map((s) => ({
+      id: s.id,
+      label: s.label,
+      line: s.line,
+      flops: Object.keys(s.flops).length,
+      ...(s.game
+        ? {
+            target: gamesTarget,
+            game: { ante: s.game.ante ?? 0, straddle: !!s.game.straddle },
+            gameWords: gameWords(s.game, s.pf),
+          }
+        : {}),
+    })),
+    flops: gameSpots(idx).length ? coveredFlops(idx) : [],
     target: plan?.singleSize?.target ?? null,
+    games,
   };
 }
 
@@ -119,7 +175,11 @@ export function gameLabel(s: Pick<LibrarySpotIndex, "game" | "seats">): string {
   return `${players} ${g.stack}bb${g.ante ? ` ante ${g.ante}` : ""}${g.straddle ? " straddle" : ""}`;
 }
 
-export function summarize(index: LibraryIndex, mw?: LibraryIndex | null, plan?: LibraryPlan | null): SpotCoverage[] {
+export function summarize(
+  index: LibraryIndex,
+  mw?: LibraryIndex | null,
+  plan?: LibraryPlan | null,
+): SpotCoverage[] {
   const rows: SpotCoverage[] = [];
   for (const s of [...index.spots, ...(mw?.spots ?? [])]) {
     const n = Object.keys(s.flops ?? {}).length;
@@ -132,7 +192,8 @@ export function summarize(index: LibraryIndex, mw?: LibraryIndex | null, plan?: 
       tableStack: s.game?.stack ?? 100,
       line: s.line,
       flops: n,
-      target: plan?.spots?.[s.id]?.target ?? plan?.multiwayTargets?.[s.id] ?? null,
+      target:
+        plan?.spots?.[s.id]?.target ?? plan?.multiwayTargets?.[s.id] ?? null,
       storedTurns: Boolean(s.turns),
       game: gameLabel(s),
     });
@@ -140,7 +201,10 @@ export function summarize(index: LibraryIndex, mw?: LibraryIndex | null, plan?: 
   return rows;
 }
 
-async function getJson<T>(url: string, fetchImpl: typeof fetch): Promise<T | null> {
+async function getJson<T>(
+  url: string,
+  fetchImpl: typeof fetch,
+): Promise<T | null> {
   try {
     const r = await fetchImpl(url, { cache: "no-cache" });
     if (!r.ok) return null;
@@ -151,13 +215,23 @@ async function getJson<T>(url: string, fetchImpl: typeof fetch): Promise<T | nul
 }
 
 /** The stamps of a library's stored answers (null where its index can't be read). */
-export async function loadStamps(base: string, fetchImpl: typeof fetch = (...a) => fetch(...a)): Promise<LibraryStamp | null> {
-  const [index, mw] = await Promise.all([getJson<LibraryIndex>(`${base}index.json`, fetchImpl), getJson<LibraryIndex>(`${base}mw_index.json`, fetchImpl)]);
+export async function loadStamps(
+  base: string,
+  fetchImpl: typeof fetch = (...a) => fetch(...a),
+): Promise<LibraryStamp | null> {
+  const [index, mw] = await Promise.all([
+    getJson<LibraryIndex>(`${base}index.json`, fetchImpl),
+    getJson<LibraryIndex>(`${base}mw_index.json`, fetchImpl),
+  ]);
   return index ? libraryStamps(index, mw) : null;
 }
 
-export async function loadCatalog(source: LibrarySourceId, fetchImpl: typeof fetch = fetch): Promise<LibraryCatalog> {
-  const src = LIBRARY_SOURCES.find((s) => s.id === source) ?? LIBRARY_SOURCES[0];
+export async function loadCatalog(
+  source: LibrarySourceId,
+  fetchImpl: typeof fetch = fetch,
+): Promise<LibraryCatalog> {
+  const src =
+    LIBRARY_SOURCES.find((s) => s.id === source) ?? LIBRARY_SOURCES[0];
   const [index, mw, plan, ss] = await Promise.all([
     getJson<LibraryIndex>(`${src.base}index.json`, fetchImpl),
     getJson<LibraryIndex>(`${src.base}mw_index.json`, fetchImpl),
@@ -165,17 +239,36 @@ export async function loadCatalog(source: LibrarySourceId, fetchImpl: typeof fet
     getJson<unknown>(`${src.base}ss_index.json`, fetchImpl),
   ]);
   if (!index) {
-    return { source: src.id, base: src.base, available: false, spots: [], fetchedAt: Date.now(), error: "index.json not found" };
+    return {
+      source: src.id,
+      base: src.base,
+      available: false,
+      spots: [],
+      fetchedAt: Date.now(),
+      error: "index.json not found",
+    };
   }
   const singleSize = summarizeSingleSize(ss, plan);
-  return { source: src.id, base: src.base, available: true, spots: summarize(index, mw, plan), ...(singleSize ? { singleSize } : {}), fetchedAt: Date.now() };
+  return {
+    source: src.id,
+    base: src.base,
+    available: true,
+    spots: summarize(index, mw, plan),
+    ...(singleSize ? { singleSize } : {}),
+    fetchedAt: Date.now(),
+  };
 }
 
 /** The first library source that is actually published (Lizard's own, else the upstream's). */
-export async function resolveLibrarySource(fetchImpl: typeof fetch = fetch): Promise<LibrarySourceId> {
+export async function resolveLibrarySource(
+  fetchImpl: typeof fetch = fetch,
+): Promise<LibrarySourceId> {
   for (const s of LIBRARY_SOURCES) {
     try {
-      const r = await fetchImpl(`${s.base}index.json`, { method: "HEAD", cache: "no-cache" });
+      const r = await fetchImpl(`${s.base}index.json`, {
+        method: "HEAD",
+        cache: "no-cache",
+      });
       if (r.ok) return s.id;
     } catch {
       /* next */

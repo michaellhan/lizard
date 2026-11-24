@@ -37,10 +37,12 @@ make a publish fail; a spot another source holds (by id or by ranges, pot and st
 The single-size source (--single-size; by default library-build/sources/single-size, scripts/library/build_single_size.py)
 goes in after everything else as its own index, ss_index.json (engine/single_size.py reads it): every spot on the same
 flops, flop by flop in the build's order while it stays within SS_BYTES and the file cap, never fewer flops a spot than
-the previous release.
+the previous release. The single-size ante and straddle games (--ss-games; by default library-build/sources/ss-games,
+build_single_size.py --set games) go into the same ss_index.json after it, on their own flops by the same rule (their
+spots carry `game`), within SS_GAMES_BYTES and what the file cap leaves.
 
 Usage: assemble.py --out library-build/stage [--previous library-build/lizard-library] [--hu DIR ...] [--mw DIR ...]
-       [--formats DIR ...] [--extend DIR ...] [--breadth DIR ...] [--single-size DIR]
+       [--formats DIR ...] [--extend DIR ...] [--breadth DIR ...] [--single-size DIR] [--ss-games DIR]
 Exit status 0 when the stage is complete and consistent; the summary goes to stdout and the stage's
 lizard-library.json.
 """
@@ -93,6 +95,10 @@ SS_FORMAT = 1  # engine/single_size.py SS_FORMAT
 # under MAX_TOTAL and GitHub Pages' 1 GB (docs/single-size-library.md)
 SS_BYTES = 250 * 2**20
 SS_SHARE_PCT = 90  # a single-size flop is published once this share of the spots hold it (a few may have failed)
+# The single-size spots of the ante and straddle games (build_single_size.py --set games, W13 of docs/GAP_PLAN.md): their
+# own source and byte budget (6 spots at 552 flops: ~25 MB, ~3,900 files; at every flop ~80 MB, ~12,300 files)
+SS_GAMES_SOURCE = SOURCES / "ss-games"
+SS_GAMES_BYTES = 100 * 2**20
 
 
 # Build plans that differ from the snapshot's SPOT_FLOPS (solver/gto/flop_library.py): the heads-up SRP build goes on
@@ -625,15 +631,30 @@ def stage_ss_spot(src_root: Path, out: Path, spot: dict, flops: list[str], link:
     return staged
 
 
+def games_flops(spots: list[dict]) -> dict[str, list[str]]:
+    """Per game (its ante and straddle as a key, "a0.17" or "s"), the flops every one of its spots holds, in the first
+    spot's order."""
+    by: dict[str, list[dict]] = {}
+    for s in spots:
+        g = s.get("game") or {}
+        key = (f"a{g.get('ante'):g}" if g.get("ante") else "") + ("s" if g.get("straddle") else "")
+        by.setdefault(key, []).append(s)
+    return {k: [f for f in v[0]["flops"] if all(f in x["flops"] for x in v)] for k, v in by.items()}
+
+
 def add_single_size(src: Path, out: Path, taken: set[str], prev: Path | None, allow_shrink: bool, n_files: int,
-                    log: list[str]) -> tuple[dict | None, dict | None]:
+                    log: list[str], games: bool = False) -> tuple[dict | None, dict | None]:
     """Stage the single-size library (scripts/library/build_single_size.py) as ss_index.json beside the library.
 
     Every spot on the same flops (the owner: every preflop line on fewer flops beats a few lines on every flop): a flop
     goes in when SS_SHARE of the spots hold it, in the build's order, while the single-size files stay within SS_BYTES
     and the stage within the file cap (MAX_FILES less BREADTH_RESERVE); each spot lists the flops it holds. A spot that
     would hold fewer flops than in the previous release (--previous's ss_index.json) keeps that release's copy. Returns
-    (the index, the summary) or (None, None)."""
+    (the index, the summary) or (None, None).
+
+    `games`: the ante and straddle games' source (build_single_size.py --set games): only spots with a `game` are taken
+    from it, and only those of the previous release are kept for it (the 100bb source's call takes those without), within
+    SS_GAMES_BYTES; their flops are the games' own (a flop goes in when SS_SHARE of the games' spots hold it)."""
     ip = src / "ss-index.json"
     if not ip.exists():
         log.append(f"{src}: no ss-index.json yet")
@@ -643,9 +664,13 @@ def add_single_size(src: Path, out: Path, taken: set[str], prev: Path | None, al
         log.append(f"{src}: ss-index.json format differs, left out")
         return None, None
     spots = []
+    budget = SS_GAMES_BYTES if games else SS_BYTES
     for s in idx.get("spots", []):
         if not str(s.get("id", "")).startswith("ss_") or s["id"] in taken:
             log.append(f"{s.get('id')}: not a single-size id of its own, left out")
+            continue
+        if bool(s.get("game")) != games or (games and not (isinstance(s["game"], dict) and s.get("pf_ranges"))):
+            log.append(f"{s['id']}: {'not a game spot' if games else 'a game spot'} in {src.name}, left out")
             continue
         spots.append(s)
     order = ss_flop_order(src, idx)
@@ -667,9 +692,9 @@ def add_single_size(src: Path, out: Path, taken: set[str], prev: Path | None, al
                 if p.exists():
                     b += p.stat().st_size
                     c += 1
-        if nbytes + b > SS_BYTES or n_files + files + c > MAX_FILES - BREADTH_RESERVE:
-            log.append(f"single-size: {len(chosen)} of {len(common)} complete flops fit "
-                       f"({SS_BYTES / 2**20:.0f} MB, the {MAX_FILES:,} file cap)")
+        if nbytes + b > budget or n_files + files + c > MAX_FILES - BREADTH_RESERVE:
+            log.append(f"single-size{' games' if games else ''}: {len(chosen)} of {len(common)} complete flops fit "
+                       f"({budget / 2**20:.0f} MB, the {MAX_FILES:,} file cap)")
             break
         chosen.append(f)
         nbytes += b
@@ -689,6 +714,8 @@ def add_single_size(src: Path, out: Path, taken: set[str], prev: Path | None, al
         if pidx.get("format") == FORMAT and pidx.get("ss_format") == SS_FORMAT:
             now = {s["id"]: s for s in staged_spots}
             for ps in pidx.get("spots", []):
+                if bool(ps.get("game")) != games:
+                    continue   # (the other source's call keeps it)
                 cur = now.get(ps["id"])
                 if cur is not None and len(cur["flops"]) >= len(ps["flops"]):
                     continue
@@ -735,6 +762,8 @@ def main() -> int:
                     help="a build directory of other games' spots, e.g. other depths (repeatable; default FORMAT_SOURCES)")
     ap.add_argument("--single-size", type=Path, default=SS_SOURCE,
                     help="the single-size library's build (default: library-build/sources/single-size)")
+    ap.add_argument("--ss-games", type=Path, default=SS_GAMES_SOURCE,
+                    help="the single-size ante and straddle games' build (default: library-build/sources/ss-games)")
     a = ap.parse_args()
     hu_sources = a.hu if a.hu else HU_SOURCES
     ext_sources = a.extend if a.extend else EXTEND_SOURCES
@@ -744,7 +773,8 @@ def main() -> int:
     builds = [(p, "heads-up build") for p in hu_sources] + [(p, "format build") for p in format_sources]
 
     out = a.out.resolve()
-    for p in [a.base, *hu_sources, *ext_sources, *mw_sources, *format_sources, *breadth_sources, a.single_size]:
+    for p in [a.base, *hu_sources, *ext_sources, *mw_sources, *format_sources, *breadth_sources, a.single_size,
+              a.ss_games]:
         if out == p.resolve() or p.resolve() in out.parents:
             sys.exit(f"refusing: --out {out} is inside a source")
     if out == PROTECTED or PROTECTED in out.parents:
@@ -866,6 +896,22 @@ def main() -> int:
     if ss_summary is not None:
         sources.append({"path": str(a.single_size), "kind": "single-size build",
                         "indexMtime": ss_summary["indexMtime"], "spots": ss_summary["spots"]})
+    # then the ante and straddle games' spots, into the same index (the 100bb spots' `flops` stay theirs)
+    taken |= {s["id"] for s in (ss_idx or {}).get("spots", [])}
+    n_now = sum(1 for p in out.rglob("*") if p.is_file())
+    g_idx, g_summary = add_single_size(a.ss_games, out, taken, a.previous, a.allow_shrink, n_now, log, games=True)
+    if g_idx is not None:
+        if ss_idx is None:
+            ss_idx = {"format": FORMAT, "ss_format": SS_FORMAT, "flops": [], "spots": []}
+        ss_idx["spots"] = [*ss_idx["spots"], *g_idx["spots"]]
+        sources.append({"path": str(a.ss_games), "kind": "single-size games build",
+                        "indexMtime": g_summary["indexMtime"], "spots": g_summary["spots"]})
+        if ss_summary is None:
+            ss_summary = {"spots": {}, "flops": [], "target": None, "phases": None}
+        ss_summary["games"] = {
+            "spots": g_summary["spots"], "target": g_summary["target"], "phases": g_summary["phases"],
+            "game": {s["id"]: s["game"] for s in g_idx["spots"]},
+            "flops": {k: v for k, v in games_flops(g_idx["spots"]).items()}}
 
     index = {"format": FORMAT, "tree": tree, "spots": merged}
     (out / "index.json").write_text(json.dumps(index, separators=(",", ":")))
