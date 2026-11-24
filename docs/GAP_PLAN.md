@@ -108,8 +108,8 @@ project rules) and fixed before merging.
 
 | # | Workstream | Lane | Status |
 |---|---|---|---|
-| W10 | Flop GTO report by board texture in Analyze; preflop blockers | A | running |
-| W11 | Stored preflop games with antes and straddles | A, after W10 | queued |
-| W13 | Heads-up library spots in ante and straddle games | A, after W11 | queued |
-| W12 | 3-way library from gtosolver's mw-all; R2 hosting for library overflow | B | running |
-| W14 | Full-tree preflop solver prototype, measured | B, after W12 | queued |
+| W10 | Flop GTO report by board texture in Analyze; preflop blockers | A | merged and deployed 2026-11-24; grades unchanged (Frequency comparison WORKING, Reports PARTIAL: turn and river not split by board) |
+| W11 | Stored preflop games with antes and straddles | A, after W10 | on its branch; 240 games defined, full build running through slot.sh, installed and merged when it ends |
+| W13 | Heads-up library spots in ante and straddle games | A, after W11 | on its branch; six single-size spots (BB ante: BTN/CO/SB vs BB, BB 3bet vs BTN; UTG straddle: BTN/CO vs UTG), build running to 21:18 2026-11-24 |
+| W12 | 3-way library from gtosolver's mw-all; R2 hosting for library overflow | B | merged and deployed 2026-11-24, not yet published: gtosolver's four 3-way spots go in on their own tree (two served, two measured worse than the live solve and left to it, ACCURACY 35); R2 code is in, but R2 isn't enabled on the account (owner steps in DEPLOYMENT.md), and today's library fits Pages. No 3-way single-size set: mw-all bets 33/75% on the flop |
+| W14 | Full-tree preflop solver prototype, measured | B, after W12 | merged 2026-11-24 (research only, ACCURACY 36): every hand separately adds nothing over classes; folder card removal is worth 0.15-0.17 mbb/hand a seat, mixed against the published solves. No switch; next step would be solved flop values |
