@@ -6752,3 +6752,42 @@ Every figure below is lz4's.
   `scripts/engine/test_flop_model.py` (6) and `scripts/benchmarks/test_reference.py` (33, 21 s, 0.99 GB peak). The
   Pyodide tests weren't run: nothing in the worker's import chain changed.
 - About 3 CPU hours, all through slot.sh.
+
+## 2026-11-24 — Single-size spots in ante and straddle games (W13)
+
+- Built: six heads-up single-size spots in two games beside the 100bb library (`build_single_size.py --set games`,
+  `GAME_SPOTS`, its own source `library-build/sources/ss-games`): 6-max 100bb with a 1bb big-blind ante (0.17bb a seat:
+  BTN vs BB, CO vs BB, SB vs BB, BB 3bet vs BTN) and with a 2bb UTG straddle (BTN vs UTG, CO vs UTG). Same one-size tree,
+  flop size by the automatic sizing, flops the 184, then the 552, then the rest of the 1,755 in a golden-ratio stride.
+- Ranges: from Lizard's stored preflop solve of each game (W11's `lz4_6max_100bb_a0.17_ch`, sha1 `7fd4d92bdcb4`, and
+  `lz4_6max_100bb_s_ch`, sha1 `2b1a4c92c767`), not the charts: `build_single_size.py pf-ranges --set games --pf-dir DIR`
+  takes each seat's reach at its last decision times its share of the move, by class, checks the solve's raise sizes
+  against the line, and writes `pf-ranges.json`; the index carries `pf_ranges` and `pf`. Compared with the charts in
+  ACCURACY 35.1 (the defender 15-33% wider in every single-raised spot).
+- Engine (`engine/single_size.py`): `game_spot` matches a single-size request's table (6 seats, 100bb, ante 0.17 or the
+  straddle, no stacks or ranges of its own) and exact line to a game spot, and the advisor plays its ranges for that
+  request only (`A.preflop_ranges` swapped and put back, bunching's pattern). The answer's `single_size.game` and
+  `single_size.ranges` name the game and the preflop solve, with a note.
+- Web: `library/singleSize.ts` reads a spot's `game` and `pf`, matches a hand only to spots of its own game (a setup of
+  only an ante or a straddle allowed), and covers flops per game; Study's flop source is offered in those two games, and
+  its note lists the game's flops and says whose ranges they are; provenance appends "ranges entering the flop from
+  Lizard's stored preflop solve of this game (…), not the charts; preflop is approximate"; the catalogue and the Library
+  page list the game spots, each game's flops, and Study links carrying `ante=0.17` or `straddle=1`.
+- Publishing: `assemble.py --ss-games` adds them to the same `ss_index.json` on their own flops (90% rule, 100 MB
+  `SS_GAMES_BYTES`, what the file cap leaves), `lizard-library.json` `singleSize.games`. Fits Pages by bytes; by files
+  about 1,150 flops fit beside the 111,655 files published, so past that the file cap or W12's R2 path decides.
+- Proof: 3 flops x 6 spots, 18 entries, none failed (log `library-build/runs/ss-games-proof.log`); end to end through
+  the native advisor at the worker's Fast config, all 6 spots read their stored entry on 5c4d2h and a turn stood on it.
+- Full build started 2026-11-24 07:18 through slot.sh, detached (2 workers, 14 hours, deadline 21:18; frozen code
+  `library-build/runs/ss-games/code-3ccaa1cc25cf`, log `library-build/runs/ss-games/build.log`, output
+  `library-build/sources/ss-games`): about 10 entries a minute, so 552 flops by about 13:00 and about 1,400 of 1,755 by
+  the deadline, about 28 CPU hours; peak 680 MB a process so far. Status: `build_single_size.py status --set games`.
+- Tests: `scripts/engine/test_single_size_games.py` (7: 6 passed and the stored-game check skipped without W11's files
+  in `engine/pf/`; it passes with `LIZARD_PF_DIR` set to a copy of them), `test_single_size.py` (10), `test_assemble.py`
+  (41, with SingleSizeGamesTest's 3 new); vitest for the touched files and their neighbours (6 files, 58 tests, and
+  the Study folder, 27 files, 459 tests). Typecheck and lint clean apart from `tesseract.js`, which the shared
+  `node_modules` lacks (a dependency in `web/package.json` not installed in the main checkout); vitest ran through a scratch config
+  without the OCR plugin for the same reason.
+- Not done: nothing published or checked in a browser; the game spots need W11 (the stored games) and this branch
+  merged, `build_single_size.py index --set games` after the build, then the usual assemble and publish. FEATURE_MATRIX:
+  Single-size library, Heads-up and Solution browser rows updated; grades unchanged.

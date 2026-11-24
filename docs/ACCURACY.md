@@ -3753,3 +3753,55 @@ terminal, and the four-player one would need the triple overlaps on top. It woul
 river in the app is already solved per combo on one bet a street; with ranges that overlap as real ones do, the measured
 error above should shrink, but that was not measured. Five or more players stay on the betting rules. Nothing was
 changed in the app for multiway; FEATURE_MATRIX's Multiway row carries these figures.
+
+## 35. Single-size spots in ante and straddle games: the preflop solve's ranges and the entries' quality (2026-11-24)
+
+W13 built six heads-up single-size spots in two games (`docs/single-size-library.md`, "Ante and straddle games"), each on
+the ranges entering the flop from Lizard's stored preflop solve of that game (`engine/pf_solve.py`: ante game
+`lz4_6max_100bb_a0.17_ch`, file sha1 `7fd4d92bdcb4`; straddle game `lz4_6max_100bb_s_ch`, sha1 `2b1a4c92c767`), not the
+charts. These are what was measured before and during the build.
+
+### 35.1 How far the preflop solve's ranges are from the charts'
+
+Combos entering the flop (sum of weights over the 1,326 combos), first the preflop solve's, then the charts' for the same
+game (`flop_library.spot_setup` with the ante or straddle):
+
+| Spot | Out of position | In position |
+| --- | --- | --- |
+| BTN vs BB, ante (BB, BTN) | 935 vs 815 | 692 vs 648 |
+| CO vs BB, ante (BB, CO) | 865 vs 649 | 463 vs 464 |
+| SB vs BB, ante (SB, BB) | 810 vs 727 | 876 vs 748 |
+| BB 3bet vs BTN, ante (BB, BTN) | 173 vs 184 | 269 vs 211 |
+| BTN vs UTG, straddle (UTG, BTN) | 607 vs 517 | 448 vs 448 |
+| CO vs UTG, straddle (UTG, CO) | 512 vs 432 | 331 vs 324 |
+
+The defending seat defends wider in the solve than in the charts in every single-raised spot (by 15-33%), which is the
+direction the better price of an ante or a straddle points to; the openers' ranges are within 11% of the charts'. The solve is a class-level model at the
+charts' raise sizes, so these ranges are approximate, and every answer read from these spots says so.
+
+### 35.2 The entries
+
+Each entry is solved like the 100bb single-size library's (at least 200 iterations, then to under 0.15% of the pot from
+equilibrium, at most 1,000), on one flop bet size chosen by the automatic sizing. The 3-flop proof (5c4d2h, 6c5d2h,
+7c4d3h): 18 entries, none failed, 0.080-0.148% of the pot from equilibrium, 3-22 s an entry, 525 MB peak. The first 200
+entries of the full build (34 flops):
+
+| Spot | Entries | From equilibrium, mean / max (% pot) | s an entry | Bytes an entry | Peak MB | Sizes picked (most used) |
+| --- | --- | --- | --- | --- | --- | --- |
+| BTN vs BB, ante | 34 | 0.112 / 0.142 | 13.3 | 6,100 | 556 | 33% (18), 25% (14) |
+| CO vs BB, ante | 33 | 0.110 / 0.146 | 8.5 | 5,000 | 493 | 33% (14), 25% (13), 200% (4) |
+| SB vs BB, ante | 33 | 0.116 / 0.134 | 13.5 | 8,900 | 544 | 25% (32) |
+| BB 3bet vs BTN, ante | 33 | 0.089 / 0.145 | 12.5 | 9,800 (with the turn file) | 680 | 200% (14), 33% (7), 50% (5) |
+| BTN vs UTG, straddle | 34 | 0.102 / 0.137 | 3.6 | 4,500 | 278 | 25% (15), 200% (13) |
+| CO vs UTG, straddle | 33 | 0.100 / 0.125 | 2.5 | 3,800 | 241 | 200% (17), 25% (8) |
+
+At 2 workers that is about 10 entries a minute, so the 552 flops take about 5.5 hours and the 14-hour run reaches about
+1,400 of the 1,755 flops. Every process stayed under 700 MB.
+
+### 35.3 That the stored entry is what's read
+
+Through the native advisor at the worker's Fast config (`scripts/engine/test_study_lock.py`'s `FAST`) against the
+proof's source: a single-size request in each game on each of the 6 lines on 5c4d2h read the stored entry (`stored`,
+the game and the preflop solve named, the note present), and a turn after check-check stood on the stored flop. The same
+line without the ante, or with a 0.2bb ante, plays the charts and reads nothing
+(`scripts/engine/test_single_size_games.py`).
