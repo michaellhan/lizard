@@ -50,8 +50,8 @@ The 3-way set (`--set mw3`, 2026-11-24, W15; docs/single-size-library.md "3-way 
 engine/pf_charts.py installed) on one bet size a node, solved by the engine's 3-player CFR (gto/multiway_solver.py,
 mw_library.solve_all on the 3-way library's game with the flop's two sizes cut to one). The engine's automatic sizing is
 heads-up only (advisor: "bet sizes are optimized only heads-up"), so the flop size is one fixed size for every flop,
-MW3_FLOP_PCT, the candidate that gave up least against the full menu on a sample (`size-sample`, docs/ACCURACY.md
-section 38). Entries are the 3-way library's format (mw_library.encode: the flop's first decisions, every hand), with
+MW3_FLOP_PCT, measured against the full menu on a sample (`size-sample`, docs/ACCURACY.md section 38.1: the smaller
+sizes tie on what they give up, and 33% moves values least of 25 and 33%). Entries are the 3-way library's format (mw_library.encode: the flop's first decisions, every hand), with
 `ss` in the header; the index rows carry `players: 3`, and engine/single_size.py reads them for a 3-way single-size
 request. Output library-build/sources/ss-mw3, run state runs/ss-mw3.
 
@@ -241,9 +241,12 @@ MW3_SPOTS = [
     _m("mw_co_sb_bb", "CO open, SB and BB call", "UTG:f,HJ:f,CO:r2.5,BTN:f,SB:c,BB:c"),
 ]
 # The 3-way set's one flop bet size, the same on every flop (the engine's automatic sizing is heads-up only): measured
-# by `size-sample` (docs/ACCURACY.md section 38) as the candidate whose one-size strategy gave up least, priced by a
-# solve of the full menu (25-200%). Turn and river bets are the 3-way library's 50% (advisor.MW_FLOP_BETS), raises its
-# one size (the bet plus 75% of the pot after calling, at most one a street), all-in at 1.5 pots behind or less.
+# by `size-sample` (docs/ACCURACY.md section 38.1) on 24 (spot, flop) pairs, each candidate's one-size strategy priced by
+# a solve of the full menu (25-200%): 25, 33 and 50% gave up the same within noise (0.293, 0.300, 0.307% of the pot;
+# 25 less than 33 by 0.007 +- 0.021), 33% moved the players' values 0.22 +- 0.05% of the pot less than 25% and gave up
+# less than 50% at the median (0.18 against 0.30), so 33% (also the 3-way library's smaller flop size). Turn and river
+# bets are the 3-way library's 50% (advisor.MW_FLOP_BETS), raises its one size (the bet plus 75% of the pot after
+# calling, at most one a street), all-in at 1.5 pots behind or less.
 MW3_FLOP_PCT = 33.0
 MW3_LATER_PCT = 50.0
 MW3_CANDIDATES = [0.25, 0.33, 0.5, 0.75, 1.0]

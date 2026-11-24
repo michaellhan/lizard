@@ -214,3 +214,66 @@ FEATURE_MATRIX row.
 
 Once the build has run: `build_single_size.py status --set games`, then `build_single_size.py index --set games`, merge
 W11 (the stored game files) and this branch, then assemble and publish by the usual path (above).
+
+## 3-way single-size set (2026-11-24, W15)
+
+Six 3-way 6-max 100bb lines, one bet size a node (`build_single_size.py --set mw3`, `MW3_SPOTS`; source
+`library-build/sources/ss-mw3`), taken from the 3-way spots the library publishes (`mw_*` in `mw_index.json`):
+
+| Spot | Line | Seats (postflop order) | Pot / stack (bb) |
+| --- | --- | --- | --- |
+| `ss_mw_btn_sb_bb` | BTN opens 2.5, SB and BB call | SB, BB, BTN | 7.5 / 97.5 |
+| `ss_mw_co_btn_bb` | CO opens 2.5, BTN and BB call | BB, CO, BTN | 8.0 / 97.5 |
+| `ss_mw_hj_ip_bb` | HJ opens 2.5, BTN and BB call (alias: CO and BB call) | BB, HJ, BTN | 8.0 / 97.5 |
+| `ss_mw_utg_btn_bb` | UTG opens 2.5, BTN and BB call | BB, UTG, BTN | 8.0 / 97.5 |
+| `ss_mw_utg_ip_bb` | UTG opens 2.5, HJ and BB call (alias: CO and BB call) | BB, UTG, HJ | 8.0 / 97.5 |
+| `ss_mw_co_sb_bb` | CO opens 2.5, SB and BB call | SB, BB, CO | 7.5 / 97.5 |
+
+The 3-way library's other two lines (the HJ and UTG opens with SB and BB calling) are left out: gtosolver's builds of
+them are withheld from serving (ACCURACY section 35), and six lines keep the set within its budget.
+
+- **Tree:** the 3-way library's game (`gto/mw_library.library_config`: the turn and river bet on by 16 hand buckets a
+  player, one raise size, all-in at 1.5 pots or less) with one flop bet size, 33% of the pot, on every flop
+  (`MW3_FLOP_PCT`), and the turn and river at 50% (that model's later-street size). The engine's automatic sizing
+  (`advisor.py` `_optimize_sizes`) is heads-up only, so the size isn't chosen per flop: it was measured on a sample
+  (`build_single_size.py size-sample --set mw3`, ACCURACY section 38.1): each candidate (25, 33, 50, 75, 100%) one-size
+  strategy priced in the full menu's game (25-200%) on 24 (spot, flop) pairs. 25, 33 and 50% gave up the same within
+  noise (0.29-0.31% of the pot); 33% moved the players' values less than 25% (by 0.22% of the pot, four standard errors)
+  and gave up less than 50% at the median, so 33%, which is also the 3-way library's smaller flop size.
+- **Solve:** three-player CFR from the flop's start, every hand (`mw_library.solve_all`), at least 200 iterations, then
+  to a mean best-response gain under 0.1% of the pot, at most 800 (`MW3_OPTS`, the 3-way library's own rule). Three-player
+  CFR has no Nash guarantee: the gain is a convergence measure, not a distance from equilibrium, and every answer says so.
+  Ranges are the charts as the worker serves them (`engine/pf_charts.py`), so the entries' fingerprints are the worker's.
+- **Entries:** the 3-way library's format (`mw_library.encode`, the first decisions only: first to act, checked to once
+  and twice), 4.2-7.2 KB an entry (the 3-flop proof), no turn file, report or ranges file. The index rows go into the same
+  `ss-index.json` with `players: 3`, three fingerprints and seats, the flop's tree (`b<size>-mw`) and `conv` (median
+  iterations, mean and largest mean best-response gain, the target).
+- **Reading** (`engine/single_size.py` `SingleSizeMWLibrary`, `mw_spot`): a single-size request at 6-max 100bb with no
+  setup of its own on one of these lines (or an alias) reads the stored entry through the advisor's 3-way library path
+  (only exact flops; no stand-ins or borrowing). Every 3-way solve of that request plays the same one-size tree
+  (`mw_street_config`), so a line behind a bet, a later street and a flop the set lacks are solved live on it; a street
+  that goes heads-up bets the turn's and river's 50%. The answer's `single_size` carries `players: 3`, the tree (flop and
+  later sizes, `choice: "fixed"`), the stored entry's iterations and gain, and `nash: false`; the first note names the
+  "3-way single-size tree".
+- **Study:** the Single size flop source on those lines asks the flop's size and 50% turn and river (`ssRequest`), its note
+  says the flop is on the 3-way single-size tree at one fixed size, the convergence, that three-player CFR has no Nash
+  guarantee, and lists the 3-way flops; provenance says the same (`web/src/solver/singleSize.ts` `mwWords`). The Library
+  page lists the 3-way rows with their convergence and their own covered flops.
+- **Publishing:** `assemble.py --ss-mw3` (default the source above) adds the rows last into `ss_index.json`, on their own
+  flops (90% rule), within `SS_MW3_BYTES` (80 MB) and what the file cap leaves, each entry checked by its sha1 and its
+  header (the spot's three fingerprints, the flop's tree, the board); `lizard-library.json` `singleSize.multiway`. With R2
+  it is the first set to move there (`host_tier` -1). One file a flop a spot: 552 flops is about 3,300 files and 17 MB;
+  without R2 the file cap left about 1,800 files beside the 118,175 published, so the set is cut to the flops that fit
+  (logged) until the R2 base is set. A spot kept from the previous release shrinks rather than pass the cap, as the
+  games' do.
+- **Accuracy** (ACCURACY section 38.3, `scripts/library/ss_mw3_accuracy.py`, 12 pairs on flops the size wasn't chosen
+  on): priced in the settled multi-size game (flop bets 33 and 75%), the stored answer gives up 0.10% of the pot, the
+  live one-size answer Study plays on a flop the set lacks 0.13%, and the live multi-size answer 0.04%.
+- **Not covered:** the other two 3-way lines, 3bet 3-way pots, other stacks and table sizes, 4-way pots, a flop size per
+  flop (the automatic sizing is heads-up only).
+
+Tests: `scripts/engine/test_single_size_mw.py` (a tiny set built here, read through the real advisor at the worker's Fast
+config), `test_assemble.py` `SingleSizeMW3Test`, and the web tests named in the FEATURE_MATRIX row.
+
+Once the build has run: `build_single_size.py status --set mw3`, then `build_single_size.py index --set mw3`, then
+assemble (with `LIZARD_R2_BASE` set, for the files past Pages' cap) and publish by the usual path.

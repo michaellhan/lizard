@@ -7055,3 +7055,53 @@ Workstream W11 of the second GAP_PLAN run (ACCURACY section 18.13).
   `solver/singleSize` (11 files, 85 passed, 1 skipped). The full vitest was not re-run: both slot.sh slots were held (W11's
   forced build and this workstream's own 14-hour games build, which also blocks slot jobs from this worktree's root),
   and the web change is whitespace only.
+
+## 2026-11-24 — 3-way single-size set (W15)
+
+- What: a single-size set for 3-way pots. Six 3-way 6-max 100bb lines from the 3-way library's (BTN opens and SB and
+  BB call; CO opens and BTN and BB call; HJ opens and BTN and BB call; UTG opens and BTN and BB call; UTG opens and HJ
+  and BB call; CO opens and SB and BB call; two more lines read as aliases), one bet size a node.
+  `scripts/library/build_single_size.py --set mw3` (and `size-sample --set mw3`), `docs/single-size-library.md`
+  "3-way single-size set".
+- Tree: the 3-way library's game (`gto/mw_library.library_config`) with one flop bet size, fixed at 33% on every
+  flop, and 50% on the turn and river (one raise, all-in under the library's SPR). The engine's automatic sizing is
+  heads-up only, so the flop size is fixed and measured: `size-sample` solved 24 (spot, flop) pairs (4 flops spread
+  over the 184 x 6 spots) with a 25-200% flop menu, then each one-size tree, and priced each one-size mix in the
+  wide game's EVs (ACCURACY 38.1). 25, 33 and 50% give up the same within noise (0.29, 0.30 and 0.31% of the pot; the
+  paired differences are well inside their standard errors); 33% moves the players' values less than 25% (0.82 against
+  1.04% of the pot, paired difference 0.22 ± 0.05), its median give is lower than 50%'s, and it is the 3-way library's
+  smaller size, so 33% (`MW3_FLOP_PCT`).
+- Solve: three-player CFR (`gto/mw_library.solve_all`, the 3-way library's solver, not modified) to a mean best-response
+  gain under 0.1% of the pot, at most 800 iterations, about 445 MB a process (watched, 1 GB cap). This has no Nash
+  guarantee; every answer and the docs say so. Entries are `GTOFL3` files, 4.2-7.2 KB, with the three seats' range
+  fingerprints, the tree's hash, the board, `players: 3`, iterations and gain in the header; rows go in the same
+  `ss_index.json` with `players: 3` and `conv`.
+- Reading: `engine/single_size.py` (`SingleSizeMWLibrary`, `mw_spot`) reads a stored flop for a single-size request on
+  those lines and solves every other 3-way street of that request live on the same one-size tree (a flop the set
+  doesn't hold: live on the same tree, and the note says so). The answer's first note and its `single_size` block name
+  the "3-way single-size tree", the fixed size, the stored solve's iterations and gain, and `nash: false`.
+- Web: `web/src/library/singleSize.ts` (3-way rows, later streets 50%), Study's Single size source
+  (`FlopSource.tsx`: offered on those lines, a note on the tree, the size choice, the convergence and the missing Nash
+  guarantee, the count of 3-way flops), provenance (`web/src/solver/singleSize.ts`: `MW_SINGLE_SIZE_TREE`, `mwWords`),
+  the Library page's caption and a line per 3-way row.
+- Publishing: `assemble.py --ss-mw3` stages the set after the heads-up and game sets, each entry checked by header
+  (fingerprints, tree hash, board, players); with `LIZARD_R2_BASE` set, its host tier moves it to R2 first. 552 flops
+  are about 3,300 files and 17 MB; without R2 about 1,800 files fit under the cap after the rest, and the stage logs
+  what was left out.
+- Proof: 3 flops x 6 spots, 18 entries, none failed, 0.049-0.096% of the pot, 9-11 s each, 435-450 MB peak (log
+  `library-build/runs/ss-mw3/proof.log`). End to end through the native advisor at the worker's Fast config, all 6 lines
+  and the 2 aliases read their stored entry on 5c4d2h.
+- Accuracy (ACCURACY 38.3, 12 pairs away from the size sample's flops): the stored answer gives up 0.10% of the pot in the settled multi-size game (flop bets 33 and 75%), the live one-size answer (Study's fallback on a flop the set doesn't hold) 0.13%, and the live multi-size answer 0.04%, so the one size costs about 0.06% of the pot and the live abstraction about 0.03 more; bet frequency 0.245 against 0.236. Log `library-build/runs/ss-mw3/accuracy.log`.
+- Full build started 2026-11-24 10:49 through slot.sh, detached (2 workers, 8-hour deadline 18:49; frozen code
+  `library-build/runs/ss-mw3/code-ef9a79fb565a`, log `library-build/runs/ss-mw3/build.log`, output
+  `library-build/sources/ss-mw3`; the 184 flops, then the 552): 3,294 entries left, 10-14 s each, so about 5.5-7 hours
+  and 9-10 CPU hours, about 17 MB. Status: `build_single_size.py status --set mw3`; it resumes where it stopped.
+- Tests: `scripts/engine/test_single_size_mw.py` (9, new: index row, fingerprints against the worker's charts, the
+  stored read at three decisions with its note, a flop not held solved live on the same tree, a turn standing on the
+  stored flop, heads-up rows unchanged, aliases, a missing index), `test_single_size.py` (10),
+  `test_single_size_games.py` (8), `test_assemble.py` (56, SingleSizeMW3Test's 5 new); typecheck and lint clean;
+  vitest for the touched files (4 files, 35 tests) and their neighbours (5 files, 92 tests); the full vitest through
+  slot.sh (`--maxWorkers=3`): 268 files passed, 3 skipped; 4,300 tests passed, 26 skipped.
+- Not done: nothing published or checked in a browser. After the build: `build_single_size.py index --set mw3`, merge
+  this branch, assemble with `--ss-mw3` and `LIZARD_R2_BASE` set, publish, and check a 3-way line in Study.
+  FEATURE_MATRIX: Single-size library and Multiway rows updated; grades unchanged (PARTIAL, WORKING).

@@ -139,7 +139,7 @@ CAPS = {"files": MAX_FILES, "ss_bytes": SS_BYTES}  # (main raises them when R2 i
 SS_GAMES_SOURCE = SOURCES / "ss-games"
 SS_GAMES_BYTES = 100 * 2**20
 # The 3-way single-size set (build_single_size.py --set mw3, W15): its own source and byte budget (6 spots at 552 flops:
-# ~3,300 entries of ~7.4 KB, ~25 MB and ~3,300 files; past what Pages' file cap leaves it is served from R2)
+# ~3,300 entries of ~5 KB, ~17 MB and ~3,300 files; past what Pages' file cap leaves it is served from R2)
 SS_MW3_SOURCE = SOURCES / "ss-mw3"
 SS_MW3_BYTES = 80 * 2**20
 

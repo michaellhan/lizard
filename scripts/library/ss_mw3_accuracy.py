@@ -114,8 +114,14 @@ def main() -> int:
                 pass
     rep = bss.flops(184)
     step = len(rep) // a.flops
-    # (offset from the size sample's flops, step // 2: the size was chosen on those)
-    sample = [rep[i * step + step // 4] for i in range(a.flops)]
+    # (never the size sample's flops, the 4 at rep[46 i + 23]: the size was chosen on those)
+    chosen_on = {rep[i * 46 + 23] for i in range(4)}
+    sample = []
+    for i in range(a.flops):
+        j = i * step + step // 3
+        while rep[j] in chosen_on:
+            j += 1
+        sample.append(rep[j])
     ref_bets = sorted({0.33, 0.75, frac})
     fast = dict(A.MW_FAST_STREETS["flop"])
     for s in spots:

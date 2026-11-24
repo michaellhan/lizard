@@ -4145,3 +4145,114 @@ proof's source: a single-size request in each game on each of the 6 lines on 5c4
 the game and the preflop solve named, the note present), and a turn after check-check stood on the stored flop. The same
 line without the ante, or with a 0.2bb ante, plays the charts and reads nothing
 (`scripts/engine/test_single_size_games.py`).
+
+## 38. A 3-way single-size set: its fixed flop size and its answers against the multi-size game (2026-11-24)
+
+W15 built a single-size set for six 3-way 6-max 100bb lines (`docs/single-size-library.md`, "3-way single-size set";
+`scripts/library/build_single_size.py --set mw3`): the 3-way library's game with one flop bet size and 50% on the turn
+and river, solved by three-player CFR to a mean best-response gain under 0.1% of the pot (at most 800 iterations). Three-player
+CFR has no Nash guarantee, so "gain" below is each player's best-response gain against the others' strategies, averaged,
+not a distance from an equilibrium. Every measure here is on the flop's stored decisions: the first to act, the second
+after a check, the third after two checks.
+
+### 38.1 The fixed flop size
+
+The engine's automatic sizing (one size a node, picked by the full menu's own use of each size) is heads-up only, so
+the 3-way set uses one flop size on every flop, chosen on a sample (`build_single_size.py size-sample --set mw3`, log
+`library-build/runs/ss-mw3/size-sample.log`, rows `size-sample.jsonl`). On 4 flops spread over representative_flops(184)
+(JcTd7h, KdKc4h, Qc9c2d, 7d7c3c) for each of the 6 spots, 24 pairs: the full menu's game (the 3-way library's tree with
+flop bets 25, 33, 50, 75, 100, 150 and 200%; 300-600 iterations, mean gain 0.081% of the pot, about 155 s a pair) and each
+candidate's one-size game, all to the same rule. Each candidate's one-size mix is priced by the full menu's EVs against
+the full menu's own mix, weighted by the acting range (section 35's measure): what playing it gives up in the
+multi-size game, as % of the pot. Also each player's value in the one-size game against the full menu's (mean |change|),
+and how much the full menu itself bets the size.
+
+| Flop size | Gives up, mean (% pot) | Worst decision | Mean value change (% pot) | Full menu's use of the size | Least given up on |
+| --- | --- | --- | --- | --- | --- |
+| 25% | 0.293 | 3.23 | 1.04 | 0.328 | 11 of 24 |
+| 33% | 0.300 | 2.82 | 0.82 | 0.082 | 2 |
+| 50% | 0.307 | 2.18 | 0.69 | 0.096 | 3 |
+| 75% | 0.367 | 1.63 | 0.79 | 0.023 | 2 |
+| 100% | 0.421 | 1.73 | 0.98 | 0.008 | 6 |
+
+25, 33 and 50% give up the same within noise: over the 24 pairs, 25% minus 33% is -0.007 ± 0.021 and 50% minus 33% is
++0.007 ± 0.038 (mean ± standard error of the paired difference). The medians separate them more: 0.15 (25%), 0.18 (33%),
+0.30 (50%). 33% moves the players' values less than 25% (paired difference 0.22 ± 0.05% of the pot), and it is the
+3-way library's smaller flop size, so the set uses 33% (`MW3_FLOP_PCT`). The flop matters more than the size: on 7d7c3c
+and KdKc4h the small sizes give up least (25%: 0.07 and 0.06), on JcTd7h the large ones (100%: 0.25, 25%: 0.62), and on
+Qc9c2d every size gives up about 0.4. By spot, BTN opens with SB and BB calling favours small sizes most (25%: 0.04,
+100%: 0.43); UTG opens with HJ and BB calling favours 50-75% (0.43 and 0.42, against 0.55 at 25%). A fixed size is the
+set's main approximation; per-flop sizing for 3-way pots is not implemented.
+
+### 38.2 The entries
+
+The 3-flop proof (`run --set mw3 --limit 18`, log `library-build/runs/ss-mw3/proof.log`): 18 entries, none failed, mean
+gain 0.049-0.096% of the pot after 300-400 iterations, 9-11 s an entry, 435-450 MB peak, 4.2-7.2 KB an entry. The full
+build (2 workers, started 10:49) ran at the same rate: 10-14 s an entry, so the 552 flops' 3,312 entries take about 9-10
+CPU hours and about 17 MB.
+
+### 38.3 The stored answer, the live one-size answer and the live multi-size answer against the settled multi-size game
+
+`scripts/library/ss_mw3_accuracy.py`, rows `library-build/runs/ss-mw3/accuracy.jsonl`. On 2 flops of representative_flops(184),
+spread over its order and never one of 38.1's (QcTd6h and QcJdTd), for each of the 6 spots (12 pairs), four games from the
+flop's start:
+
+- ref: the multi-size answer, settled: the 3-way library's tree (flop bets 33 and 75%) by the set's rule.
+- stored: the set's entry, solved as the build solves it.
+- live: what Study plays on a flop the set doesn't hold, the advisor's Fast 3-way flop game (12 hand buckets, every
+  third river) with the one size, 200 iterations (what the browser's Fast reaches in its budget).
+- live_ms: what Study plays without the single-size source, the same Fast game on its own flop bets (33 and 75%), 200
+  iterations, as a baseline.
+
+Each mix is priced in ref's EVs as in 38.1.
+
+12 pairs, about 53 s each; ref settled after 200-400 iterations (mean gain 0.069% of the pot), the stored game after
+200-400 (0.073%). Means over the pairs:
+
+| Answer | Gives up in ref, mean / median (% pot) | Worst decision | Players' mean value change against ref (% pot) | Bet frequency | Its own gain (% pot) |
+| --- | --- | --- | --- | --- | --- |
+| stored (one size, settled) | 0.102 / 0.077 | 0.74 | 0.37 | 0.245 | 0.073 |
+| live (one size, Fast, 200 iterations) | 0.134 / 0.101 | 0.74 | 0.50 | 0.259 | 0.172 |
+| live_ms (33 and 75%, Fast, 200 iterations) | 0.044 / 0.045 | 0.13 | 0.25 | 0.245 | 0.156 |
+
+ref bets 0.236 of the time at these decisions. By pair (gives up, % pot; bet frequency stored / ref; live against
+stored as the mean total-variation distance of the mixes):
+
+| Spot | Flop | stored gives up | stored value change | Bet freq stored / ref | live gives up | live vs stored (TV) | live_ms gives up |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| btn_sb_bb | QcTd6h | 0.028 | 0.106 | 0.20 / 0.21 | 0.083 | 0.108 | 0.059 |
+| btn_sb_bb | QcJdTd | -0.002 | 0.057 | 0.21 / 0.20 | 0.020 | 0.043 | 0.025 |
+| hj_ip_bb | QcTd6h | 0.193 | 0.604 | 0.23 / 0.21 | 0.241 | 0.148 | 0.052 |
+| hj_ip_bb | QcJdTd | 0.078 | 0.133 | 0.30 / 0.29 | 0.098 | 0.058 | 0.040 |
+| utg_btn_bb | QcTd6h | 0.188 | 0.567 | 0.24 / 0.22 | 0.231 | 0.120 | 0.051 |
+| utg_btn_bb | QcJdTd | 0.076 | 0.190 | 0.31 / 0.30 | 0.082 | 0.038 | 0.036 |
+| co_btn_bb | QcTd6h | 0.179 | 0.863 | 0.24 / 0.21 | 0.237 | 0.123 | 0.051 |
+| co_btn_bb | QcJdTd | 0.073 | 0.113 | 0.27 / 0.28 | 0.101 | 0.052 | 0.025 |
+| utg_ip_bb | QcTd6h | 0.260 | 0.936 | 0.25 / 0.22 | 0.276 | 0.116 | 0.043 |
+| utg_ip_bb | QcJdTd | 0.093 | 0.291 | 0.28 / 0.27 | 0.101 | 0.029 | 0.047 |
+| co_sb_bb | QcTd6h | 0.035 | 0.358 | 0.19 / 0.20 | 0.103 | 0.128 | 0.069 |
+| co_sb_bb | QcJdTd | 0.025 | 0.215 | 0.23 / 0.22 | 0.036 | 0.042 | 0.026 |
+
+What this says:
+
+- The stored answer gives up 0.10% of the pot on average in the multi-size game (33 and 75%), against 0.04% for the
+  live multi-size answer, which has ref's own menu on a coarser game (paired difference 0.058 ± 0.023): most of the
+  stored answer's loss is the missing 75% bet, the price of one size a node. It is larger on QcTd6h (0.03-0.26) than on
+  QcJdTd (0.00-0.09; the one slightly negative pair is within ref's own 0.1% stopping rule). The bet frequency barely
+  moves (0.245 against ref's 0.236: the one size stands in for both of ref's).
+- The live one-size answer Study plays on a flop the set doesn't hold gives up 0.032 ± 0.006% of the pot more than the
+  stored one (paired over the 12), the cost of the live abstraction (12 buckets, every third river, 200 iterations);
+  its mixes are 0.084 (mean total variation) from the stored ones and its values 0.25% of the pot from them. So a
+  stored flop is worth reading, and the live fallback on the same tree is close behind.
+- This measures the single-size tree against the multi-size game with the library's two sizes; 38.1 measures it
+  against a 25-200% menu (0.30% of the pot). Neither is against an equilibrium: no three-player answer here has a Nash
+  guarantee, and ref is itself a CFR answer to 0.1% gain.
+
+### 38.4 That the stored entry is what's read
+
+Through the native advisor at the worker's Fast config (`scripts/engine/test_study_lock.py`'s `FAST`, with the flop in
+the 3-way solve streets as `worker.js` sets it) against the proof's source: a single-size request on each of the 6 lines
+and the 2 alias lines on 5c4d2h read its stored entry (`stored`, `players: 3`, the spot named). The engine tests
+(`scripts/engine/test_single_size_mw.py`) check the read at three decisions with its note (the "3-way single-size
+tree", the size, the stored solve's iterations, "no Nash guarantee"), that a flop the set doesn't hold is solved live on
+the same tree and says so, that a turn after the stored flop stands on it, and that the heads-up rows read as before.
