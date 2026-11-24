@@ -150,7 +150,10 @@ export function PfBlockersPanel({ res, provenance, hand, mode, getSolver }: { re
           <Summary seats={shown.seats} read={read!} />
           <div className="grid gap-3 sm:grid-cols-2">
             <RankTable title={reply ? "Hands that make them fold the most" : "Hands that take out the most"} rows={ranking.slice(0, TOP)} reply={reply} onPick={(c) => (setCls(c), setCombo(""))} />
-            <RankTable title={reply ? "Hands that make them fold the least" : "Hands that take out the least"} rows={ranking.slice(-TOP).reverse()} reply={reply} onPick={(c) => (setCls(c), setCombo(""))} />
+            {/* (the other end only from hands not already in the first table: with fewer than 2 x TOP classes it is shorter, with TOP or fewer it is left out) */}
+            {ranking.length > TOP && (
+              <RankTable title={reply ? "Hands that make them fold the least" : "Hands that take out the least"} rows={ranking.slice(Math.max(TOP, ranking.length - TOP)).reverse()} reply={reply} onPick={(c) => (setCls(c), setCombo(""))} />
+            )}
           </div>
           {name && <Detail ranges={ranges} name={name} reply={reply} />}
         </>

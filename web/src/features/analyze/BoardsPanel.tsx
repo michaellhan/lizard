@@ -17,13 +17,17 @@ const nDecisions = (n: number) => `${n.toLocaleString()} ${n === 1 ? "decision" 
 const cardsOf = (f: string) => [f.slice(0, 2), f.slice(2, 4), f.slice(4, 6)];
 
 export function BoardsPanel({ ds, byId }: { ds: readonly DecisionRecord[]; byId: ReadonlyMap<string, HandRecord> }) {
-  const counts = useMemo(() => new Map(BOARD_FREQS.map((f) => [f.label, boardDecisions(ds, byId, f.label).kept.length])), [ds, byId]);
+  const [pot, setPot] = useState<string | null>(null);
+  const [seat, setSeat] = useState<Seat | null>(null);
+  // Counted under the pot type and position chosen, so each option's count is the table it opens.
+  const counts = useMemo(
+    () => new Map(BOARD_FREQS.map((f) => [f.label, boardDecisions(ds, byId, f.label, { pot, seat }).kept.length])),
+    [ds, byId, pot, seat],
+  );
   const first = BOARD_FREQS.find((f) => counts.get(f.label))?.label ?? BOARD_FREQS[0]!.label;
   const [freq, setFreq] = useState<string | null>(null);
   const shown = freq ?? first;
   const [by, setBy] = useState<TextureKey>("hi");
-  const [pot, setPot] = useState<string | null>(null);
-  const [seat, setSeat] = useState<Seat | null>(null);
   const v = useMemo(() => boardView(ds, byId, shown, { pot, seat }), [ds, byId, shown, pot, seat]);
   const [openClass, setOpenClass] = useState<string | null>(null);
   const [drill, setDrill] = useState<{ key: string; title: string } | null>(null);

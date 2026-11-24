@@ -51,6 +51,8 @@ describe("preflop blockers", () => {
     expect(screen.getByText(/After your raise to 2\.5, 2 seats act \(SB, BB\): all of them fold/)).toHaveTextContent("44.4%");
     const most = screen.getByRole("table", { name: "Hands that make them fold the most" });
     expect(within(most).getAllByRole("row").slice(1).map((r) => r.querySelector("th")!.textContent)).toEqual(["AA", "KK", "72o"]);
+    // three classes in all: no other end to list, so no "least" table repeating them
+    expect(screen.queryByRole("table", { name: "Hands that make them fold the least" })).toBeNull();
     fireEvent.click(within(most).getByRole("button", { name: "Pick AA" }));
     const d = screen.getByRole("group", { name: "What AA blocks" });
     // AA leaves SB 1 AA against 12 72o: 12 of 13 fold; BB untouched, two thirds: 0.923 x 0.667 = 61.5%
@@ -59,6 +61,19 @@ describe("preflop blockers", () => {
     expect(within(sb).getAllByRole("cell").map((c) => c.textContent)).toEqual(["5.0", "18.0", "66.7%", "92.3%", "AA 5.0 of 6.0"]);
     fireEvent.change(screen.getByRole("combobox", { name: "Blocker combo" }), { target: { value: "AsAh" } });
     expect(screen.getByRole("group", { name: "What AsAh blocks" })).toBeInTheDocument();
+  });
+
+  it("lists no hand at both ends when our range is under twice the table's length", async () => {
+    const ten = ["AA", "KK", "QQ", "JJ", "TT", "99", "88", "77", "66", "72o"];
+    const open10 = node("BTN", Object.fromEntries(ten.map((c) => [c, { w: 1, f: [0, 1] }])), ["fold", "raise to 2.5"]);
+    const s = stub((st) => (st.preflop!.length === 1 ? SB : st.preflop!.length === 2 ? BB : { study: "over" }));
+    show(open10, at3(freshHand(3)), s.getSolver);
+    const most = await screen.findByRole("table", { name: "Hands that make them fold the most" });
+    const least = screen.getByRole("table", { name: "Hands that make them fold the least" });
+    const names = (t: HTMLElement) => within(t).getAllByRole("row").slice(1).map((r) => r.querySelector("th")!.textContent);
+    expect(names(most)).toHaveLength(8);
+    expect(names(least)).toHaveLength(2);
+    expect(new Set([...names(most), ...names(least)]).size).toBe(10);
   });
 
   it("reads the raiser's range where we face a raise, with no reply", async () => {

@@ -87,6 +87,8 @@ describe("the board view", () => {
     expect(cells("Monotone")[0]).toBe("1");
     pick("Board pot type", "3bet pot");
     expect(cells("Every flop").slice(0, 2)).toEqual(["1", "0%"]);
+    // the decision's count follows the choices: it is the table's
+    expect(screen.getByRole("option", { name: "Flop c-bet (1)" })).toBeInTheDocument();
     pick("Board pot type", "");
     pick("Board position", "ip");
     expect(cells("Every flop")[0]).toBe("3");

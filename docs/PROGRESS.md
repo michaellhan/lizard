@@ -6784,4 +6784,8 @@ Every figure below is lz4's.
 - FEATURE_MATRIX: Frequency comparison vs GTO (WORKING, unchanged), Reports in Analysis (PARTIAL, unchanged; its
   "spot table isn't split by flop texture" is answered for the flop frequencies) and Equity & EQR (WORKING, unchanged;
   the blockers note now covers preflop).
+- Review fixes: the board view's decision choices count under the pot type and position chosen, so each option's count
+  is the table it opens and the default decision is one with decisions under those choices (tested); the preflop
+  blockers' "least" table lists only hands not in the "most" table, shorter under 16 classes and left out at 8 or
+  fewer (tested with 3 and 10 classes).
 - No long builds, no CPU-heavy jobs beyond the full vitest run through slot.sh.
