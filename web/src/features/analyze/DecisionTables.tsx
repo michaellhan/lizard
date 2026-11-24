@@ -37,7 +37,9 @@ const SHORT: Record<string, string> = {
   "Preflop charts (by frequency, not a solve)": "Charts, by frequency",
   "Push/fold model (by frequency, not a solve)": "Push/fold model",
 };
-const standsOn = (r: BreakRow) => r.bases.map((b) => `${SHORT[b.basis] ?? b.basis} ${b.n.toLocaleString()}`).join(" · ");
+/** What a row's answers stand on, each with its count, in the words a cell has room for. */
+export const basesText = (bases: readonly { basis: string; n: number }[]) => bases.map((b) => `${SHORT[b.basis] ?? b.basis} ${b.n.toLocaleString()}`).join(" · ");
+const standsOn = (r: BreakRow) => basesText(r.bases);
 
 type Row = Group & Partial<Pick<BreakRow, "bases">>;
 

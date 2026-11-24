@@ -50,6 +50,7 @@ import { FlopSource, offersFlopSource, SingleSizeNote, useSingleSize } from "./F
 import { ssMatch, ssRequest } from "@/library/singleSize";
 import { encodePfSizes } from "./pfSizes";
 import { BreakdownPanel } from "./BreakdownPanel";
+import { PfBlockersPanel } from "./PfBlockersPanel";
 import { BuildMode, type BuildSaved } from "./BuildMode";
 import { StudySplit, useSplitWide } from "./StudySplit";
 import { FoldTo } from "./FoldTo";
@@ -493,6 +494,11 @@ function HoldemStudy() {
       {!opp && <NodeLockPanel key={`node-lock|${requestKey}`} hand={hand} res={done} cls={myCls} mode={mode} getSolver={getSolver} />}
       {!opp && <ProfilePanel key={`profile|${requestKey}`} hand={hand} res={done} mode={mode} getSolver={getSolver} kept={keptProfile} onKeep={keepProf} />}
       {!opp && offersAutoSize(done) && <AutoSizePanel key={`auto-size|${requestKey}`} hand={hand} res={done} cls={myCls} mode={mode} getSolver={getSolver} />}
+      {!opp && done.street === "preflop" && (
+        <ToolFold title="Preflop blockers" hint="which hands change the opponents' continuing range">
+          <PfBlockersPanel key={`pf-blockers|${requestKey}`} res={done} provenance={shown!.provenance} hand={hand} mode={mode} getSolver={getSolver} />
+        </ToolFold>
+      )}
       <ToolFold title="Compare this spot" hint="another stack, rake or bet menu">
         <CompareLinks key={`compare|${requestKey}`} hand={hand} min={MIN_STACK} max={MAX_STACK} bets={betMenuOf(hand, done)} />
       </ToolFold>
