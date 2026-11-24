@@ -9,8 +9,9 @@ ask for it. A manifest (default library-build/r2-manifest.json, outside git) kee
 a file whose size and sha1 match is skipped, and the manifest is saved every 200 uploads and at the end, so a run that
 stops resumes where it was. `--verify` asks the bucket for every key the manifest lists (HEAD) instead of trusting it.
 
-Headers: Cache-Control "public, max-age=14400" on entries (.bin: the worker asks for them unversioned, so a rebuilt
-entry is picked up within 4 hours; until then the engine refuses one that isn't its index's and solves live) and
+Headers: Cache-Control "public, max-age=14400" on entries (.bin: the worker and the web ask for each with
+?v=<its hash in the index>, so a rebuilt entry is a new URL and is read at once; the 4 hours bound only a cache that
+drops the query string, and the engine refuses an entry whose header isn't its index's and solves live) and
 "public, max-age=300" on JSON; Content-Type application/octet-stream or application/json. The bucket's CORS policy
 (scripts/library/r2-cors.json, set once: docs/DEPLOYMENT.md) lets the site read it from the page and the worker.
 

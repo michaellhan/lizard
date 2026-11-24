@@ -299,8 +299,9 @@ test("the published worker reads a spot's library files from the host hosts.json
   const code = worker.slice(worker.indexOf("let HOSTS = null;"), worker.indexOf("const LIB = new Map();"));
   assert.ok(code.length > 0, "no hosts code in the worker");
   // (the library sets an R2 bucket holds: scripts/library/assemble.py assign_hosts)
-  const file = { format: 1, hosts: { r2: "https://lib.example.com/lizard-library/", bad: "http://x.example/" },
-                 sets: { mw_utg_sb_bb: "r2", srp_co_bb: "bad", srp_hj_bb: "nope" } };
+  const file = { format: 1, hosts: { r2: "https://lib.example.com/lizard-library/", bad: "http://x.example/",
+                                     root: "https://lib.example.com/", noslash: "https://lib.example.com/lizard-library" },
+                 sets: { mw_utg_sb_bb: "r2", srp_co_bb: "bad", srp_hj_bb: "nope", mw_hj_sb_bb: "root", srp_btn_bb: "noslash" } };
   const run = (served) => {
     const asked = [];
     const ctx = {
@@ -323,6 +324,8 @@ test("the published worker reads a spot's library files from the host hosts.json
   assert.equal(ctx.libUrl("mw_utg_sb_bb/KcTd5h.bin"), "https://lib.example.com/lizard-library/mw_utg_sb_bb/KcTd5h.bin");
   assert.equal(ctx.libUrl("srp_co_bb/KcTd5h.bin"), "/lizard-library/srp_co_bb/KcTd5h.bin");   // (not https)
   assert.equal(ctx.libUrl("srp_hj_bb/KcTd5h.bin"), "/lizard-library/srp_hj_bb/KcTd5h.bin");   // (no such host)
+  assert.equal(ctx.libUrl("mw_hj_sb_bb/KcTd5h.bin"), "https://lib.example.com/mw_hj_sb_bb/KcTd5h.bin");   // (a bucket at the domain's root)
+  assert.equal(ctx.libUrl("srp_btn_bb/KcTd5h.bin"), "/lizard-library/srp_btn_bb/KcTd5h.bin");   // (no trailing "/")
   assert.deepEqual(asked, [["sync", "/lizard-library/hosts.json"]]);
   // fetched ahead: read once, asynchronously
   ({ ctx, asked } = run(file));

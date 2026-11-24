@@ -6760,12 +6760,13 @@ Every figure below is lz4's.
 
 **What it is.** `.work/oneshot/mw-all/lib` (read only, through `assemble.py`) holds all eight 3-way 6-max 100bb spots
 as a format-1 `mw_index.json`, with GTOFL3 entries and one tree. The game is gto-solver 5e7dbc8's:
-- flop bets of 33% and 75%, one raise, and all-in;
-- turn and river bets of 50%;
-- later streets played by 12 buckets split by weight times equity (`bucket_power` 1.0, part of the tree key).
+- Lizard's own library tree: flop bets of 33% and 75%, one raise, and all-in; turn and river bets of 50%; 16
+  later-street buckets;
+- but the buckets split by weight times equity (`bucket_power` 1.0, part of the tree key), the only difference.
 
 The ranges are the charts as of Lizard's ee80ff5 (2026-11-17), and every fingerprint reproduced. On 2026-11-24 it held
-1,755 flops for six spots, 1,606 for `mw_hj_sb_bb` and 185 for `mw_utg_sb_bb`, and was still building.
+1,755 flops for six spots, 1,655 for `mw_hj_sb_bb` and 185 for `mw_utg_sb_bb` (the stage assembled that day), and was
+still building.
 
 **The re-pin.** `claude/hopeful-carson-c97373` re-pins gto-solver at 5e7dbc8. It was not merged: the library doesn't
 need it. A spot's entries are read by the tree the spot carries (`engine/mw_near.py` `_wrap_entry`), so Lizard's own
@@ -6780,7 +6781,7 @@ game stays as it is.
 - `mw_built_ranges.py` gained `--spots`, `--merge` and `--source`. `engine/mw_built.py` has the four spots with their
   own commit, date and source.
 - `engine/mw_near.py` serves them as built. The text names the source, the bucketing, and the stored solve's iterations
-  and exploitability. `NEAR_DIST_SPOT` holds per-spot distances (empty).
+  and mean best-response gain. `NEAR_DIST_SPOT` holds per-spot distances (empty).
 - The Reports page's provenance marks such a spot's report approximate and names the build (`reports.ts`
   `sourceWords`).
 
@@ -6792,7 +6793,7 @@ Local stage `library-build/runs/w12/stage`:
 - `mw_utg_ip_bb` and `mw_co_sb_bb` beat the live Fast solve: 0.047 and 0.041% of the pot given up, against 0.059. They
   are served as built.
 - `mw_hj_sb_bb` (0.051 against 0.047) and `mw_utg_sb_bb` (0.080 against 0.048, 0.66 at worst) are past `NEAR_DIST` and
-  stay with the live solve.
+  stay with the live solve. They are withheld everywhere, including borrow and stand-in (see the review fixes below).
 - Checked end to end against the stage, natively: `mw_utg_ip_bb` and `mw_co_sb_bb` answered from their entries with the
   source text; the other two weren't served.
 
@@ -6835,3 +6836,35 @@ Local stage `library-build/runs/w12/stage`:
   reason): 262 files passed, 4240 tests, 26 skipped. The only failures were `ocr.test.ts` (2) and
   `ScreenshotImport.test.tsx` (it won't load), both for the missing `tesseract.js`.
 - FEATURE_MATRIX: the Multiway and Single-size library rows have notes added; grades unchanged.
+
+### Review fixes (2026-11-24)
+
+- **Withheld spots really are withheld.** `mw_hj_sb_bb` and `mw_utg_sb_bb` were kept out of `near_built` only.
+  Upstream's `borrow` and `stand_in` still read them through the built ranges. So the HJ-open, SB-and-BB-call pot got
+  `mw_hj_sb_bb`'s stored mixes as an instant stand-in, and the text didn't name the build.
+  - `mw_near.withheld`: another game's spot whose line today's charts move past its `near_dist`, or under
+    `NEAR_COVER`.
+  - `_spot_ranges` now gives upstream nothing for a withheld spot.
+  - A served spot of another game, when borrowed or standing in, carries `precomputed.borrowed.source`, and the text
+    names the build.
+  - One that today's code reproduces exactly is still marked as built, never presented as Lizard's own solve.
+  - Checked against the stage: nothing is served for the two withheld lines at 6- or 9-max; the other two are served as
+    before.
+- **The fixture step.** `published_fps.py` writes `withheld` for those spots, and `test_published_fps.py` checks that
+  they stay withheld. Before, DEPLOYMENT's step would have turned CI red (0.320 > 0.25). `--reason` no longer
+  overwrites the reasons of spots already listed stale. The step was run against the stage (12 stale, 2 withheld,
+  test passing), and the fixture was then put back.
+- **The worker's R2 base.** It now takes a bucket at its domain's root, as `hosts.ts` and `assemble.py` do.
+- **Wording.** A 3-way entry's convergence is called its mean best-response gain, not "% from equilibrium", in
+  `reports.ts` and `mw_near.py`. The Reports label no longer says the build has its own bet tree. ACCURACY 35, this
+  section, DEPLOYMENT and FEATURE_MATRIX now say 16 buckets, Lizard's bet tree, `bucket_power` the only difference, and
+  1,655 flops for `mw_hj_sb_bb`. DEPLOYMENT and `r2_upload.py` say entries are fetched with `?v=<hash>`.
+- `solver/UPSTREAM.json`'s mw_near declaration now lists the `MWLibrary.entry` wrap.
+- Gates:
+  - Python, through slot.sh: `scripts/library` (64) and `scripts/engine/test_mw_near.py` (24, four new),
+    `test_hu_near.py` (8).
+  - Pyodide `pyodide.test.mjs`: 25.
+  - Web: lint clean; typecheck clean except `tesseract.js`, which this checkout lacks.
+  - Full vitest through slot.sh (`--maxWorkers=3`, the same local config without the OCR plugin): 262 files, 4240
+    passed, 26 skipped. The only failures were `ocr.test.ts` (2) and `ScreenshotImport.test.tsx`, for the missing
+    `tesseract.js`.

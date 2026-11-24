@@ -226,12 +226,13 @@ The tests are in `scripts/library/test_assemble.py`.
 
 `assemble.py` also reads gtosolver's 3-way library at `.work/oneshot/mw-all/lib` (`MW_GAME_SOURCES`). The owner
 decided on 2026-11-24 that it is read only, and only through `assemble.py`. That build covers all eight 3-way spots on
-gto-solver 5e7dbc8's game: turn and river bets of 50%, and later-street buckets split by weight times equity.
+gto-solver 5e7dbc8's game: Lizard's own bet tree and 16 later-street buckets, but the buckets split by weight times
+equity (`bucket_power` 1.0, the only difference in the tree).
 
 What goes in:
 - Only the spots Lizard doesn't publish: `mw_utg_ip_bb`, `mw_co_sb_bb`, `mw_hj_sb_bb` and `mw_utg_sb_bb`.
 - Each on its own tree (`tree` on the spot in `mw_index.json`).
-- Each with a `source` (the build's name, and its entries' median iterations and mean exploitability).
+- Each with a `source` (the build's name, and its entries' median iterations and mean best-response gain).
 - Only entries that pass the checks: every entry is checked by its sha1 and by its header (fingerprints, tree, board),
   and one that fails is left out.
 - A later publish keeps each spot's flops (`keep_previous_mw`).
@@ -240,12 +241,17 @@ How they're served:
 - `engine/mw_built.py` holds their built ranges: run `mw_built_ranges.py --commit ee80ff5 --spots ... --merge --source
   "..."`. It reproduced every fingerprint.
 - The engine serves a spot as built only within `NEAR_DIST`, or within a spot's own `NEAR_DIST_SPOT` (empty: see
-  ACCURACY section 35).
+  ACCURACY section 35). A spot past it (`mw_hj_sb_bb`, `mw_utg_sb_bb`) is withheld everywhere (`mw_near.withheld`):
+  never served as built, borrowed by another table's pot or read as an instant stand-in. Where a served one is
+  borrowed or stands in, the answer's text names the build too.
 - The Reports page marks these spots' reports approximate and names the build.
 
 Once the spots are live, run `.venv/bin/python scripts/library/published_fps.py --reason "gtosolver's 3-way build on
-5e7dbc8's game, served as built"`. Today's charts give them other ranges, so they're listed stale. Then commit the
-fixture.
+5e7dbc8's game, on charts that have moved since: served as built within NEAR_DIST, withheld past it
+(engine/mw_near.py)"`. Today's charts give them other ranges, so they're listed stale. The script also marks the two
+spots `mw_near.withheld` holds back as `withheld`, and `test_published_fps.py` then checks that they stay withheld
+instead of served. Spots already listed stale keep their own reasons. Then commit the fixture. (Checked against the
+stage, 2026-11-24: 12 stale, 2 withheld, the test passes.)
 
 The `claude/hopeful-carson-c97373` re-pin (gto-solver 5e7dbc8) was not merged. The library doesn't need it: the spots'
 entries are read by the tree each spot carries.
@@ -274,8 +280,10 @@ Past that, whole spot directories ("sets") go to a Cloudflare R2 bucket:
    - Without an R2 base nothing moves and nothing changes.
 
 Headers:
-- Entries (`.bin`) are sent with `Cache-Control: public, max-age=14400`. The worker asks for them without a version,
-  so a rebuilt entry reaches it within 4 hours; until then the engine refuses a mismatched entry and solves live.
+- Entries (`.bin`) are sent with `Cache-Control: public, max-age=14400`. The worker and the web ask for each with
+  `?v=<its hash in the index>`, so a rebuilt entry is a new URL and is read at once. The 4 hours bound only a cache
+  that ignores the query string; even then the engine refuses an entry whose header isn't its index's and solves
+  live.
 - JSON files are sent with `public, max-age=300`.
 - The page is cross-origin isolated (COEP require-corp), so it and the worker read R2 by CORS. The bucket needs the
   policy in `scripts/library/r2-cors.json`: GET and HEAD from `https://www.michael-han.com` and the local dev and

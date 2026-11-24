@@ -8,9 +8,10 @@ indexes by scripts/library/published_fps.py) from today's code, with no library 
 
 A spot listed "stale" (today's code knowingly gives other ranges) is held to its "now" fingerprints instead, so a further
 change still fails, and must still be served as built: a 3-way spot through engine/mw_near.py (engine/mw_built.py
-reproduces its published fingerprints and today's ranges are within NEAR_DIST / NEAR_COVER of them), a heads-up one
+reproduces its published fingerprints and today's ranges are within its near_dist / NEAR_COVER of them), a heads-up one
 through engine/hu_near.py (engine/hu_built.py, within upstream's own borrowing bars flop_approx.NEAR_EXACT_DIST /
-NEAR_EXACT_COVER).
+NEAR_EXACT_COVER). A 3-way spot from another game's build listed "withheld" too (published_fps.py writes it where
+mw_near.withheld says so) must instead stay withheld: never served, borrowed or read as a stand-in.
 
 Run: .venv/bin/python -m unittest discover -s scripts/library -p test_published_fps.py
 """
@@ -85,6 +86,14 @@ class PublishedSpots(unittest.TestCase):
                 mod, name, near_dist, near_cover = files[sp["kind"]]
                 if sp["kind"] == "mw":
                     near_dist = mw_near.near_dist(sp["id"])     # (a spot's own measured distance, if it has one)
+                if sp.get("withheld"):
+                    # (another game's spot knowingly left to the live solve: it must stay so, never served)
+                    self.assertEqual(sp["kind"], "mw", f"{sp['id']}: only a 3-way spot can be withheld")
+                    self.assertTrue(mw_built.SPOTS.get(sp["id"], {}).get("source"),
+                                    f"{sp['id']}: withheld, but it's Lizard's own build: {FIX}")
+                    self.assertTrue(mw_near.withheld(sp), f"{sp['id']}: listed withheld, but today's ranges read it "
+                                                          f"as built: rewrite the fixture ({FIX})")
+                    continue
                 built = mod.ranges(sp["id"])
                 self.assertIsNotNone(built, f"{sp['id']}: engine/{name}.py doesn't hold it "
                                             f"(scripts/library/{name}_ranges.py): {FIX}")

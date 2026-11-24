@@ -281,14 +281,16 @@ export function studyLink(rep: LibraryReport, f: string, view: ReportView): stri
 
 /** what the numbers are: the library's stored solves, summed up by the report built with them, read in the page */
 /** A 3-way spot from another game's build (its index entry's `source`, scripts/library/assemble.py add_mw_game), in
- * words: whose build, that it's on its own charts and tree, and how settled its entries are on their own ranges. */
+ * words: whose build, that it's on its own charts (Lizard's bet tree, but later streets bucketed by weight times equity:
+ * the spot's tree differs from the index's only in `bucket_power`), and how settled its entries are on their own ranges
+ * (for three players the mean best-response gain, never a distance from equilibrium: provenance.ts). */
 export function sourceWords(src: LibrarySpotIndex["source"]): string | null {
   if (!src || typeof src.build !== "string" || !src.build) return null;
   const conv =
     typeof src.iters === "number" && typeof src.expl === "number"
-      ? `; median ${src.iters} iterations, ${src.expl.toFixed(2)}% of the pot from equilibrium on its own ranges`
+      ? `; median ${src.iters} iterations, mean best-response gain ${src.expl.toFixed(2)}% of the pot on its own ranges`
       : "";
-  return `as built by ${src.build}, not Lizard's (its own charts and bet tree, later streets bucketed by weight times equity${conv})`;
+  return `as built by ${src.build}, not Lizard's (its own charts, and later streets bucketed by weight times equity${conv})`;
 }
 
 /** The report's provenance. A spot from another game's build (`source`) is approximate, its build named: its stored

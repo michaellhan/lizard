@@ -39,9 +39,14 @@ Spots from another game's build (gtosolver's 3-way library on gto-solver 5e7dbc8
 scripts/library/assemble.py add_mw_game, 2026-11-24) carry their own `tree` in mw_index.json (upstream reads one tree
 an index, so their entries are read by the spot's tree: _wrap_entry) and, in engine/mw_built.py, their own commit,
 date and `source`. Such a spot is served the same way (as built, approximate), its text naming the source, that its
-later streets were bucketed by weight times equity, and the stored solve's iterations and exploitability on its own
-ranges. NEAR_DIST_SPOT lets a spot measured against the live Fast solve (docs/ACCURACY.md section 35) serve past
-NEAR_DIST.
+later streets were bucketed by weight times equity (its tree's `bucket_power` 1.0, the only way it differs from the
+index's), and the stored solve's iterations and mean best-response gain on its own ranges. NEAR_DIST_SPOT lets a spot
+measured against the live Fast solve (docs/ACCURACY.md section 35) serve past NEAR_DIST. One whose line today's charts
+no longer read as built (past its near_dist, or under NEAR_COVER) is withheld: not served as built, and never borrowed
+by another table's pot or read as a stand-in either (_spot_ranges gives upstream nothing for it), so that pot is solved
+live. Where such a spot is borrowed or stands in for another pot (upstream's MWLibrary.borrow and stand_in, through
+_spot_ranges below), its answer carries `precomputed.borrowed.source` and the text names the build too; one today's
+code reproduces exactly is still marked as built, never served as Lizard's own solve.
 
 The worker imports this module at start (scripts/pyodide/worker-edits.mjs), and only the worker: a local
 `python -m gto.server` runs upstream's Advisor without it. solver/ is untouched.
@@ -67,7 +72,7 @@ NEAR_DIST = 0.25
 # of gtosolver's spots (docs/ACCURACY.md section 35, 2026-11-24), the two within NEAR_DIST read better than Fast
 # (mw_utg_ip_bb, 0.216 away: 0.047 vs 0.059% of the pot given up; mw_co_sb_bb, 0.143: 0.041 vs 0.059), and the two past
 # it didn't (mw_hj_sb_bb, 0.314: 0.051 vs 0.047; mw_utg_sb_bb, 0.318: 0.080 vs 0.048, up to 0.66 on Ac4d3h), so those
-# two are left to the live solve.
+# two are withheld (withheld(): never served, borrowed or read as a stand-in) and their pots are solved live.
 NEAR_DIST_SPOT: dict = {}
 NEAR_COVER = 0.9      # each of today's ranges' weight the built range holds at least (as MW_BORROW_COVER)
 
@@ -102,6 +107,43 @@ def now_setup(sp: dict) -> Optional[dict]:
 def stale(sp: dict) -> bool:
     """Today's charts no longer give the spot's published fingerprints (upstream's own check)."""
     return _spot_ranges.mw_near_upstream(sp) is None
+
+
+def source_of(sp: dict) -> Optional[dict]:
+    """Who built the spot where that isn't Lizard (another game's 3-way library, scripts/library/assemble.py
+    add_mw_game): {"build", "iters", "expl"} (the index's median iterations and mean best-response gain, % of the pot,
+    where it holds them), or None for Lizard's own."""
+    b = mw_built.SPOTS.get(sp.get("id")) or {}
+    src = sp.get("source") if isinstance(sp.get("source"), dict) else {}
+    build = b.get("source") or src.get("build")
+    if not build:
+        return None
+    return {"build": build, **{k: src[k] for k in ("iters", "expl") if isinstance(src.get(k), (int, float))}}
+
+
+def withheld(sp: dict) -> bool:
+    """A spot from another game's build that today's charts no longer read as built: its line's ranges today are past
+    its near_dist from the built ones, or a built range holds under NEAR_COVER of today's (or either can't be set up).
+    It's left to the live solve everywhere: near_built skips it, and _spot_ranges gives upstream's borrow and stand_in
+    nothing for it. A Lizard spot, or one today's code reproduces, never is."""
+    from gto.flop_approx import range_cover, range_dist
+    if source_of(sp) is None or not stale(sp):
+        return False
+    b, now = built_setup(sp), now_setup(sp)
+    if b is None or now is None or now["seats"] != b["seats"]:
+        return True
+    dist = sum(range_dist(np.asarray(x), y) for x, y in zip(now["ranges"], b["ranges"]))
+    cover = min(range_cover(np.asarray(x), y) for x, y in zip(now["ranges"], b["ranges"]))
+    return dist > near_dist(sp["id"]) or cover < NEAR_COVER
+
+
+def source_text(src: dict) -> str:
+    """Another game's build in words: whose, how its later streets were bucketed, and how settled its entries are on
+    their own ranges (a 3-way figure is the players' mean best-response gain, not a distance from equilibrium)."""
+    conv = ""
+    if src.get("iters") and src.get("expl") is not None:
+        conv = f"; {src['iters']} iterations, mean best-response gain {src['expl']:.2f}% of the pot on its own ranges"
+    return f"as built by {src['build']} (its later streets bucketed by weight times equity{conv}), not Lizard's"
 
 
 def near_built(lib, ranges, pot: float, stack: float) -> Optional[dict]:
@@ -170,7 +212,7 @@ def built_text(b: dict) -> str:
     if src:
         # another game's build: who built it, on what, and how settled it was on its own ranges
         conv = b["built"].get("iters"), b["built"].get("expl")
-        settled = (f", {conv[0]} iterations, {conv[1]:.2f}% of the pot from equilibrium on its own ranges"
+        settled = (f", {conv[0]} iterations, mean best-response gain {conv[1]:.2f}% of the pot on its own ranges"
                    if conv[0] and conv[1] is not None else "")
         return (f"this spot as built by {src} (its charts of {b['built']['date']}, and its later streets bucketed "
                 f"by weight times equity{settled}), not Lizard's: {diff}{tail}")
@@ -204,9 +246,14 @@ def _wrap_entry(upstream):
 
 
 def _wrap_spot_ranges(upstream):
+    """mw_library._spot_ranges (what upstream's borrow and stand_in measure a pot against): a stale spot's built ranges,
+    except a withheld one's (another game's spot today's charts no longer read as built: nothing, so it's never
+    borrowed or read as a stand-in)."""
     def _spot_ranges(sp):
         st = upstream(sp)
-        return st if st is not None else built_setup(sp)
+        if st is not None:
+            return st
+        return None if withheld(sp) else built_setup(sp)
     _spot_ranges.mw_near_upstream = upstream
     return _spot_ranges
 
@@ -214,6 +261,11 @@ def _wrap_spot_ranges(upstream):
 def _wrap_pick(upstream):
     def _pick(self, ranges, pot, stack, players):
         spot, b = upstream(self, ranges, pot, stack, players)
+        if spot is not None and b is None and source_of(spot) is not None:
+            # (another game's spot today's code reproduces exactly: still that build's mixes, marked as built)
+            seats = list(spot.get("seats") or (mw_built.SPOTS.get(spot["id"]) or {}).get("seats") or [])
+            return spot, {"spot": spot, "cover": (1.0, 1.0, 1.0), "dist": (0.0, 0.0, 0.0),
+                          "built": built_of(spot["id"], seats)}
         if spot is not None or not players:
             return spot, b
         n = near_built(self, ranges, pot, stack)
@@ -224,8 +276,16 @@ def _wrap_pick(upstream):
 
 def _wrap_mark(upstream):
     def _mark(sol, b):
-        if sol is None or not b or not b.get("built"):
+        if sol is None or not b:
             return upstream(sol, b)
+        if not b.get("built"):
+            # another table's pot borrowed as a spot, or another pot read off it at once: upstream's mark, plus the
+            # build that made the spot where it isn't Lizard's (borrowed_text names it)
+            sol = upstream(sol, b)
+            src = source_of(b["spot"]) if isinstance(b.get("spot"), dict) else None
+            if sol is not None and src is not None and isinstance(sol.borrowed, dict):
+                sol.borrowed["source"] = src
+            return sol
         built = dict(b["built"])
         if built.get("source"):
             # (the stored solve's own convergence, on the ranges it was built on: said in the text, never as this
@@ -244,7 +304,11 @@ def _wrap_mark(upstream):
 def _wrap_text(upstream):
     def borrowed_text(self):
         b = self.borrowed or {}
-        return built_text(b) if b.get("built") else upstream(self)
+        if b.get("built"):
+            return built_text(b)
+        if isinstance(b.get("source"), dict):
+            return f"{upstream(self)}; the spot {source_text(b['source'])}"
+        return upstream(self)
     borrowed_text.mw_near_upstream = upstream
     return borrowed_text
 

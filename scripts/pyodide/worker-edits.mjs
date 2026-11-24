@@ -143,7 +143,8 @@ const EDITS = [
     // spot directories GitHub Pages can't hold, moved to an R2 bucket; web/src/library/hosts.ts reads the same file for
     // the page). hosts.json is read once, beside the index, the first time a spot's file is asked for (not at start: a
     // library without one costs one 404 then); the index files always come from LIBRARY. Only an https base ending in
-    // "/" is taken; anything else, or no file, is LIBRARY. The bucket's CORS policy lets the site's origin read it
+    // "/" is taken (a bucket at its domain's root too, as web/src/library/hosts.ts takes it); anything else, or no
+    // file, is LIBRARY. The bucket's CORS policy lets the site's origin read it
     // (docs/DEPLOYMENT.md), which a cross-origin fetch from this cross-origin-isolated worker needs.
     from: "const LIB = new Map();   // path -> Uint8Array (fetched) or a Promise (in flight)",
     to:
@@ -154,7 +155,7 @@ const EDITS = [
       "  if (!h || h.format !== 1 || !h.hosts || !h.sets || typeof h.hosts !== \"object\" || typeof h.sets !== \"object\") return out;\n" +
       "  for (const [s, n] of Object.entries(h.sets)) {\n" +
       "    const b = typeof n === \"string\" && Object.prototype.hasOwnProperty.call(h.hosts, n) ? h.hosts[n] : null;\n" +
-      "    if (typeof b === \"string\" && /^https:\\/\\/[^/?#]+\\/[^?#]*\\/$/.test(b)) out[s] = b;\n" +
+      "    if (typeof b === \"string\" && /^https:\\/\\/[^/?#]+\\/[^?#]*$/.test(b) && b.endsWith(\"/\")) out[s] = b;\n" +
       "  }\n" +
       "  return out;\n" +
       "}\n" +
