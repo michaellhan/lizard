@@ -20,14 +20,20 @@ import numpy as np
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "solver"))
-sys.path.insert(0, str(ROOT / "scripts" / "pf"))
 sys.path.insert(0, str(ROOT))
 
 import gto.native  # noqa: E402,F401
 from gto import pf_game as G  # noqa: E402
 from gto import pf_study as PS  # noqa: E402
 from engine import pf_solve as P  # noqa: E402
-import build_stored as B  # noqa: E402
+import importlib.util  # noqa: E402
+
+# scripts/pf/build_stored.py under its own name: scripts/pf_icm has a build_stored.py too (test_pf_icm_stored imports
+# that one), and a plain import would leave whichever loaded first in sys.modules for both in one discover run
+_spec = importlib.util.spec_from_file_location("pf_build_stored", ROOT / "scripts" / "pf" / "build_stored.py")
+B = importlib.util.module_from_spec(_spec)
+sys.modules["pf_build_stored"] = B
+_spec.loader.exec_module(B)
 
 
 class Adv:
