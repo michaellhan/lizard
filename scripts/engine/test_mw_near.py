@@ -21,6 +21,7 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import gto.advisor as A  # noqa: E402
+from gto import flop_approx as fl_approx  # noqa: E402
 from gto import flop_library as fl  # noqa: E402
 from gto import multiway_solver as MW  # noqa: E402
 from gto import mw_library as ML  # noqa: E402
@@ -44,6 +45,12 @@ def today(sid):
     return st["ranges"], st["pot"], st["stack"]
 
 
+def dist_now(sid):
+    """Today's ranges of the spot's line, their distances to the built ones summed."""
+    ranges, _, _ = today(sid)
+    return sum(fl_approx.range_dist(np.asarray(x), np.asarray(y)) for x, y in zip(ranges, mw_built.ranges(sid)))
+
+
 class ServedAsBuilt(unittest.TestCase):
     def setUp(self):
         mw_near._NOW.clear()
@@ -56,10 +63,20 @@ class ServedAsBuilt(unittest.TestCase):
                 ranges, pot, stack = today(sid)
                 self.assertIsNone(lib.spot([fl.range_fp(r) for r in ranges], pot, stack))   # (upstream misses it)
                 spot, b = lib._pick(ranges, pot, stack, 6)
+                bs = mw_built.SPOTS[sid]
+                built = [np.asarray(r) for r in mw_built.ranges(sid)]
+                dist = sum(fl_approx.range_dist(np.asarray(x), y) for x, y in zip(ranges, built))
+                if dist > mw_near.near_dist(sid):
+                    # (moved past the spot's distance: left to the live solve)
+                    self.assertEqual((spot, b), (None, None))
+                    continue
                 self.assertEqual(spot["id"], sid)
-                self.assertEqual(b["built"], {"commit": mw_built.COMMIT, "date": mw_built.DATE,
-                                              "seats": mw_built.SPOTS[sid]["seats"]})
-                self.assertLessEqual(sum(b["dist"]), mw_near.NEAR_DIST)
+                want = {"commit": bs.get("commit", mw_built.COMMIT), "date": bs.get("date", mw_built.DATE),
+                        "seats": bs["seats"]}
+                if bs.get("source"):
+                    want["source"] = bs["source"]
+                self.assertEqual(b["built"], want)
+                self.assertLessEqual(sum(b["dist"]), mw_near.near_dist(sid))
                 self.assertGreaterEqual(min(b["cover"]), mw_near.NEAR_COVER)
                 # (custom ranges, players None: never borrowed)
                 self.assertEqual(lib._pick(ranges, pot, stack, None), (None, None))
@@ -91,6 +108,63 @@ class ServedAsBuilt(unittest.TestCase):
         spot, bw = lib._pick(ranges, pot, stack, 6)
         self.assertEqual(spot["id"], sid)
         self.assertIsNone(bw)
+
+    def test_another_games_spot_past_its_distance_is_never_served(self):
+        """A spot from another game's build whose line today's charts move past its near_dist (mw_hj_sb_bb,
+        mw_utg_sb_bb: ACCURACY 35) is withheld: not served as built, not borrowed by another table, not a stand-in."""
+        lib = fake_library()
+        far = [sid for sid, b in mw_built.SPOTS.items() if b.get("source") and dist_now(sid) > mw_near.near_dist(sid)]
+        self.assertIn("mw_hj_sb_bb", far)
+        for sid in far:
+            with self.subTest(spot=sid):
+                sp = next(s for s in lib.index()["spots"] if s["id"] == sid)
+                self.assertTrue(mw_near.withheld(sp))
+                self.assertIsNone(ML._spot_ranges(sp))
+                ranges, pot, stack = today(sid)
+                self.assertEqual(lib._pick(ranges, pot, stack, 6), (None, None))
+                for b in (lib.borrow(ranges, pot, stack, 9), lib.stand_in(ranges, pot * 1.1, stack),
+                          lib.stand_in(ranges, pot, stack)):
+                    self.assertTrue(b is None or b["spot"]["id"] != sid, b and b["spot"]["id"])
+
+    def test_spots_within_their_distance_are_not_withheld(self):
+        lib = fake_library()
+        for sp in lib.index()["spots"]:
+            sid = sp["id"]
+            if dist_now(sid) <= mw_near.near_dist(sid):
+                with self.subTest(spot=sid):
+                    self.assertFalse(mw_near.withheld(sp))
+                    self.assertIsNotNone(ML._spot_ranges(sp))
+
+    def test_a_borrowed_or_stand_in_answer_off_another_games_spot_names_the_build(self):
+        class Sol:
+            label = "CO open, SB and BB call"
+            borrowed = None
+        sp = {"id": "mw_co_sb_bb", "source": {"build": "x", "iters": 400, "expl": 0.0772}}
+        s = ML.MWLibrary._mark(Sol(), {"spot": sp, "cover": (1.0, 0.95, 1.0), "dist": (0.0, 0.4, 0.0),
+                                       "pot": 8.0, "stack": 97.5})
+        self.assertEqual(s.borrowed["source"], {"build": mw_built.SPOTS["mw_co_sb_bb"]["source"], "iters": 400,
+                                                "expl": 0.0772})
+        sol = ML.LibraryMWSolution.__new__(ML.LibraryMWSolution)
+        sol.borrowed, sol.pot_start, sol.stacks = s.borrowed, 7.5, [97.5, 97.5, 97.5]
+        self.assertEqual(sol.borrowed_text(), "its pot 7.5bb with 97.5 behind, this one 8bb with 97.5; the ranges "
+                                              "differ by 20.0% of their weight at most; the spot as built by "
+                                              f"{mw_built.SPOTS['mw_co_sb_bb']['source']} (its later streets bucketed "
+                                              "by weight times equity; 400 iterations, mean best-response gain 0.08% "
+                                              "of the pot on its own ranges), not Lizard's")
+        # (a Lizard spot's: upstream's alone)
+        s2 = ML.MWLibrary._mark(Sol(), {"spot": {"id": "mw_co_btn_bb"}, "cover": (1, 1, 1), "dist": (0.1, 0, 0)})
+        self.assertNotIn("source", s2.borrowed)
+
+    def test_another_games_spot_today_reproduces_is_still_marked_as_built(self):
+        sid = "mw_co_sb_bb"
+        ranges, pot, stack = today(sid)
+        b = mw_built.SPOTS[sid]
+        lib = fake_library([{"id": sid, "line": b["line"], "seats": b["seats"], "pot": pot, "stack": stack,
+                             "fp": [fl.range_fp(r) for r in ranges], "label": sid, "flops": {}}])
+        spot, bw = lib._pick(ranges, pot, stack, None)
+        self.assertEqual(spot["id"], sid)
+        self.assertEqual(bw["built"]["source"], b["source"])
+        self.assertEqual(bw["dist"], (0.0, 0.0, 0.0))
 
     def test_its_own_ranges_stand_in_where_upstream_reads_a_spots_ranges(self):
         sp = next(s for s in fake_library().index()["spots"] if s["id"] == "mw_btn_sb_bb")
@@ -129,6 +203,48 @@ class Labels(unittest.TestCase):
                         "built": {"commit": "5b49b94", "date": "2026-11-16", "seats": ["BB", "CO", "BTN"]}}
         self.assertTrue(sol.borrowed_text().startswith("this spot as built on the charts of 2026-11-16"))
 
+
+    def test_another_games_build_names_its_source_and_convergence(self):
+        b = {"built": {"commit": "ee80ff5", "date": "2026-11-17", "seats": ["SB", "BB", "CO"],
+                       "source": "gtosolver's 3-way build on gto-solver 5e7dbc8's game", "iters": 300, "expl": 0.093},
+             "dist": (0.0, 0.1432, 0.0), "cover": (1.0, 0.982, 1.0)}
+        self.assertEqual(mw_near.built_text(b), "this spot as built by gtosolver's 3-way build on gto-solver 5e7dbc8's "
+                                                "game (its charts of 2026-11-17, and its later streets bucketed by "
+                                                "weight times equity, 300 iterations, mean best-response gain "
+                                                "0.09% of the pot on its own ranges), not Lizard's: BB's range "
+                                                "differs from this pot's by 7.2% of its weight; SB and CO's are the "
+                                                "same")
+        b["built"].pop("iters")
+        self.assertNotIn("iterations", mw_near.built_text(b))
+
+    def test_another_games_spot_is_marked_with_its_stored_convergence(self):
+        class Sol:
+            label = "CO open, SB and BB call"
+            borrowed = None
+            iters = 300
+
+            def exploitability(self):
+                return 0.0933
+        b = {"spot": {"id": "mw_co_sb_bb"}, "cover": (1.0, 0.982, 1.0), "dist": (0.0, 0.1432, 0.0),
+             "built": {"commit": "ee80ff5", "date": "2026-11-17", "seats": ["SB", "BB", "CO"], "source": "x"}}
+        s = ML.MWLibrary._mark(Sol(), b)
+        self.assertEqual((s.borrowed["built"]["iters"], s.borrowed["built"]["expl"]), (300, 0.093))
+        self.assertNotIn("iters", b["built"])      # (the spot's own built dict untouched)
+
+    def test_a_spot_on_its_own_tree_reads_its_entries_by_that_tree(self):
+        seen = []
+
+        def upstream(self, spot, name):
+            seen.append(self.index()["tree"])
+            return name
+        entry = mw_near._wrap_entry(upstream)
+        lib = fake_library([])
+        index_tree = lib.index()["tree"]
+        own = dict(index_tree, bucket_power=1.0)
+        self.assertEqual(entry(lib, {"id": "x", "tree": own}, "KcTd5h"), "KcTd5h")
+        self.assertEqual(entry(lib, {"id": "y"}, "KcTd5h"), "KcTd5h")
+        self.assertEqual(seen, [own, index_tree])
+        self.assertEqual(lib.index()["tree"], index_tree)     # (put back)
 
     def test_the_pots_own_seats_are_named(self):
         """HJ opens, CO and BB call reads the spot built on HJ opens, BTN and BB call: the text names CO."""

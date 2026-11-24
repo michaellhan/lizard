@@ -3753,3 +3753,99 @@ terminal, and the four-player one would need the triple overlaps on top. It woul
 river in the app is already solved per combo on one bet a street; with ranges that overlap as real ones do, the measured
 error above should shrink, but that was not measured. Five or more players stay on the betting rules. Nothing was
 changed in the app for multiway; FEATURE_MATRIX's Multiway row carries these figures.
+
+
+## 35. gtosolver's 3-way spots against Lizard's live 3-way solve (2026-11-24)
+
+Measured natively on this Mac (no browser), through `slot.sh` beside gtosolver's builds. The command was
+`scripts/library/bench_mw_game.py --stage library-build/runs/w12/stage --flops 6 --live-iters 200`. It took 561 s of
+solving, single-threaded, at 0.5 GB peak, and the rows are in `library-build/runs/w12/bench_mw_game.jsonl`.
+`bench_mw_game.py --report` prints the table below from them.
+
+**What was measured.** gtosolver's 3-way library (`.work/oneshot/mw-all/lib`, read only) holds all eight 3-way 6-max
+100bb spots. Its game is gto-solver 5e7dbc8's:
+- Lizard's own library tree: flop bets of 33% and 75%, one raise, and all-in; turn and river bets of 50%; later
+  streets played by 16 hand buckets;
+- but those buckets are split into equal shares of weight times equity (`bucket_power` 1.0, which is part of that
+  tree's key). That is the only way the spots' tree differs from the index's.
+
+Its ranges are the charts as they were at Lizard's ee80ff5 (2026-11-17). `mw_built_ranges.py` reproduced every
+fingerprint from them. The four spots Lizard didn't publish now go in on their own tree (`assemble.py` `add_mw_game`):
+- UTG opens, HJ or CO and BB call (`mw_utg_ip_bb`), with all 1,755 flops;
+- CO opens, SB and BB call (`mw_co_sb_bb`), with all 1,755 flops;
+- HJ opens, SB and BB call (`mw_hj_sb_bb`), with 1,655 flops so far (the stage of 2026-11-24);
+- UTG opens, SB and BB call (`mw_utg_sb_bb`), with 185 flops so far.
+
+Their entries settled at 300-400 iterations, with a mean best-response gain of 0.05-0.10% of the pot on their own
+ranges (with three players that is not a distance from equilibrium).
+
+Today's charts give each spot other ranges. One range moved in each spot:
+
+| Spot | Range that moved | Distance | Cover |
+|---|---|---|---|
+| `mw_utg_ip_bb` | BB | 0.216 | 98.4% |
+| `mw_co_sb_bb` | BB | 0.143 | 98.2% |
+| `mw_hj_sb_bb` | BB | 0.314 | 99.1% |
+| `mw_utg_sb_bb` | BB | 0.318 | 97.7% |
+
+**How.** The pricing is the same as section 28's.
+- For each spot, 6 stored flops: section 28's six where the spot holds them, otherwise 6 at random from its flops.
+  `mw_utg_sb_bb` holds only one of the six.
+- Today's ranges were solved on Lizard's library game (`mw_library.library_config()`) until settled: 200-800
+  iterations, target 0.1% of the pot, reached at 300-400.
+- Each seat's first decision with checks in front of it was priced by that solve's EVs. The figure is the share of the
+  pot the mix gives up against the solve's own mix, weighted by the acting range.
+- Two mixes were read. The stored entry is what the library would serve. The live Fast 3-way solve of today's ranges at
+  200 iterations is what answers without it; those solves were 0.06-0.28% of the pot from equilibrium.
+
+| Spot | Flops | Stored entry: mean (max) | Live Fast: mean (max) | Flops where the stored entry gives up less |
+|---|---|---|---|---|
+| `mw_utg_ip_bb` | 6 | 0.047% (0.117) | 0.059% (0.161) | 5 of 6 |
+| `mw_co_sb_bb` | 6 | 0.041% (0.143) | 0.059% (0.193) | 5 of 6 |
+| `mw_hj_sb_bb` | 6 | 0.051% (0.156) | 0.047% (0.179) | 3 of 6 |
+| `mw_utg_sb_bb` | 6 | 0.080% (0.657) | 0.048% (0.249) | 2 of 6 |
+| All | 24 | 0.055% (0.657) | 0.053% (0.249) | |
+
+**Reading it.** These entries give up 4-8 times what section 28's own spots did (0.010%). That gap isn't the ranges
+alone: the build's game differs from the one Lizard prices in by how its later streets are bucketed (weight times
+equity; the bet tree and the 16 buckets are the same). The flop mixes inherit that, even where the ranges barely
+moved.
+
+Even so, the two spots within `NEAR_DIST` (0.25) beat the live Fast solve on 5 of 6 flops each, and on the mean:
+- `mw_utg_ip_bb`: 0.047% against 0.059%;
+- `mw_co_sb_bb`: 0.041% against 0.059%.
+
+`engine/mw_near.py` serves those two as built. The answer is labelled approximate, and its text names the build, its
+later streets' bucketing, and the stored solve's iterations and mean best-response gain on its own ranges.
+
+The two spots past 0.25 don't beat Fast:
+- `mw_hj_sb_bb`: 0.051% against 0.047%.
+- `mw_utg_sb_bb`: 0.080% against 0.048%. Its worst decision, BB's after two checks on Ac4d3h, gives up 0.66% of the pot,
+  against 0.07 for Fast.
+
+So `NEAR_DIST_SPOT` stays empty, and those two are solved live. They are withheld everywhere
+(`mw_near.withheld`): not served as built, and not borrowed by another table's pot or read as an instant stand-in
+either. Once published, all four spots' flop reports are on the Reports page,
+marked approximate with the build named.
+
+**Not measured:**
+- lines behind a bet;
+- turns and rivers;
+- a browser run;
+- `mw_utg_sb_bb` on section 28's flops, which it doesn't hold yet.
+
+Rerun the bench once gtosolver's build finishes `mw_hj_sb_bb` and `mw_utg_sb_bb`. It would only change what is served
+if a rebuild on today's charts brought them within `NEAR_DIST`.
+
+**Review fix (2026-11-24).** The first version withheld those two only from `near_built`. Upstream's `borrow` and
+`stand_in` still read them through the built ranges. So a 6-max hand where HJ opens and SB and BB call got
+`mw_hj_sb_bb`'s stored mixes as the instant answer on Kc9d4h, with upstream's text "the same pot; the ranges differ by
+16.0%", and the build wasn't named. Now `_spot_ranges` gives upstream nothing for a withheld spot. Checked against the
+stage, natively, with `engine/pf_charts.py` installed:
+- `near()` and `solution()` return nothing for that line, and for UTG opens, SB and BB call, at 6-max and 9-max;
+- `mw_co_sb_bb` and `mw_utg_ip_bb` are still served as built at 6-max;
+- asked as another table's pot (players 9, the same ranges), they are borrowed, and the text now names the build
+  and its convergence.
+
+With the worker's repaired charts (`engine/pf_charts.py`), the distances are 0.215, 0.142, 0.320 and 0.320 (the table
+above is without them), so the same two are served.

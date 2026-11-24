@@ -23,6 +23,16 @@ export const LIBRARY_SOURCES = [
 
 export type LibrarySourceId = (typeof LIBRARY_SOURCES)[number]["id"];
 
+/**
+ * The other origins a library may serve its spots from (an R2 bucket's public domain: library/hosts.ts, the library's
+ * hosts.json), from VITE_LIBRARY_HOSTS (space- or comma-separated origins; the deploy sets it from the repository
+ * variable LIZARD_LIBRARY_HOSTS). vite.config.ts adds the same origins to the page's CSP connect-src. Empty: every file
+ * comes from the library's own base.
+ */
+export const LIBRARY_HOST_ORIGINS: readonly string[] = ((import.meta.env.VITE_LIBRARY_HOSTS as string | undefined) ?? "")
+  .split(/[\s,]+/)
+  .filter((o) => /^https:\/\/[a-z0-9.-]+(:\d+)?$/i.test(o));
+
 /** A setting: a specific source, or "auto" (the first one that is published). */
 export type LibraryChoice = LibrarySourceId | "auto";
 

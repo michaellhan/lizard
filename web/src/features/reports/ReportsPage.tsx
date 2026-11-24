@@ -316,7 +316,7 @@ function SpotReport({
   const p = useReportParams(params, spot.seats);
   const rep = data.st === "ready" ? data.rep : null;
   const shownRows = useReportRows(rep, p);
-  const provenance = useMemo(() => (rep ? reportProvenance(rep, mode, spot.report) : null), [rep, mode, spot.report]);
+  const provenance = useMemo(() => (rep ? reportProvenance(rep, mode, spot.report, spot.source) : null), [rep, mode, spot.report, spot.source]);
   const cover = rep ? coverage(rep) : null;
   const views = useMemo(() => (rep ? viewsOf(rep) : null), [rep]);
 

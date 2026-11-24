@@ -222,6 +222,105 @@ Guarantees, enforced by `assemble.py`:
 
 The tests are in `scripts/library/test_assemble.py`.
 
+### gtosolver's 3-way spots (2026-11-24)
+
+`assemble.py` also reads gtosolver's 3-way library at `.work/oneshot/mw-all/lib` (`MW_GAME_SOURCES`). The owner
+decided on 2026-11-24 that it is read only, and only through `assemble.py`. That build covers all eight 3-way spots on
+gto-solver 5e7dbc8's game: Lizard's own bet tree and 16 later-street buckets, but the buckets split by weight times
+equity (`bucket_power` 1.0, the only difference in the tree).
+
+What goes in:
+- Only the spots Lizard doesn't publish: `mw_utg_ip_bb`, `mw_co_sb_bb`, `mw_hj_sb_bb` and `mw_utg_sb_bb`.
+- Each on its own tree (`tree` on the spot in `mw_index.json`).
+- Each with a `source` (the build's name, and its entries' median iterations and mean best-response gain).
+- Only entries that pass the checks: every entry is checked by its sha1 and by its header (fingerprints, tree, board),
+  and one that fails is left out.
+- A later publish keeps each spot's flops (`keep_previous_mw`).
+
+How they're served:
+- `engine/mw_built.py` holds their built ranges: run `mw_built_ranges.py --commit ee80ff5 --spots ... --merge --source
+  "..."`. It reproduced every fingerprint.
+- The engine serves a spot as built only within `NEAR_DIST`, or within a spot's own `NEAR_DIST_SPOT` (empty: see
+  ACCURACY section 35). A spot past it (`mw_hj_sb_bb`, `mw_utg_sb_bb`) is withheld everywhere (`mw_near.withheld`):
+  never served as built, borrowed by another table's pot or read as an instant stand-in. Where a served one is
+  borrowed or stands in, the answer's text names the build too.
+- The Reports page marks these spots' reports approximate and names the build.
+
+Once the spots are live, run `.venv/bin/python scripts/library/published_fps.py --reason "gtosolver's 3-way build on
+5e7dbc8's game, on charts that have moved since: served as built within NEAR_DIST, withheld past it
+(engine/mw_near.py)"`. Today's charts give them other ranges, so they're listed stale. The script also marks the two
+spots `mw_near.withheld` holds back as `withheld`, and `test_published_fps.py` then checks that they stay withheld
+instead of served. Spots already listed stale keep their own reasons. Then commit the fixture. (Checked against the
+stage, 2026-11-24: 12 stale, 2 withheld, the test passes.)
+
+The `claude/hopeful-carson-c97373` re-pin (gto-solver 5e7dbc8) was not merged. The library doesn't need it: the spots'
+entries are read by the tree each spot carries.
+
+### The library on R2 (past Pages' budget)
+
+GitHub Pages serves at most about 1 GB a site, and `assemble.py` keeps the Pages part under 900 MiB and 120,000 files.
+Past that, whole spot directories ("sets") go to a Cloudflare R2 bucket:
+
+1. `assemble.py` takes `--r2-base`, or the `LIZARD_R2_BASE` environment variable: the bucket's public https base,
+   ending in `/`. It moves sets in `host_tier` order (single-size first, then breadth, other games' 3-way spots, other
+   formats, heads-up 6-max, and the published 3-way spots last) until the rest fits.
+2. It writes `hosts.json` beside `index.json`: `{"format":1,"hosts":{"r2":base},"sets":{spot:"r2"}}`. It also marks each
+   moved spot's index entry `"host":"r2"`, and puts an `r2` block (base, sets, files, bytes) in `lizard-library.json`.
+   With an R2 base the caps rise by `R2_EXTRA_FILES` (300,000) and `R2_SS_BYTES` (2 GiB), and R2 holds at most
+   `R2_MAX_BYTES` (8 GiB).
+3. The stage keeps every file. `publish.sh` runs `scripts/library/r2_upload.py`, which sends only new or changed files
+   (a manifest in `library-build/r2-manifest.json`, resumable) before it pushes Pages. It leaves the R2 sets out of the
+   Pages clone, and keeps the whole release in `library-build/release-full` for the next run's `--previous`.
+4. Readers:
+   - The web reads hosts.json only for a spot marked `host` (`web/src/library/hosts.ts`, `LibraryFiles.url`).
+   - The solver worker reads it the first time a spot's file is asked for (`scripts/pyodide/worker-edits.mjs`, declared
+     in `solver/UPSTREAM.json`).
+   - Both take only an https base ending in `/`. The web also needs the base's origin in the build's
+     `VITE_LIBRARY_HOSTS`, the same list the page's CSP `connect-src` gets.
+   - Without an R2 base nothing moves and nothing changes.
+
+Headers:
+- Entries (`.bin`) are sent with `Cache-Control: public, max-age=14400`. The worker and the web ask for each with
+  `?v=<its hash in the index>`, so a rebuilt entry is a new URL and is read at once. The 4 hours bound only a cache
+  that ignores the query string; even then the engine refuses an entry whose header isn't its index's and solves
+  live.
+- JSON files are sent with `public, max-age=300`.
+- The page is cross-origin isolated (COEP require-corp), so it and the worker read R2 by CORS. The bucket needs the
+  policy in `scripts/library/r2-cors.json`: GET and HEAD from `https://www.michael-han.com` and the local dev and
+  preview ports.
+
+Owner steps (once; R2 wasn't enabled on the account on 2026-11-24, so none of this is done):
+
+1. In the Cloudflare dashboard, open R2 and enable it (it asks to accept R2's terms; the free tier covers 10 GB-month).
+2. Create the bucket: `wrangler r2 bucket create lizard-library` (wrangler is logged in on this Mac as the owner).
+3. Give it a public custom domain, for example `lib.michael-han.com`: the bucket's Settings, then Custom Domains.
+   Avoid the `r2.dev` URL, which is rate-limited.
+4. Set its CORS policy: `wrangler r2 bucket cors set lizard-library --file scripts/library/r2-cors.json`.
+5. Create an R2 API token with Object Read & Write on that bucket (R2, then Manage API tokens). Its S3 credentials go
+   in `~/.config/lizard/r2.env`, mode 600, which `publish.sh` reads:
+
+   ```bash
+   LIZARD_R2_BASE=https://lib.michael-han.com/lizard-library/
+   R2_ACCOUNT_ID=<32 hex digits>
+   R2_ACCESS_KEY_ID=...
+   R2_SECRET_ACCESS_KEY=...
+   R2_BUCKET=lizard-library
+   ```
+
+6. In the GitHub repository's Actions variables, set `LIZARD_LIBRARY_HOSTS=https://lib.michael-han.com`, then let the
+   next app deploy run. The page's CSP then allows that origin and the web reads hosts.json for it. CI needs no
+   Cloudflare token: only `publish.sh`, on this Mac, writes to R2.
+
+Check before relying on it:
+- `DRY_RUN=1 scripts/library/publish.sh` prints what `r2_upload.py` would send.
+- `r2_upload.py --stage library-build/stage --verify` HEADs every key the manifest lists.
+- `r2_upload.py --prune`, run after a publish, deletes keys of sets that went back to Pages.
+- `curl -sI -H 'Origin: https://www.michael-han.com' <base><spot>/<flop>.bin` should show
+  `access-control-allow-origin` and the cache header.
+
+Roll back: revert the clone as below (the old `index.json` and `hosts.json` come back). The R2 objects stay, because
+an upload only adds or replaces files.
+
 ### When new heads-up flops appear
 
 Run `publish.sh` again. The app needs no redeploy:

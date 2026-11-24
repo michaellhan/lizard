@@ -18,12 +18,16 @@ const BASE = process.env.LIZARD_BASE ?? "/lizard/";
 // a <meta> tag binds only its page. frame-ancestors can't be set by <meta>; public/sw.js sends it as a header.
 // PostHog pageviews (index.html's /ph.js, michael-han.com's shared analytics script) load PostHog's script from
 // us-assets.i.posthog.com and send to us.i.posthog.com: those two hosts only.
+// A library's spots served from an R2 bucket (src/config.ts LIBRARY_HOST_ORIGINS, src/library/hosts.ts): their origins,
+// from VITE_LIBRARY_HOSTS as the app reads them, are added to connect-src (none when it's unset).
+const LIBRARY_HOSTS = (process.env.VITE_LIBRARY_HOSTS ?? "").split(/[\s,]+/).filter((o) => /^https:\/\/[a-z0-9.-]+(:\d+)?$/i.test(o));
 const CSP = [
   "default-src 'self'",
   "script-src 'self' https://us-assets.i.posthog.com",
   "worker-src 'self' blob:",
   // (wss: the arena's table sockets on the site's own host, features/arena; 'self' covers them in browsers that follow CSP 3)
-  "connect-src 'self' wss://www.michael-han.com http://127.0.0.1:* http://localhost:* ws://127.0.0.1:* ws://localhost:* https://us.i.posthog.com https://us-assets.i.posthog.com",
+  "connect-src 'self' wss://www.michael-han.com http://127.0.0.1:* http://localhost:* ws://127.0.0.1:* ws://localhost:* https://us.i.posthog.com https://us-assets.i.posthog.com" +
+    LIBRARY_HOSTS.map((o) => ` ${o}`).join(""),
   "img-src 'self' data:",
   "style-src 'self' 'unsafe-inline'",
   "font-src 'self'",

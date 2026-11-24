@@ -285,6 +285,16 @@ describe("flop reports", () => {
     ]);
     const p = reportProvenance(rep, "fast");
     expect(p.approximateLabel).toBe("3-way flop report over its 6 stored flops, built in the page from their entries");
+    expect(p.approximate).toBe(false);
+    // (a spot from another game's build: approximate, the build and its convergence named)
+    const other = reportProvenance(rep, "fast", undefined, { build: "gtosolver's 3-way build on gto-solver 5e7dbc8's game", iters: 300, expl: 0.0812 });
+    expect(other.approximate).toBe(true);
+    expect(other.approximateLabel).toBe(
+      "3-way flop report over its 6 stored flops, built in the page from their entries, as built by gtosolver's 3-way build on " +
+        "gto-solver 5e7dbc8's game, not Lizard's (its own charts, and later streets bucketed by weight times equity; " +
+        "median 300 iterations, mean best-response gain 0.08% of the pot on its own ranges)",
+    );
+    expect(reportProvenance(rep, "fast", undefined, { build: "" }).approximate).toBe(false);
     expect(toCsv(rep, "third", rows(rep, "third"), p).split("\n")[0]).not.toContain("range advantage");
     expect(toCsv(rep, "third", rows(rep, "third"), p).split("\n")[0]).toBe(
       "flop,weight,share of flops,high card,suits,pairing,connectedness,check,bet 33%,bet 75%,source",

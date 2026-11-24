@@ -4,7 +4,9 @@ Run: .venv/bin/python -m unittest discover -s scripts/library
 """
 import hashlib
 import json
+import os
 import re
+import shutil
 import struct
 import subprocess
 import sys
@@ -18,6 +20,7 @@ TREE = {"sizes": {"flop_bet": [0.33]}, "model": {"version": 1}}
 OLD_TREE = {"sizes": {"flop_bet": [0.33]}, "model": {"version": 0}}
 NO_EXT = "/nonexistent/lizard-extend"  # (the default extension source is the main checkout's real build)
 NO_MW = "/nonexistent/lizard-mw"  # (and so is the default 3-way source)
+NO_MW_GAME = "/nonexistent/lizard-mw-game"  # (and gtosolver's 3-way library, the default game source)
 
 
 def h(b: bytes, n: int) -> str:
@@ -106,13 +109,17 @@ def run(*args) -> subprocess.CompletedProcess:
         args = (*args, "--extend", NO_EXT)
     if "--mw" not in args:
         args = (*args, "--mw", NO_MW)
+    if "--mw-game" not in args:
+        args = (*args, "--mw-game", NO_MW_GAME)
     if "--formats" not in args:
         args = (*args, "--formats", NO_FORMATS)
     if "--breadth" not in args:
         args = (*args, "--breadth", NO_BREADTH)
     if "--single-size" not in args:
         args = (*args, "--single-size", NO_SS)
-    return subprocess.run([sys.executable, str(HERE / "assemble.py"), *map(str, args)], capture_output=True, text=True)
+    env = {k: v for k, v in os.environ.items() if k != "LIZARD_R2_BASE"}  # (only --r2-base sets it here)
+    return subprocess.run([sys.executable, str(HERE / "assemble.py"), *map(str, args)], capture_output=True, text=True,
+                          env=env)
 
 
 def add_spot(root: Path, sid: str, fp: list, flops: dict, pot=6.0, turns=True) -> dict:
@@ -355,13 +362,13 @@ class AssembleTest(unittest.TestCase):
         self.out.mkdir()
         for i in range(5):
             (self.out / f"f{i}").write_text("x")
-        old = assemble.MAX_FILES
+        old = assemble.CAPS["files"]
         try:  # 5 files staged + 6 for 4bp_hj_co (2 entries, 2 turn files, report, ranges) fit; the 8-max spot's 3 don't
-            assemble.MAX_FILES = 5 + 6 + assemble.BREADTH_RESERVE + 2
+            assemble.CAPS["files"] = 5 + 6 + assemble.BREADTH_RESERVE + 2
             log = []
             merged, summary = assemble.add_breadth(self.breadth(), self.out, [], TREE, log)
         finally:
-            assemble.MAX_FILES = old
+            assemble.CAPS["files"] = old
         self.assertEqual([s["id"] for s in merged], ["4bp_hj_co"])
         self.assertEqual(summary["spots"], {"4bp_hj_co": 2})
         self.assertTrue(any("srp_btn_bb_8max: left out" in x and "file cap" in x for x in log), log)
@@ -645,6 +652,212 @@ class MultiwayTest(unittest.TestCase):
         self.assertTrue(max(first) > 800 and min(first) < 100)
 
 
+GAME_TREE = {"bet": {"flop": [0.33, 0.75]}, "version": 1, "bucket_power": 1.0}
+
+
+def tree_hash(tree: dict) -> str:
+    return h(json.dumps(tree, sort_keys=True, separators=(",", ":")).encode(), 12)
+
+
+def game_entry(flop: str, fp: list, tree=None, tag: float = 0.5) -> bytes:
+    """A 3-way entry whose header names its spot's fingerprints and tree, as gto/mw_library.encode writes them."""
+    nodes = [{"path": p, "player": i, "names": MW_NAMES, "fold0": False, "freqs": [tag, 1 - tag, 0.0], "combos": 9.0}
+             for i, p in enumerate([[], ["check"], ["check", "check"]])]
+    hb = json.dumps({"board": flop, "format": 2, "players": 3, "nodes": nodes, "fp": fp,
+                     "tree": tree_hash(tree or GAME_TREE), "iters": 400, "expl": 0.07}).encode()
+    return b"GTOFL3" + zlib.compress(struct.pack("<I", len(hb)) + hb + b"\1" * 32)
+
+
+def make_game(root: Path, spots: dict, tree=None) -> dict:
+    """Another game's 3-way library: `spots` maps id -> (fp, {flop: entry bytes or None})."""
+    idx = {"format": 1, "tree": tree or GAME_TREE, "spots": []}
+    for sid, (fp, flops) in spots.items():
+        listed = {}
+        for f, b in flops.items():
+            if b is None:
+                listed[f] = "0" * 10
+                continue
+            (root / sid).mkdir(parents=True, exist_ok=True)
+            (root / sid / f"{f}.bin").write_bytes(b)
+            listed[f] = h(b, 10)
+        idx["spots"].append({"id": sid, "label": sid, "line": "CO:r2.5,SB:c,BB:c", "seats": ["SB", "BB", "CO"],
+                             "fp": fp, "pot": 7.5, "stack": 97.5, "flops": listed})
+    root.mkdir(parents=True, exist_ok=True)
+    (root / "mw_index.json").write_text(json.dumps(idx))
+    return idx
+
+
+class MwGameTest(unittest.TestCase):
+    """Another game's 3-way library (gtosolver's mw-all): its spots the library lacks join on their own tree."""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+        self.base, self.hu, self.game, self.out = (self.tmp / n for n in ("base", "hu", "game", "stage"))
+        make_lib(self.base, "srp_btn_bb", ["a", "b"], {"Ks7d2c": b"entry-1"})
+        make_mw(self.base, {"mw_btn_sb_bb": {"Kc7d2h": mw_entry("Kc7d2h")}})
+        self.hu.mkdir()
+        self.fp = ["p", "q", "r"]
+
+    def stage(self, *extra, out=None) -> subprocess.CompletedProcess:
+        return run("--out", out or self.out, "--base", self.base, "--hu", self.hu, "--mw-game", self.game, *extra)
+
+    def mw(self, root=None) -> dict:
+        return json.loads(((root or self.out) / "mw_index.json").read_text())
+
+    def test_new_spots_join_on_their_own_tree_checked_by_hash_and_header(self):
+        make_game(self.game, {
+            # published already (same id, other ranges and tree): left to the published spot
+            "mw_btn_sb_bb": (["x", "y2", "z"], {"9c8d7h": game_entry("9c8d7h", ["x", "y2", "z"])}),
+            "mw_co_sb_bb": (self.fp, {"Kc7d2h": game_entry("Kc7d2h", self.fp, tag=0.8),
+                                      "9c8d7h": game_entry("9c8d7h", self.fp),
+                                      "Qc9d8h": game_entry("Qc9d8h", ["other", "q", "r"]),   # another spot's header
+                                      "Td6c3h": game_entry("Td6c3h", self.fp, tree=MW_TREE),  # another tree's
+                                      "Jc5d2h": None}),
+        })
+        (self.game / "mw_co_sb_bb" / "4c3c2c.bin").write_bytes(game_entry("4c3c2c", self.fp))  # not in its index
+        before = {p: p.read_bytes() for p in self.game.rglob("*") if p.is_file()}
+        r = self.stage()
+        self.assertEqual(r.returncode, 0, r.stderr)
+        idx = self.mw()
+        self.assertEqual(idx["tree"], MW_TREE)  # the index keeps the published spots' tree
+        spots = {s["id"]: s for s in idx["spots"]}
+        self.assertEqual(sorted(spots["mw_btn_sb_bb"]["flops"]), ["Kc7d2h"])
+        self.assertNotIn("tree", spots["mw_btn_sb_bb"])
+        co = spots["mw_co_sb_bb"]
+        self.assertEqual(co["tree"], GAME_TREE)
+        self.assertEqual(co["fp"], self.fp)
+        self.assertEqual(sorted(co["flops"]), ["9c8d7h", "Kc7d2h"])
+        self.assertEqual(co["source"], {"build": "gtosolver's 3-way build on gto-solver 5e7dbc8's game", "iters": 400, "expl": 0.07})
+        self.assertNotIn("source", spots["mw_btn_sb_bb"])
+        self.assertEqual(sorted(p.name for p in (self.out / "mw_co_sb_bb").glob("*.bin")), ["9c8d7h.bin", "Kc7d2h.bin"])
+        heads = json.loads((self.out / "mw_co_sb_bb" / "heads.json").read_text())
+        self.assertEqual([round(x, 6) for x in heads["flops"]["Kc7d2h"][""]], [0.8, 0.2, 0.0])
+        self.assertIn("mw_btn_sb_bb is published already", r.stdout)
+        self.assertIn("3 3-way flop(s)", r.stdout)
+        summary = json.loads((self.out / "lizard-library.json").read_text())
+        self.assertEqual(summary["multiway"], {"mw_btn_sb_bb": 1, "mw_co_sb_bb": 2})
+        self.assertEqual(summary["multiwayTargets"]["mw_co_sb_bb"], 1755)
+        src = next(x for x in summary["sources"] if x["kind"] == "3-way game build")
+        self.assertEqual(src["spots"], {"mw_co_sb_bb": 2})
+        self.assertEqual(before, {p: p.read_bytes() for p in self.game.rglob("*") if p.is_file()})
+
+    def test_a_spot_on_the_index_tree_carries_no_tree_and_a_raked_or_unversioned_source_is_left_out(self):
+        make_game(self.game, {"mw_co_sb_bb": (self.fp, {"Kc7d2h": game_entry("Kc7d2h", self.fp, tree=MW_TREE)})},
+                  tree=MW_TREE)
+        r = self.stage()
+        self.assertEqual(r.returncode, 0, r.stderr)
+        co = next(s for s in self.mw()["spots"] if s["id"] == "mw_co_sb_bb")
+        self.assertNotIn("tree", co)
+        raked = dict(GAME_TREE, rake=[0.05, 3.0])
+        make_game(self.game, {"mw_co_sb_bb": (self.fp, {"Kc7d2h": game_entry("Kc7d2h", self.fp, tree=raked)})},
+                  tree=raked)
+        r = self.stage()
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual([s["id"] for s in self.mw()["spots"]], ["mw_btn_sb_bb"])
+        self.assertIn("left out", r.stdout)
+
+    def test_a_game_spot_never_shrinks_below_the_previous_release(self):
+        make_game(self.game, {"mw_co_sb_bb": (self.fp, {"Kc7d2h": game_entry("Kc7d2h", self.fp),
+                                                        "9c8d7h": game_entry("9c8d7h", self.fp)})})
+        prev = self.tmp / "prev"
+        self.assertEqual(self.stage(out=prev).returncode, 0)
+        shutil.rmtree(self.game)  # the source gone
+        r = self.stage("--previous", prev)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        co = next(s for s in self.mw()["spots"] if s["id"] == "mw_co_sb_bb")
+        self.assertEqual(co["tree"], GAME_TREE)
+        self.assertEqual(len(co["flops"]), 2)
+        self.assertIn("mw_co_sb_bb: kept the previous release (2 flops)", r.stdout)
+
+
+class HostsTest(unittest.TestCase):
+    """Sets past Pages' budget are served from R2 (--r2-base): hosts.json names them, their index entries say so."""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+        self.base, self.hu, self.out = self.tmp / "base", self.tmp / "hu", self.tmp / "stage"
+        make_lib(self.base, "srp_btn_bb", ["a", "b"], {"Ks7d2c": b"e" * 4000})
+        make_mw(self.base, {"mw_btn_sb_bb": {"Kc7d2h": mw_entry("Kc7d2h")}})
+        make_lib(self.hu, "srp_btn_bb_40bb", ["c", "d"], {"Qc9d8h": b"h" * 9000, "Td6c3h": b"i" * 9000},
+                 game={"players": 6, "stack": 40.0, "ante": 0.0, "straddle": False})
+        self.game = self.tmp / "game"
+        make_game(self.game, {"mw_co_sb_bb": (["p", "q", "r"], {"Kc7d2h": game_entry("Kc7d2h", ["p", "q", "r"])})})
+
+    def stage(self, *extra, cap=None) -> subprocess.CompletedProcess:
+        """assemble.py with MAX_TOTAL set to `cap` bytes (a copy of the script, so the real one is untouched)."""
+        script = HERE / "assemble.py"
+        if cap is not None:
+            src = script.read_text()
+            src = re.sub(r"^MAX_TOTAL = .*$", f"MAX_TOTAL = {cap}", src, count=1, flags=re.M)
+            src = src.replace("ROOT = Path(__file__).resolve().parents[2]", f"ROOT = Path({str(HERE.parents[1])!r})")
+            script = self.tmp / "assemble_capped.py"
+            script.write_text(src)
+            sys.path_importer_cache.clear()
+        args = ["--out", self.out, "--base", self.base, "--hu", self.hu, "--mw-game", self.game, "--extend", NO_EXT,
+                "--mw", NO_MW, "--formats", NO_FORMATS, "--breadth", NO_BREADTH, "--single-size", NO_SS, *extra]
+        env = {k: v for k, v in os.environ.items() if k != "LIZARD_R2_BASE"}
+        # (depths_build is imported from the script's own folder)
+        env["PYTHONPATH"] = str(HERE)
+        return subprocess.run([sys.executable, str(script), *map(str, args)], capture_output=True, text=True, env=env)
+
+    def test_without_an_r2_base_nothing_moves_and_no_hosts_file(self):
+        r = self.stage()
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertFalse((self.out / "hosts.json").exists())
+        self.assertFalse(any("host" in s for s in json.loads((self.out / "index.json").read_text())["spots"]))
+        summary = json.loads((self.out / "lizard-library.json").read_text())
+        self.assertNotIn("r2", summary)
+
+    def test_an_r2_base_alone_moves_nothing_while_pages_holds_it_all(self):
+        r = self.stage("--r2-base", "https://lib.example.com/lizard-library/")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertFalse((self.out / "hosts.json").exists())
+
+    def sizes(self) -> tuple[int, dict]:
+        """(the stage's bytes before its index files are written, {set: bytes}) from a run with nothing moved."""
+        self.assertEqual(self.stage().returncode, 0)
+        pre = sum(p.stat().st_size for p in self.out.rglob("*") if p.is_file()
+                  and p.name not in ("index.json", "mw_index.json", "lizard-library.json"))
+        return pre, {d.name: sum(p.stat().st_size for p in d.rglob("*") if p.is_file())
+                     for d in self.out.iterdir() if d.is_dir()}
+
+    def test_past_the_pages_budget_the_lowest_tier_sets_move_to_r2(self):
+        pre, size = self.sizes()
+        margin = 16 * 2**20   # (assign_hosts keeps 16 MB for the index files)
+        cap = margin + pre - size["mw_co_sb_bb"] // 2
+        r = self.stage("--r2-base", "https://lib.example.com/lizard-library/", cap=cap)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        hosts = json.loads((self.out / "hosts.json").read_text())
+        self.assertEqual(hosts["format"], 1)
+        self.assertEqual(hosts["hosts"], {"r2": "https://lib.example.com/lizard-library/"})
+        # the 3-way spot on another game's tree goes first; that's enough
+        self.assertEqual(hosts["sets"], {"mw_co_sb_bb": "r2"})
+        mw = {s["id"]: s for s in json.loads((self.out / "mw_index.json").read_text())["spots"]}
+        self.assertEqual(mw["mw_co_sb_bb"]["host"], "r2")
+        self.assertNotIn("host", mw["mw_btn_sb_bb"])
+        summary = json.loads((self.out / "lizard-library.json").read_text())
+        self.assertEqual(summary["r2"]["sets"], ["mw_co_sb_bb"])
+        self.assertEqual(summary["r2"]["files"], 2)   # its entry and heads.json
+        self.assertTrue((self.out / "mw_co_sb_bb" / "Kc7d2h.bin").exists())   # the stage holds every file still
+        # tighter: the other game's (40bb) spot goes next, the default game's last
+        cap = margin + pre - size["mw_co_sb_bb"] - size["srp_btn_bb_40bb"] // 2
+        r = self.stage("--r2-base", "https://lib.example.com/lizard-library/", cap=cap)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        hosts = json.loads((self.out / "hosts.json").read_text())
+        self.assertEqual(sorted(hosts["sets"]), ["mw_co_sb_bb", "srp_btn_bb_40bb"])
+        idx = {s["id"]: s for s in json.loads((self.out / "index.json").read_text())["spots"]}
+        self.assertEqual(idx["srp_btn_bb_40bb"]["host"], "r2")
+        self.assertNotIn("host", idx["srp_btn_bb"])
+
+    def test_over_the_budget_without_r2_fails_and_a_bad_base_is_refused(self):
+        r = self.stage(cap=1000)
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("LIZARD_R2_BASE", r.stderr)
+        for bad in ("http://lib.example.com/x/", "https://lib.example.com/x", "https://a b/"):
+            r = self.stage("--r2-base", bad)
+            self.assertNotEqual(r.returncode, 0, bad)
+
+
 def make_ss(root: Path, spots: dict, order=None, target=552) -> dict:
     """A single-size build (build_single_size.py's ss-index.json): `spots` maps id -> {flop: (entry bytes, size %)};
     each flop's tree keyed by its size, a turn file with every entry, a report row per flop."""
@@ -743,15 +956,15 @@ class SingleSizeTest(unittest.TestCase):
         finally:
             sys.path.remove(str(HERE))
         self.out.mkdir()
-        old = assemble.SS_BYTES
+        old = assemble.CAPS["ss_bytes"]
         try:  # the reports, ranges and one flop's entries and turn files fit, not two
             per_flop = sum(p.stat().st_size for p in self.ss.glob("*/8c7c6c*.bin"))
             fixed = sum(p.stat().st_size for p in self.ss.glob("*/*.json"))
-            assemble.SS_BYTES = fixed + per_flop + 10
+            assemble.CAPS["ss_bytes"] = fixed + per_flop + 10
             log = []
             idx, summary = assemble.add_single_size(self.ss, self.out, set(), None, False, 0, log)
         finally:
-            assemble.SS_BYTES = old
+            assemble.CAPS["ss_bytes"] = old
         self.assertEqual(sorted(idx["spots"][0]["flops"]), ["8c7c6c"])
         self.assertEqual(idx["flops"], ["8c7c6c"])
         self.assertTrue(any("1 of 3 complete flops fit" in x for x in log), log)

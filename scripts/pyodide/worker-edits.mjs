@@ -138,6 +138,57 @@ const EDITS = [
       `             + "    _mb = min(_keep, max(64.0, float(st.get('cache_mb') or _keep)))\\n"\n` +
       `             + "    for _a in advs.values(): _a.cache_mb = _mb\\n"`,
   },
+  {
+    // A library spot's files from the host hosts.json names for its set (scripts/library/assemble.py assign_hosts: the
+    // spot directories GitHub Pages can't hold, moved to an R2 bucket; web/src/library/hosts.ts reads the same file for
+    // the page). hosts.json is read once, beside the index, the first time a spot's file is asked for (not at start: a
+    // library without one costs one 404 then); the index files always come from LIBRARY. Only an https base ending in
+    // "/" is taken (a bucket at its domain's root too, as web/src/library/hosts.ts takes it); anything else, or no
+    // file, is LIBRARY. The bucket's CORS policy lets the site's origin read it
+    // (docs/DEPLOYMENT.md), which a cross-origin fetch from this cross-origin-isolated worker needs.
+    from: "const LIB = new Map();   // path -> Uint8Array (fetched) or a Promise (in flight)",
+    to:
+      "let HOSTS = null;   // spot -> base, from hosts.json (Lizard: scripts/pyodide/worker-edits.mjs)\n" +
+      "let hostsP = null;\n" +
+      "function hostsOf(h) {\n" +
+      "  const out = Object.create(null);\n" +
+      "  if (!h || h.format !== 1 || !h.hosts || !h.sets || typeof h.hosts !== \"object\" || typeof h.sets !== \"object\") return out;\n" +
+      "  for (const [s, n] of Object.entries(h.sets)) {\n" +
+      "    const b = typeof n === \"string\" && Object.prototype.hasOwnProperty.call(h.hosts, n) ? h.hosts[n] : null;\n" +
+      "    if (typeof b === \"string\" && /^https:\\/\\/[^/?#]+\\/[^?#]*$/.test(b) && b.endsWith(\"/\")) out[s] = b;\n" +
+      "  }\n" +
+      "  return out;\n" +
+      "}\n" +
+      "function hostsReady() {   // (async: before a spot's file is fetched ahead)\n" +
+      "  hostsP ??= HOSTS ? Promise.resolve() : fetch(LIBRARY + \"hosts.json\", { cache: \"no-cache\" }).then((r) => r.ok ? r.json() : null)\n" +
+      "    .then((h) => { HOSTS ??= hostsOf(h); }, () => { HOSTS ??= hostsOf(null); });\n" +
+      "  return hostsP;\n" +
+      "}\n" +
+      "function libUrl(path) {\n" +
+      "  const i = path.indexOf(\"/\");\n" +
+      "  if (i <= 0) return LIBRARY + path;\n" +
+      "  if (HOSTS === null) {   // (asked before the read above came back: read it now, synchronously)\n" +
+      "    try {\n" +
+      "      const x = new XMLHttpRequest();\n" +
+      "      x.open(\"GET\", LIBRARY + \"hosts.json\", false);\n" +
+      "      x.send();\n" +
+      "      HOSTS = hostsOf(x.status === 200 ? JSON.parse(x.responseText) : null);\n" +
+      "    } catch (e) { HOSTS = hostsOf(null); }\n" +
+      "  }\n" +
+      "  return (HOSTS[path.slice(0, i)] || LIBRARY) + path;\n" +
+      "}\n" +
+      "const LIB = new Map();   // path -> Uint8Array (fetched) or a Promise (in flight)",
+  },
+  {
+    // (the hosts edit above: a spot's file fetched ahead from its set's host, once hosts.json is read)
+    from: "const p = fetch(LIBRARY + path).then((r) => r.ok ? r.arrayBuffer() : null)",
+    to: "const p = (path.indexOf(\"/\") > 0 ? hostsReady() : Promise.resolve()).then(() => fetch(libUrl(path))).then((r) => r.ok ? r.arrayBuffer() : null)",
+  },
+  {
+    // (the hosts edit above: a spot's file read synchronously from its set's host)
+    from: 'x.open("GET", LIBRARY + path, false);',
+    to: 'x.open("GET", libUrl(path), false);',
+  },
 ];
 
 export function editWorker(source) {

@@ -6,6 +6,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, 
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { after, test } from "node:test";
+import vm from "node:vm";
 import { fileURLToPath } from "node:url";
 import { checkStaged, readPins, sha256, stagePyodide } from "./stage.mjs";
 import { editWorker, hostsNamed } from "./worker-edits.mjs";
@@ -291,4 +292,53 @@ test("the published worker lowers the kept solves' budget for a request that ask
   assert.ok(at("for _a in advs.values(): _a.cache_mb = _mb") < at("    try:"));
   // (the worker's own budget is set before answer() exists, so the first request reads it)
   assert.ok(worker.indexOf("cache_mb = advs['accurate'].cache_mb = 700") < worker.indexOf('"def answer(st, pl):'));
+});
+
+test("the published worker reads a spot's library files from the host hosts.json names for its set", async () => {
+  const worker = editWorker(upstream);
+  const code = worker.slice(worker.indexOf("let HOSTS = null;"), worker.indexOf("const LIB = new Map();"));
+  assert.ok(code.length > 0, "no hosts code in the worker");
+  // (the library sets an R2 bucket holds: scripts/library/assemble.py assign_hosts)
+  const file = { format: 1, hosts: { r2: "https://lib.example.com/lizard-library/", bad: "http://x.example/",
+                                     root: "https://lib.example.com/", noslash: "https://lib.example.com/lizard-library" },
+                 sets: { mw_utg_sb_bb: "r2", srp_co_bb: "bad", srp_hj_bb: "nope", mw_hj_sb_bb: "root", srp_btn_bb: "noslash" } };
+  const run = (served) => {
+    const asked = [];
+    const ctx = {
+      LIBRARY: "/lizard-library/",
+      Promise,
+      fetch: async (u) => { asked.push(["async", u]); return { ok: served != null, json: async () => served }; },
+      XMLHttpRequest: class {
+        open(_m, u) { asked.push(["sync", u]); }
+        send() { this.status = served != null ? 200 : 404; this.responseText = JSON.stringify(served); }
+      },
+    };
+    vm.createContext(ctx);
+    vm.runInContext(code + "\nthis.libUrl = libUrl; this.hostsReady = hostsReady;", ctx);
+    return { ctx, asked };
+  };
+  // read synchronously when a file is asked for before the async read: once
+  let { ctx, asked } = run(file);
+  assert.equal(ctx.libUrl("index.json"), "/lizard-library/index.json");
+  assert.deepEqual(asked, []);
+  assert.equal(ctx.libUrl("mw_utg_sb_bb/KcTd5h.bin"), "https://lib.example.com/lizard-library/mw_utg_sb_bb/KcTd5h.bin");
+  assert.equal(ctx.libUrl("srp_co_bb/KcTd5h.bin"), "/lizard-library/srp_co_bb/KcTd5h.bin");   // (not https)
+  assert.equal(ctx.libUrl("srp_hj_bb/KcTd5h.bin"), "/lizard-library/srp_hj_bb/KcTd5h.bin");   // (no such host)
+  assert.equal(ctx.libUrl("mw_hj_sb_bb/KcTd5h.bin"), "https://lib.example.com/mw_hj_sb_bb/KcTd5h.bin");   // (a bucket at the domain's root)
+  assert.equal(ctx.libUrl("srp_btn_bb/KcTd5h.bin"), "/lizard-library/srp_btn_bb/KcTd5h.bin");   // (no trailing "/")
+  assert.deepEqual(asked, [["sync", "/lizard-library/hosts.json"]]);
+  // fetched ahead: read once, asynchronously
+  ({ ctx, asked } = run(file));
+  await ctx.hostsReady();
+  await ctx.hostsReady();
+  assert.equal(ctx.libUrl("mw_utg_sb_bb/KcTd5h.turn.bin"), "https://lib.example.com/lizard-library/mw_utg_sb_bb/KcTd5h.turn.bin");
+  assert.deepEqual(asked, [["async", "/lizard-library/hosts.json"]]);
+  // a library without hosts.json: everything from LIBRARY
+  ({ ctx, asked } = run(null));
+  await ctx.hostsReady();
+  assert.equal(ctx.libUrl("mw_utg_sb_bb/KcTd5h.bin"), "/lizard-library/mw_utg_sb_bb/KcTd5h.bin");
+  // and both fetches of a library file go through it
+  assert.ok(worker.includes("fetch(libUrl(path))"));
+  assert.ok(worker.includes('x.open("GET", libUrl(path), false);'));
+  assert.ok(!worker.includes("fetch(LIBRARY + path)") && !worker.includes('"GET", LIBRARY + path'));
 });
