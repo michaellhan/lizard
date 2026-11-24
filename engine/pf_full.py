@@ -31,8 +31,9 @@ inside the tree. Those raise.
 
 Memory: everything a seat holds per node is float32, and the values go up the tree a depth at a time (two depths
 held), so the 6-max tree (11,010 nodes, 5,470 decisions) at 1,326 combos needs regrets, the average and the current
-strategy (3 x 87 MB), each edge's reach and its card-removal mass (2 x 58 MB) and two depths of values (~200 MB): about
-0.6 GB with the interpreter (measured: scripts/pf/measure_full.py).
+strategy (3 x 87 MB), each edge's reach and its card-removal mass (2 x 58 MB) and two depths of values (~200 MB): 799 MB
+peak resident with the interpreter and an exploitability pass, 1.15-1.26 s an iteration on a loaded machine (about 15
+times `level="class"`, which peaks at 234 MB and takes 0.08 s); docs/ACCURACY.md section 35.
 
 Within a class every combo is the same hand up to a relabelling of the suits, and nothing in the game tells the suits
 apart, so a solve that starts even keeps every combo of a class on one strategy (measured: the spread is float32
