@@ -6,6 +6,7 @@ import { abstractionWords, flopModelOf } from "./abstraction";
 import { bunchingWords } from "./bunching";
 import { singleSizeWords } from "./singleSize";
 import { treeWords } from "./treeDepth";
+import { PF_FORCED_WORDS } from "./pfStored";
 import type { ConvergenceBand, Provenance, ResultSource, SolveMode, TransportKind } from "./types";
 
 export interface ProvenanceContext {
@@ -324,8 +325,11 @@ function preflopSolveOf(r: AdvisorResponse, p: Provenance): void {
   // what the game adds to the stored grid's kind (engine/pf_solve.py Spec.tree_notes): own stacks, limps from any seat,
   // opens by position, a fuller 7-9 handed tree, the charts' raise sizes; each in its own words
   if (Array.isArray(r.pf_tree)) for (const t of r.pf_tree) if (typeof t === "string") view.push(t);
-  if (st.cached) view.push("solved earlier in this browser");
-  else if (st.stored) view.push("precomputed");
+  // an ante or a straddle (engine/pf_solve.py Spec.forced_words), from the stored set with them where it's stored
+  const forced = typeof r.pf_forced === "string" ? r.pf_forced : null;
+  if (st.cached) view.push(...(forced ? [forced] : []), "solved earlier in this browser");
+  else if (st.stored) view.push(forced ? `${PF_FORCED_WORDS}: ${forced}` : "precomputed");
+  else if (forced) view.push(forced);
   if (view.length) p.view = view.join(", ");
   if (r.study !== "node") return;
   if (!st.done) {

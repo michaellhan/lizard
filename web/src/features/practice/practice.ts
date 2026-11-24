@@ -41,7 +41,7 @@ import { assumedWords, bestResponse, type Exploit, type ReadTally } from "./expl
 import { drawFit, HAND_DRAWS, handLabel, isHandKey } from "./handFilter";
 import { worthPlaying } from "./live";
 import { flopsLike, type TextureFilter } from "./texture";
-import { nearestDepth, PF_DEPTHS, PF_DEPTHS_WORDS, PF_PLAYERS, PF_STORED_RAKE, pfGradeSizes } from "@/solver/pfStored";
+import { depthsWords, nearestDepth, nearestOf, PF_DEPTHS, PF_DEPTHS_WORDS, PF_PLAYERS, PF_STORED_RAKE, PF_STRADDLE_PLAYERS, pfForcedOf, pfGradeDepths, pfGradeSizes, pfStoredAnte } from "@/solver/pfStored";
 import { PF_ICM_PRESETS, pfIcmStage, PF_ICM_WORDS } from "./pfIcmStored";
 
 export interface Decision {
@@ -363,10 +363,31 @@ export function pfBlocked(players: number, stack: number, o: Pick<HandOptions, "
   }
   // (a chip EV tournament is sent as a cash game: stored where every seat has the table's stack and the grid has it)
   if (o.tournament && Object.values(o.tournament.stacks).some((v) => Math.abs(v - stack) > 1e-9)) return `${stored} equal stacks only in chip EV, besides the chip EV set's spots as they set the table (on the Tournaments page). ${solveFirst}`;
-  if (!(PF_PLAYERS as readonly number[]).includes(players)) return `${stored} 2 to ${PF_PLAYERS.at(-1)} players only. ${solveFirst}`;
-  if (!(PF_DEPTHS as readonly number[]).includes(stack)) return `${stored} stacks of ${PF_DEPTHS_WORDS} only; the nearest is ${nearestDepth(stack)}bb. ${solveFirst}`;
-  if (o.ante || o.straddle) return `${stored} no ante and no straddle only. ${solveFirst}`;
+  // (with an ante or a straddle, the forced set as far as it's built: pfStored.ts pfGradeDepths)
+  const forced = pfForcedOf(players, o.ante, o.straddle);
+  const anteWords = `a ${pfStoredAnte(players)}bb ante a seat (a 1bb big-blind ante's share at ${players} players)`;
+  if (forced === null) {
+    if (o.ante && o.straddle && players >= 3) return `${stored} an ante or a straddle, not both. ${solveFirst}`;
+    if (o.straddle && players >= 3) return `${stored} a straddle at 3 to ${PF_STRADDLE_PLAYERS.at(-1)} players only. ${solveFirst}`;
+    return `${stored} no ante, or ${anteWords}. ${solveFirst}`;
+  }
+  const raked = !!o.rake;
+  if (forced === "none") {
+    if (!(PF_PLAYERS as readonly number[]).includes(players)) {
+      const more = (["straddle", "ante"] as const).filter((f) => pfGradeDepths(players, f, false).length);
+      const also = more.length ? `, and at ${players} players with ${more.map((f) => (f === "ante" ? anteWords : "a straddle")).join(" or ")}` : "";
+      return `${stored} 2 to ${PF_PLAYERS.at(-1)} players without an ante or a straddle${also}. ${solveFirst}`;
+    }
+    if (!(PF_DEPTHS as readonly number[]).includes(stack)) return `${stored} stacks of ${PF_DEPTHS_WORDS} only; the nearest is ${nearestDepth(stack)}bb. ${solveFirst}`;
+  }
+  if (raked && forced === "ante") return `${stored} ${anteWords} with no rake only. ${solveFirst}`;
   if (o.rake && !(o.rake === PF_STORED_RAKE.pct && o.rakeCap === PF_STORED_RAKE.cap)) return `${stored} no rake, or ${PF_STORED_RAKE.pct}% capped at ${PF_STORED_RAKE.cap}bb. ${solveFirst}`;
+  if (forced !== "none") {
+    const what = forced === "ante" ? anteWords : "a straddle";
+    const ds = pfGradeDepths(players, forced, raked);
+    if (!ds.length) return `${stored} ${what} at ${players} players${raked ? " with this rake" : ""} at no depth yet. ${solveFirst}`;
+    if (!ds.includes(stack)) return `${stored} ${what} at ${players} players at stacks of ${depthsWords(ds)} only; the nearest is ${nearestOf(ds, stack)}bb. ${solveFirst}`;
+  }
   if (carries(o)) return `Carried chips leave stacks other than the solve's ${stack}bb each.`;
   if (o.sizes && Object.keys(o.sizes).length) return "The preflop solve prices its flops by the engine's bet sizes, not your own.";
   return null;

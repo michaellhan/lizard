@@ -193,16 +193,18 @@ describe("AnalyzePage", () => {
     fireEvent.change(within(panel).getByRole("combobox", { name: "Grade" }), { target: { value: "library" } });
     fireEvent.click(within(panel).getByRole("button", { name: "Grade 4 hands" }));
     expect(await within(panel).findByText(/^Done: 5 decisions graded in this run, 4 without a grade\.$/)).toBeInTheDocument();
-    // 4 preflop decisions and 5 flop ones asked; the flops of the library only, nothing past the flop. One preflop
-    // decision is near enough a stored game's stacks (the 3bet pot's big blind, 120bb, against a 100bb opener, the
-    // others folded: 100bb effective each), so the preflop solve is asked there too, as the stored 5-handed 100bb game,
-    // equal stacks; it keeps the chart's grade, as the stub's answer is no stored solve's
+    // 4 preflop decisions and 5 flop ones asked; the flops of the library only, nothing past the flop. Two preflop
+    // decisions are near enough a stored game's stacks, so the preflop solve is asked there too: the straddled hand's
+    // big blind, as the stored 6-handed 100bb game with a straddle (since 2026-11-24), and the 3bet pot's big blind
+    // (120bb, against a 100bb opener, the others folded: 100bb effective each), as the stored 5-handed 100bb game, equal
+    // stacks; each keeps the chart's grade, as the stub's answer is no stored solve's
     const boards = stub.asked.map((s) => s.board || "preflop");
-    expect([boards.filter((b) => b === "preflop").length, boards.filter((b) => b.length === 6).length]).toEqual([5, 5]);
+    expect([boards.filter((b) => b === "preflop").length, boards.filter((b) => b.length === 6).length]).toEqual([6, 5]);
     const pf = stub.asked.filter((s) => s.preflop_solve);
-    expect(pf).toHaveLength(1);
-    expect(pf[0]).toMatchObject({ players: 5, hero: "BB", stack: 100, pf_tree: { sizing: "chart" } });
-    expect(pf[0]).not.toHaveProperty("stacks");
+    expect(pf).toHaveLength(2);
+    expect(pf[0]).toMatchObject({ players: 6, hero: "BB", stack: 100, straddle: true, pf_tree: { sizing: "chart" } });
+    expect(pf[1]).toMatchObject({ players: 5, hero: "BB", stack: 100, pf_tree: { sizing: "chart" } });
+    expect(pf[1]).not.toHaveProperty("stacks");
     expect(boards).toContain("Qs8d3c");
     expect(stub.asked.filter((s) => s.board).every((s) => s.library_only)).toBe(true);
 

@@ -23,6 +23,8 @@ import { SolverClient } from "@/solver/client";
 import type { Move } from "@/poker/table";
 import type { AdvisorResponse } from "@/solver/protocol";
 import { describe as words, provenanceOf } from "@/solver/provenance";
+import { PF_FORCED_BUILT } from "@/solver/pfForcedBuilt";
+import { PF_ANTE_DEPTHS, PF_ANTE_PLAYERS, PF_STRADDLE_DEPTHS, PF_STRADDLE_PLAYERS, pfGameKey, pfStoredAnte } from "@/solver/pfStored";
 import type { Provenance, SolveRequest, SolveResult, SolverTransport } from "@/solver/types";
 
 const NODES = nodes as unknown as Record<"first" | "opened" | "offSize" | "other" | "unsolved", AdvisorResponse>;
@@ -67,7 +69,9 @@ describe("where it can be set", () => {
       [2, 250, plain],
       [6, 12, plain],
       [6, 100, { ...plain, ante: 0.1 }],
-      [6, 100, { ...plain, straddle: true }],
+      [6, 120, { ...plain, straddle: true }],
+      [6, 100, { ...plain, ante: 0.17, straddle: true }],
+      [6, 30, { ...plain, ante: 0.17, rake: 5, rakeCap: 3 }],
       [6, 100, { ...plain, rake: 5, rakeCap: 0 }],
       [6, 100, { ...plain, rake: 4, rakeCap: 3 }],
       [6, 100, { ...plain, carry: true }],
@@ -78,8 +82,26 @@ describe("where it can be set", () => {
       [6, 100, { ...plain, tournament: { model: "icm", payouts: [50, 30, 20], stacks: {} } }],
     ] as const) expect(pfBlocked(p, s, o as never)).toMatch(/\w+ \w+/);
   });
+  it("is the stored games with an ante or a straddle, as far as they're built", () => {
+    // (pfStored.ts PF_FORCED_BUILT: a game is offered where its file at the charts' sizes is in engine/pf/)
+    for (const n of PF_STRADDLE_PLAYERS)
+      for (const d of PF_STRADDLE_DEPTHS)
+        for (const raked of [false, true]) {
+          const o = { ...plain, straddle: true, ...(raked ? { rake: 5, rakeCap: 3 } : {}) };
+          const built = PF_FORCED_BUILT.includes(pfGameKey(n, d, { forced: "straddle", raked, chart: true }));
+          expect(pfBlocked(n, d, o) === null, `${n} ${d} ${raked}`).toBe(built);
+        }
+    for (const n of PF_ANTE_PLAYERS)
+      for (const d of PF_ANTE_DEPTHS) {
+        const built = PF_FORCED_BUILT.includes(pfGameKey(n, d, { forced: "ante", chart: true }));
+        expect(pfBlocked(n, d, { ...plain, ante: pfStoredAnte(n) }) === null, `${n} ${d}`).toBe(built);
+      }
+  });
   it("is said in words that send you to Study, not into a solve", () => {
-    expect(pfBlocked(7, 100, plain)).toMatch(/^The preflop solve is stored for 2 to 6 players only\. This game would need a solve first, and Practice doesn't start one: Study can\.$/);
+    expect(pfBlocked(7, 100, plain)).toMatch(/^The preflop solve is stored for 2 to 6 players without an ante or a straddle(, and at 7 players with .*)?\. This game would need a solve first, and Practice doesn't start one: Study can\.$/);
+    expect(pfBlocked(6, 100, { ...plain, ante: 0.1 })).toMatch(/^The preflop solve is stored for no ante, or a 0\.17bb ante a seat \(a 1bb big-blind ante's share at 6 players\)\. This game/);
+    expect(pfBlocked(6, 100, { ...plain, ante: 0.17, straddle: true })).toMatch(/^The preflop solve is stored for an ante or a straddle, not both\./);
+    expect(pfBlocked(6, 120, { ...plain, straddle: true })).toMatch(/^The preflop solve is stored for a straddle at 6 players (at stacks of .* only; the nearest is \d+bb|at no depth yet)\. This game/);
     expect(pfBlocked(6, 65, plain)).toMatch(/^The preflop solve is stored for stacks of 20, 25, 30, 40, 50, 60, 80, 100, 125, 150 or 200bb only; the nearest is 60bb\. This game would need/);
   });
   it("marks a hand only where the session can have it", () => {

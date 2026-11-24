@@ -79,6 +79,26 @@ describe("provenance", () => {
     expect(said).not.toMatch(/\bsolved\b(?! game)/i);
   });
 
+  it("says a stored answer with an ante or a straddle is the stored preflop solve with them (Spec.forced_words), never solved", () => {
+    const forced = "a 2bb straddle from the UTG (the flop values are fitted to published solves without antes or a straddle: not measured against a fuller solve with them)";
+    const node: AdvisorResponse = {
+      study: "node",
+      street: "preflop",
+      pf_solve: { key: "lz4_6max_100bb_s", done: true, stored: true, mbb: 2.1 },
+      pf_model: "calibrated class-level model",
+      pf_forced: forced,
+    };
+    const said = describeProvenance(provenanceOf(node, ctx));
+    expect(said).toContain(`still approximate, stored preflop solve (class-level model) with ante/straddle: ${forced}`);
+    expect(said).not.toContain("precomputed");
+    expect(said).toContain("2.10 mbb/hand from equilibrium");
+    expect(said).not.toMatch(/\bsolved\b(?! game)/i);
+    // a live solve of such a game says its forced bets, not that it's stored
+    const live = describeProvenance(provenanceOf({ ...node, pf_solve: { done: true, stored: false, mbb: 1.4 } }, ctx));
+    expect(live).toContain(`still approximate, ${forced}`);
+    expect(live).not.toContain("with ante/straddle");
+  });
+
   it("labels stored turns, answers at once and 5+-way heuristics as what they are (advisor.py's shapes)", () => {
     const storedTurn: AdvisorResponse = {
       street: "turn",

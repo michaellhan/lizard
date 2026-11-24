@@ -192,7 +192,7 @@ describe("grading preflop by the preflop solve", () => {
     open();
     pick("Players", "8");
     expect(box()).toBeNull();
-    expect(screen.getByText(/Preflop is graded by the charts here\. The preflop solve is stored for 2 to 6 players only/)).toBeInTheDocument();
+    expect(screen.getByText(/Preflop is graded by the charts here\. The preflop solve is stored for 2 to 6 players without an ante or a straddle/)).toBeInTheDocument();
     pick("Players", "2");
     expect(box()).not.toBeNull();
     pick("Players", "6");

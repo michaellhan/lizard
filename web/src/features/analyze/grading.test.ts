@@ -35,13 +35,16 @@ import {
   jamOffTree,
   matchMove,
   offText,
+  pfAnteNote,
   pfDepthAt,
   PF_DEPTH_TOL,
   pfOut,
+  pfSiteGame,
   roleOf,
   situationAt,
   type Ask,
 } from "./grading";
+import { PF_FORCED_BUILT } from "@/solver/pfForcedBuilt";
 
 const HH = (f: string) => readFileSync(join(process.cwd(), "..", "solver", "tests", "data", "hh", f), "utf8");
 const SRP = () => importHand(HH("stars_6max_srp.txt"));
@@ -534,6 +537,26 @@ describe("preflop by the stored solve", () => {
     expect(asked).toHaveLength(1);
     expect(g).toMatchObject({ source: "charts", byEv: false });
     expect(g.pfWhy).toBe("The stacks are too far from the stored games' (20, 25, 30, 40, 50, 60, 80, 100, 125, 150 or 200bb): the nearest to your 100bb effective is 100bb, and BB's 60bb effective is 40% off it, past the 15% the grade takes.");
+  });
+  it("reads a site's big-blind ante as the stored game's ante, and asks that game", async () => {
+    // (a 1bb big-blind ante at 6 players averages 0.1667bb a seat; the stored game has 0.17, its share to the cent)
+    expect(pfSiteGame(6, 1 / 6, false)).toMatchObject({ forced: "ante", ante: 0.17 });
+    expect(pfSiteGame(8, 0.125, false)).toMatchObject({ forced: "ante", ante: 0.13 });
+    expect(pfSiteGame(6, 0.1, false)).toMatchObject({ forced: null, ante: 0.1, depths: [] });
+    expect(pfSiteGame(6, 0, true).forced).toBe("straddle");
+    expect(PF_FORCED_BUILT).toContain("lz4_6max_100bb_a0.17_ch");
+    expect(pfSiteGame(6, 1 / 6, false).depths).toContain(100);
+    const anted = site([...OPEN, { pos: "BTN", action: "raise", to: 7.5 }]);
+    const h = { ...anted, hand: { ...anted.hand, ante: 0.1667 } } as ReplayedHand;
+    expect(pfOut({ site: "PokerStars" }, h)).toBeNull();
+    const { ask, asked } = pair(CHART_OPENED, NODES.opened);
+    await gradeDecision({ id: "x", site: "PokerStars" }, h, "preflop", 3, ask);
+    expect(asked[1]).toMatchObject({ preflop_solve: true, stack: 100, ante: 0.17, pf_tree: { sizing: "chart" } });
+    expect(asked[1]).not.toHaveProperty("stacks");
+    expect(pfAnteNote(0.17, 0.1667)).toBe("read against the stored game's 0.17bb ante a seat (a 1bb big-blind ante's share, to the cent); this hand's antes average 0.1667bb a seat");
+    // an ante no stored game has stays with the chart, saying the ante it's stored for
+    const other = { ...anted, hand: { ...anted.hand, ante: 0.25 } } as ReplayedHand;
+    expect(pfOut({ site: "PokerStars" }, other)).toMatch(/stored for no ante, or a 0\.17bb ante a seat/);
   });
   it("finds the stored depth and how far each seat still in is from it", () => {
     expect(PF_DEPTH_TOL).toBe(0.15);
