@@ -46,7 +46,8 @@ describe("preflop blockers", () => {
     const seats = await screen.findByRole("list", { name: "Ranges read" });
     // the open, then SB's fold: two nodes asked for, each under its own badge
     expect(s.asked.map((x) => x.preflop!.map((a) => `${a.pos} ${a.action}`))).toEqual([["BTN raise"], ["BTN raise", "SB fold"], ["BTN raise", "SB fold", "BB fold"]]);
-    expect(within(seats).getAllByRole("listitem").map((li) => li.textContent)).toEqual([expect.stringMatching(/^SB18\.0 combosPreflop solve/), expect.stringMatching(/^BB18\.0 combosPreflop solve/)]);
+    // (both read alike: one badge for the two)
+    expect(within(seats).getAllByRole("listitem").map((li) => li.textContent)).toEqual([expect.stringMatching(/^SB 18\.0 combos, BB 18\.0 combosPreflop solve/)]);
     expect(screen.getByText(/After your raise to 2\.5, 2 seats act \(SB, BB\): all of them fold/)).toHaveTextContent("44.4%");
     const most = screen.getByRole("table", { name: "Hands that make them fold the most" });
     expect(within(most).getAllByRole("row").slice(1).map((r) => r.querySelector("th")!.textContent)).toEqual(["AA", "KK", "72o"]);

@@ -8,6 +8,7 @@ import { kindOf, pct } from "@/components/actions";
 import { ALL_CLASSES, expandClass } from "@/engine/nlhe/cards";
 import type { SolverClient } from "@/solver/client";
 import type { AdvisorResponse } from "@/solver/protocol";
+import { describe } from "@/solver/provenance";
 import { SolverError, type Provenance, type SolveMode } from "@/solver/types";
 import { allFold, blockedClasses, pfBlockerPlan, pfEffect, pfRange, pfRanking, type PfRange, type PfRead } from "./pfBlockers";
 import { play, studyRequest, type StudyHand } from "./studyState";
@@ -137,12 +138,12 @@ export function PfBlockersPanel({ res, provenance, hand, mode, getSolver }: { re
       {shown?.kind === "none" && <p className="text-muted">{shown.why}</p>}
       {shown?.kind === "done" && (
         <>
-          <ul aria-label="Ranges read" className="flex flex-wrap gap-2">
-            {shown.seats.map((s) => (
-              <li key={s.range.who} className="flex items-center gap-1">
-                <span className="font-medium">{s.range.who}</span>
-                <span className="text-muted tabular-nums">{s.range.combos.toFixed(1)} combos</span>
-                <ProvenanceBadge p={s.provenance} />
+          {/* (the seats whose nodes read alike under one badge: a stored solve's are usually all one) */}
+          <ul aria-label="Ranges read" className="space-y-1">
+            {byProvenance(shown.seats).map((g) => (
+              <li key={g.seats[0]!.range.who} className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                <span className="tabular-nums">{g.seats.map((s) => `${s.range.who} ${s.range.combos.toFixed(1)} combos`).join(", ")}</span>
+                <ProvenanceBadge p={g.p} />
               </li>
             ))}
           </ul>
@@ -156,6 +157,18 @@ export function PfBlockersPanel({ res, provenance, hand, mode, getSolver }: { re
       )}
     </section>
   );
+}
+
+/** The seats in groups whose provenance reads alike, in seat order. */
+function byProvenance(seats: readonly Seat[]): { p: Provenance; seats: Seat[] }[] {
+  const out = new Map<string, { p: Provenance; seats: Seat[] }>();
+  for (const s of seats) {
+    const k = describe(s.provenance);
+    const g = out.get(k) ?? { p: s.provenance, seats: [] };
+    g.seats.push(s);
+    out.set(k, g);
+  }
+  return [...out.values()];
 }
 
 function Summary({ seats, read }: { seats: readonly Seat[]; read: PfRead }) {
@@ -217,7 +230,7 @@ function Detail({ ranges, name, reply }: { ranges: readonly PfRange[]; name: str
             <th scope="col" className="py-0.5 text-right font-normal">Of</th>
             {reply && <th scope="col" className="py-0.5 text-right font-normal">Folds</th>}
             {reply && <th scope="col" className="py-0.5 text-right font-normal">With it out</th>}
-            <th scope="col" className="py-0.5 pl-2 text-left font-normal">Most taken out of</th>
+            <th scope="col" className="py-0.5 pl-2 text-left font-normal">{reply ? "Most taken out of the hands that don't fold" : "Most taken out of"}</th>
           </tr>
         </thead>
         <tbody>

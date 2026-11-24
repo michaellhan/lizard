@@ -11,7 +11,7 @@
 // raised before us: the range that took that raise (their reach there times its mix). The charts and the push/fold
 // model aren't solves and get a reason, never blockers. Pure; PfBlockersPanel draws it.
 import { kindOf } from "@/components/actions";
-import { classCombos, expandClass } from "@/engine/nlhe/cards";
+import { ALL_CLASSES, classCombos, expandClass } from "@/engine/nlhe/cards";
 import type { AdvisorAction, AdvisorActionStat, AdvisorResponse, RangeGridData } from "@/solver/protocol";
 import type { ResultSource } from "@/solver/types";
 import { actionTaken } from "./blockers";
@@ -19,6 +19,9 @@ import { isAggressive } from "./valueBluff";
 
 export const cardsOf = (combo: string): [string, string] => [combo.slice(0, 2), combo.slice(2, 4)];
 const pairKey = (a: string, b: string) => (a < b ? a + b : b + a);
+// (ties go in the grid's order: AA, AKs, AQs, ... 22)
+const GRID_AT = new Map(ALL_CLASSES.map((c, i) => [c, i]));
+const byGrid = (a: string, b: string) => (GRID_AT.get(a) ?? 999) - (GRID_AT.get(b) ?? 999);
 
 /** An opponent's range at their node, as the model holds it, with the per-card sums card removal is read from. */
 export interface PfRange {
@@ -201,24 +204,26 @@ export function pfRanking(ranges: readonly PfRange[], classes: readonly string[]
       const move = e.allBefore !== null ? e.allAfter! - e.allBefore : e.seats.reduce((s, x) => s + x.removed / (x.combos || 1), 0) / (e.seats.length || 1);
       return { cls, move, effect: e };
     })
-    .sort((a, b) => b.move - a.move || (a.cls < b.cls ? -1 : a.cls > b.cls ? 1 : 0));
+    .sort((a, b) => b.move - a.move || byGrid(a.cls, b.cls));
 }
 
-/** The opponent's classes a hand takes the most combos out of. */
+/** The opponent's classes a hand takes the most combos out of: of the hands that don't fold to our raise, where there's
+ * a reply, else of the whole range read. */
 export function blockedClasses(r: PfRange, name: string, top = 6): { cls: string; removed: number; of: number }[] {
   const combos = name.length === 4 ? [name] : expandClass(name);
   return r.classes
     .map((c) => {
       const theirs = expandClass(c.cls);
-      const each = c.w / theirs.length;
+      const of = r.folds === null ? c.w : c.w - c.f;
+      const each = of / theirs.length;
       let out = 0;
       for (const mine of combos) {
         const [a, b] = cardsOf(mine);
         out += theirs.filter((t) => t.includes(a) || t.includes(b)).length * each;
       }
-      return { cls: c.cls, removed: out / combos.length, of: c.w };
+      return { cls: c.cls, removed: out / combos.length, of };
     })
     .filter((x) => x.removed >= 0.05)
-    .sort((x, y) => y.removed - x.removed || (x.cls < y.cls ? -1 : 1))
+    .sort((x, y) => y.removed - x.removed || byGrid(x.cls, y.cls))
     .slice(0, top);
 }

@@ -52,6 +52,11 @@ describe("the folds a hand moves, worked by hand", () => {
     expect(sevens.seats[0]!.foldAfter).toBeCloseTo(0.5, 12);
   });
 
+  it("names the classes it takes out of the hands that don't fold: 7s2s blocks only folds, so none", () => {
+    expect(blockedClasses(r, "AsAh")).toEqual([{ cls: "AA", removed: 5, of: 6 }]);
+    expect(blockedClasses(r, "7s2s")).toEqual([]);
+  });
+
   it("a class is the mean over its combos: every AA combo takes out five, every 72o five of the 72o and none of AA", () => {
     expect(pfEffect([r], "AA").seats[0]!.foldAfter).toBeCloseTo(12 / 13, 12);
     // 7s2h takes out the 72o combos holding the 7s (7s2h, 7s2d, 7s2c) or the 2h (7s2h, 7d2h, 7c2h): 5, so 7 of 13 fold
