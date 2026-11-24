@@ -3,12 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router";
 import { LIBRARY_SOURCES, type LibrarySourceId } from "@/config";
-import {
-  loadCatalog,
-  type LibraryCatalog,
-  type SingleSizeCoverage,
-  type SpotCoverage,
-} from "@/library/catalog";
+import { loadCatalog, type LibraryCatalog, type SingleSizeCoverage, type SpotCoverage } from "@/library/catalog";
 import { parseLine } from "@/features/study/studyState";
 
 const KIND: Record<SpotCoverage["kind"], string> = {
@@ -23,24 +18,24 @@ const KIND: Record<SpotCoverage["kind"], string> = {
 type ShownCatalog = LibraryCatalog & { unreadable?: boolean };
 
 export function LibraryPage() {
-  const [cats, setCats] = useState<
-    Partial<Record<LibrarySourceId, ShownCatalog>>
-  >({});
+  const [cats, setCats] = useState<Partial<Record<LibrarySourceId, ShownCatalog>>>({});
   const [tick, setTick] = useState(0);
 
   useEffect(() => {
     let alive = true;
     for (const s of LIBRARY_SOURCES) {
       void loadCatalog(s.id)
-        .catch((e: unknown): ShownCatalog => ({
-          source: s.id,
-          base: s.base,
-          available: false,
-          spots: [],
-          fetchedAt: Date.now(),
-          error: String(e),
-          unreadable: true,
-        }))
+        .catch(
+          (e: unknown): ShownCatalog => ({
+            source: s.id,
+            base: s.base,
+            available: false,
+            spots: [],
+            fetchedAt: Date.now(),
+            error: String(e),
+            unreadable: true,
+          }),
+        )
         .then((c) => alive && setCats((m) => ({ ...m, [s.id]: c })));
     }
     return () => {
@@ -53,73 +48,44 @@ export function LibraryPage() {
       <div className="flex flex-wrap items-end justify-between gap-2">
         <div>
           <h1 className="text-2xl font-semibold">Precomputed library</h1>
-          <p className="max-w-2xl text-sm text-muted">
-            Anything not listed is solved live.
-          </p>
+          <p className="max-w-2xl text-sm text-muted">Anything not listed is solved live.</p>
         </div>
-        <button
-          type="button"
-          onClick={() => setTick((t) => t + 1)}
-          className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-surface-2"
-        >
+        <button type="button" onClick={() => setTick((t) => t + 1)} className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-surface-2">
           Refresh
         </button>
       </div>
       {LIBRARY_SOURCES.map((s) => (
-        <SourceSection
-          key={s.id}
-          label={s.label}
-          base={s.base}
-          cat={cats[s.id]}
-        />
+        <SourceSection key={s.id} label={s.label} base={s.base} cat={cats[s.id]} />
       ))}
     </div>
   );
 }
 
-function SourceSection({
-  label,
-  base,
-  cat,
-}: {
-  label: string;
-  base: string;
-  cat: ShownCatalog | undefined;
-}) {
+function SourceSection({ label, base, cat }: { label: string; base: string; cat: ShownCatalog | undefined }) {
   const groups = useMemo(() => {
     const m = new Map<string, SpotCoverage[]>();
-    for (const s of cat?.spots ?? [])
-      m.set(s.game, [...(m.get(s.game) ?? []), s]);
+    for (const s of cat?.spots ?? []) m.set(s.game, [...(m.get(s.game) ?? []), s]);
     return [...m.entries()];
   }, [cat]);
   return (
     <section className="space-y-2" aria-label={label}>
       <h2 className="text-lg font-semibold">
-        {label}{" "}
-        <span className="font-mono text-xs font-normal text-faint">{base}</span>
+        {label} <span className="font-mono text-xs font-normal text-faint">{base}</span>
       </h2>
       {!cat && <p className="text-sm text-muted">Loading…</p>}
       {cat && !cat.available && (
-        <p className="text-sm text-muted">
-          {cat.unreadable
-            ? "Couldn't read this library's index. Check your connection, then Refresh."
-            : "Not published yet."}
-        </p>
+        <p className="text-sm text-muted">{cat.unreadable ? "Couldn't read this library's index. Check your connection, then Refresh." : "Not published yet."}</p>
       )}
       {groups.map(([game, spots]) => (
         <div key={game} className="scroll-x rounded-lg border border-border">
           <table className="w-full min-w-[560px] text-sm">
-            <caption className="bg-surface-2 px-3 py-1.5 text-left font-medium">
-              {game}
-            </caption>
+            <caption className="bg-surface-2 px-3 py-1.5 text-left font-medium">{game}</caption>
             <thead className="text-xs text-muted">
               <tr>
                 <th className="px-3 py-1.5 text-left font-normal">Spot</th>
                 <th className="px-3 py-1.5 text-left font-normal">Type</th>
                 <th className="px-3 py-1.5 text-left font-normal">Flops</th>
-                <th className="px-3 py-1.5 text-left font-normal">
-                  Stored turns
-                </th>
+                <th className="px-3 py-1.5 text-left font-normal">Stored turns</th>
                 <th className="px-3 py-1.5 font-normal">
                   <span className="sr-only">Open in Study</span>
                 </th>
@@ -136,16 +102,8 @@ function SourceSection({
                   <td className="px-3 py-1.5">
                     {s.target ? (
                       <div className="flex items-center gap-2">
-                        <div
-                          className="h-1.5 w-24 overflow-hidden rounded bg-surface-3"
-                          aria-hidden
-                        >
-                          <div
-                            className="h-full bg-accent"
-                            style={{
-                              width: `${Math.min(100, (s.flops / s.target) * 100)}%`,
-                            }}
-                          />
+                        <div className="h-1.5 w-24 overflow-hidden rounded bg-surface-3" aria-hidden>
+                          <div className="h-full bg-accent" style={{ width: `${Math.min(100, (s.flops / s.target) * 100)}%` }} />
                         </div>
                         <span className="font-mono text-xs">
                           {s.flops} / {s.target}
@@ -182,11 +140,8 @@ function SingleSizeSection({ ss }: { ss: SingleSizeCoverage }) {
       <div className="scroll-x rounded-lg border border-border">
         <table className="w-full min-w-[560px] text-sm">
           <caption className="bg-surface-2 px-3 py-1.5 text-left font-medium">
-            Single-size library: 6-max 100bb, one bet size a node, the
-            flop&apos;s chosen for each flop by the solver&apos;s automatic
-            sizing
-            {ss.games.length > 0 &&
-              "; also ante and straddle games, their ranges from Lizard's stored preflop solve of the game"}
+            Single-size library: 6-max 100bb, one bet size a node, the flop&apos;s chosen for each flop by the solver&apos;s automatic sizing
+            {ss.games.length > 0 && "; also ante and straddle games, their ranges from Lizard's stored preflop solve of the game"}
           </caption>
           <thead className="text-xs text-muted">
             <tr>
@@ -205,24 +160,17 @@ function SingleSizeSection({ ss }: { ss: SingleSizeCoverage }) {
                   <div className="font-mono text-xs text-faint">{s.id}</div>
                   {s.game && (
                     <div className="text-xs text-muted">
-                      Ranges entering the flop: Lizard&apos;s stored preflop
-                      solve of this game ({s.gameWords}), not the charts;
-                      preflop is approximate
+                      Ranges entering the flop: Lizard&apos;s stored preflop solve of this game ({s.gameWords}), not the charts; preflop is approximate
                     </div>
                   )}
                 </td>
                 <td className="px-3 py-1.5 font-mono text-xs">
                   {s.flops}
-                  {(s.game ? s.target : ss.target)
-                    ? ` / ${s.game ? s.target : ss.target}`
-                    : ""}
+                  {(s.game ? s.target : ss.target) ? ` / ${s.game ? s.target : ss.target}` : ""}
                 </td>
                 <td className="px-3 py-1.5 text-right">
                   {parseLine(s.line).length > 0 && (
-                    <Link
-                      to={`/study?${ssStudyQuery(s)}`}
-                      className="text-accent hover:underline"
-                    >
+                    <Link to={`/study?${ssStudyQuery(s)}`} className="text-accent hover:underline">
                       Study →
                     </Link>
                   )}
@@ -232,22 +180,15 @@ function SingleSizeSection({ ss }: { ss: SingleSizeCoverage }) {
           </tbody>
         </table>
       </div>
-      {ss.games.map((g) => (
-        <GameFlops key={`${g.ante}|${g.straddle}`} g={g} />
-      ))}
+      {ss.games.map((g) => <GameFlops key={`${g.ante}|${g.straddle}`} g={g} />)}
       {plain && (
         <p className="text-xs text-muted">
           Flops covered on every 100bb spot ({ss.flops.length}
-          {ss.target ? ` of ${ss.target} planned` : ""}):{" "}
-          <span className="font-mono">{shown.join(" ")}</span>
+          {ss.target ? ` of ${ss.target} planned` : ""}): <span className="font-mono">{shown.join(" ")}</span>
           {ss.flops.length > SS_LISTED && (
             <>
               {all ? "" : " …"}{" "}
-              <button
-                type="button"
-                onClick={() => setAll(!all)}
-                className="underline hover:text-text"
-              >
+              <button type="button" onClick={() => setAll(!all)} className="underline hover:text-text">
                 {all ? "Fewer" : `All ${ss.flops.length}`}
               </button>
             </>
@@ -260,10 +201,7 @@ function SingleSizeSection({ ss }: { ss: SingleSizeCoverage }) {
 }
 
 /** A single-size spot's Study query: the 6-max 100bb game, its line, the single-size source, and its ante or straddle. */
-function ssStudyQuery(s: {
-  line: string;
-  game?: { ante: number; straddle: boolean };
-}): string {
+function ssStudyQuery(s: { line: string; game?: { ante: number; straddle: boolean } }): string {
   const q = new URLSearchParams({ p: "6", s: "100", pre: s.line, lib: "ss" });
   if (s.game?.ante) q.set("ante", String(s.game.ante));
   if (s.game?.straddle) q.set("straddle", "1");
@@ -277,16 +215,11 @@ function GameFlops({ g }: { g: SingleSizeCoverage["games"][number] }) {
   return (
     <p className="text-xs text-muted">
       Flops covered on every spot with a {g.words} ({g.flops.length}
-      {g.target ? ` of ${g.target} planned` : ""}):{" "}
-      <span className="font-mono">{shown.join(" ")}</span>
+      {g.target ? ` of ${g.target} planned` : ""}): <span className="font-mono">{shown.join(" ")}</span>
       {g.flops.length > SS_LISTED && (
         <>
           {all ? "" : " …"}{" "}
-          <button
-            type="button"
-            onClick={() => setAll(!all)}
-            className="underline hover:text-text"
-          >
+          <button type="button" onClick={() => setAll(!all)} className="underline hover:text-text">
             {all ? "Fewer" : `All ${g.flops.length}`}
           </button>
         </>
@@ -298,11 +231,7 @@ function GameFlops({ g }: { g: SingleSizeCoverage["games"][number] }) {
 
 function StudyLink({ spot }: { spot: SpotCoverage }) {
   if (!spot.line || parseLine(spot.line).length === 0) return null;
-  const q = new URLSearchParams({
-    p: String(spot.tablePlayers),
-    s: String(spot.tableStack),
-    pre: spot.line,
-  });
+  const q = new URLSearchParams({ p: String(spot.tablePlayers), s: String(spot.tableStack), pre: spot.line });
   return (
     <Link to={`/study?${q.toString()}`} className="text-accent hover:underline">
       Study →

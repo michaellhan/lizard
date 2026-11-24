@@ -187,7 +187,9 @@ Six heads-up spots in two games beside the 100bb ones, on the same one-size tree
   exact line plays those ranges (`engine/single_size.py` `game_spot`), so the stored entry's fingerprint matches and is
   read. The answer's `single_size.game` and `single_size.ranges` name the game and the preflop solve, and provenance says
   "ranges entering the flop from Lizard's stored preflop solve of this game (…), not the charts; preflop is
-  approximate". Any other ante or a straddle with an ante plays the charts as before, with no game spot.
+  approximate". Any other ante or a straddle with an ante plays the charts as before, with no game spot, and so does a
+  request with ranges of its own (stacks, ranges, bunching, the pool's opponents, locks): bunching's wrap would otherwise
+  put the charts back under the solve's name (review fix, 2026-11-24).
 - **Study:** the flop source (Library / Single size) is offered at 6-max 100bb with no setup, or with exactly one of
   these games; the note lists the game's own covered flops and says whose ranges they are. The Library page lists the
   game spots with their ranges' source, each game's covered flops, and Study links that carry `ante=0.17` or
@@ -199,7 +201,10 @@ Six heads-up spots in two games beside the 100bb ones, on the same one-size tree
   100bb spots' `flops` list stays theirs. `lizard-library.json`'s `singleSize.games` carries the target and each game's
   flops. About 7 files a flop for the six spots (single-raised entries 1 file, the 3bet pot 2): 552 flops is about 3,900
   files and 25 MB, which fits beside the 111,655 files published; more than about 1,150 flops needs a higher file cap or
-  the R2 path.
+  the R2 path. A game spot keeps the previous release's copy when it would hold fewer flops, as the 100bb spots do, but
+  only while that copy fits the file cap (counted, less the 5 index files still to come); where it doesn't (a source
+  before the games grew), the game spot shrinks, logged, rather than stop the publish. The 100bb spots stop it, as before,
+  with a message naming `--allow-shrink`.
 - **Not covered:** the straddle's SB open (6bb) and the 3bet and 4bet pots in the straddled game, other antes and stacks,
   multiway. The preflop solve is a class-level model at the charts' raise sizes (approximate, labeled so).
 

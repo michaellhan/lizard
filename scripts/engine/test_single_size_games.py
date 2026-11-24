@@ -135,6 +135,21 @@ class Games(unittest.TestCase):
             self.assertNotIn("game", r["single_size"])
             self.assertFalse(any("Lizard's stored preflop solve" in n for n in r.get("notes", [])))
 
+    def test_bunching_in_the_game_plays_and_names_no_solve_ranges(self):
+        from engine import bunching
+        from gto import advisor as A
+        saved = A.Advisor._advise_at
+        # bunching's wrap inside this module's, as the worker loads them (scripts/pyodide/worker-edits.mjs)
+        A.Advisor._advise_at = ss._wrapping(bunching._wrapping(ss._advise_at.single_size_upstream))
+        try:
+            r = self.ask(ante=0.17, bunching="charts")
+        finally:
+            A.Advisor._advise_at = saved
+        self.assertNotIn("error", r)
+        self.assertNotIn("game", r["single_size"])
+        self.assertNotIn("ranges", r["single_size"])
+        self.assertFalse(any("Lizard's stored preflop solve" in n for n in r.get("notes", [])))
+
     def test_preflop_ranges_are_put_back(self):
         from gto import advisor as A
         before = A.preflop_ranges
@@ -148,6 +163,11 @@ class Games(unittest.TestCase):
         self.assertEqual(ss.game_spot(idx, t, 100.0, {}, SRP)["id"], SID)
         self.assertIsNone(ss.game_spot(idx, t, 60.0, {}, SRP))
         self.assertIsNone(ss.game_spot(idx, t, 100.0, {"stacks": {"BB": 80}}, SRP))
+        # (ranges of the request's own: bunching's wrap would put the charts back under the solve's name)
+        self.assertIsNone(ss.game_spot(idx, t, 100.0, {"bunching": "charts"}, SRP))
+        self.assertIsNone(ss.game_spot(idx, t, 100.0, {"opponents": "pool"}, SRP))
+        self.assertIsNone(ss.game_spot(idx, t, 100.0, {"locks": {"BB": {"fold": 1.0}}}, SRP))
+        self.assertEqual(ss.game_spot(idx, t, 100.0, {"bunching": "off", "opponents": "gto"}, SRP)["id"], SID)
         self.assertIsNone(ss.game_spot(idx, pf.Table(pf.SEATS[6], 0.0, True, None), 100.0, {}, SRP))
         self.assertIsNone(ss.game_spot(idx, t, 100.0, {}, SRP[:-1] + acts(("BB", "raise", 10))))
         self.assertEqual(ss._token({"pos": "BTN", "action": "raise", "to": 2.5}), "BTN:r2.5")

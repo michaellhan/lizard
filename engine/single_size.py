@@ -109,12 +109,15 @@ def _token(a: dict) -> str:
 
 def game_spot(idx: dict, positions, stack: float, state: dict, preflop) -> Optional[dict]:
     """The index's game spot this request's hand plays: the table's size, stack, ante and straddle the spot's game's,
-    every seat at that stack, and its preflop line the spot's; else None."""
+    every seat at that stack, and its preflop line the spot's; else None. Never for a request whose ranges entering the
+    flop are its own (stacks, ranges, bunching, the pool's opponents, locks): engine/bunching.py's wrap, for one, sits
+    inside this module's and puts the charts' ranges back, so the answer would play them while naming the solve's."""
     ante = float(getattr(positions, "ante", 0.0) or 0.0)
     straddle = bool(getattr(positions, "straddle", False))
     if not ante and not straddle:
         return None
-    if state.get("stacks") or state.get("ranges"):
+    if state.get("stacks") or state.get("ranges") or state.get("bunching") not in (None, False, "", "off", 0) or \
+            state.get("opponents") == "pool" or state.get("locks"):   # (bunching: engine/bunching.py parse's "off")
         return None
     line = ",".join(_token(a) for a in preflop)
     for s in idx.get("spots", []):

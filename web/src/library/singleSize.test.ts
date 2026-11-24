@@ -1,19 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { parseLine } from "@/features/study/studyState";
-import {
-  clearSingleSizeCache,
-  coveredFlops,
-  gameWords,
-  LATER_PCT,
-  loadSingleSize,
-  parseSsIndex,
-  sameGame,
-  sizeWords,
-  ssHandGame,
-  ssMatch,
-  ssRequest,
-  type SsIndex,
-} from "./singleSize";
+import { clearSingleSizeCache, coveredFlops, gameWords, LATER_PCT, loadSingleSize, parseSsIndex, sameGame, sizeWords, ssHandGame, ssMatch, ssRequest, type SsIndex } from "./singleSize";
 import { summarizeSingleSize } from "./catalog";
 
 const SRP = "UTG:f,HJ:f,CO:f,BTN:r2.5,SB:f,BB:c";
@@ -31,11 +18,7 @@ const IDX: SsIndex = {
       seats: ["BB", "BTN"],
       pot: 5.5,
       stack: 97.5,
-      flops: {
-        Ac7d2h: "1111111111",
-        KcQc8d: "2222222222",
-        "5c4d2h": "3333333333",
-      },
+      flops: { Ac7d2h: "1111111111", KcQc8d: "2222222222", "5c4d2h": "3333333333" },
       sizes: { Ac7d2h: 25, KcQc8d: 33, "5c4d2h": 75 },
       old: ["Ac7d2h", "KcQc8d", "5c4d2h"],
     },
@@ -48,22 +31,12 @@ const IDX: SsIndex = {
       stack: 77,
       flops: { Ac7d2h: "4444444444", KcQc8d: "5555555555" },
       sizes: { Ac7d2h: 166.6, KcQc8d: 166.6 },
-      aliases: [
-        {
-          label: "HJ 4bet vs SB, single size",
-          line: "UTG:f,HJ:r2,CO:f,BTN:f,SB:r9,BB:f,HJ:r23,SB:c",
-        },
-      ],
+      aliases: [{ label: "HJ 4bet vs SB, single size", line: "UTG:f,HJ:r2,CO:f,BTN:f,SB:r9,BB:f,HJ:r23,SB:c" }],
       turns: true,
     },
   ],
 };
-const hand = (line: string, board = "") => ({
-  players: 6,
-  stack: 100,
-  board,
-  preflop: parseLine(line),
-});
+const hand = (line: string, board = "") => ({ players: 6, stack: 100, board, preflop: parseLine(line) });
 const GAMES: SsIndex = {
   ...IDX,
   spots: [
@@ -112,9 +85,7 @@ describe("the single-size index", () => {
     expect(parseSsIndex({ ...IDX, ss_format: 2 })).toBeNull();
     expect(parseSsIndex({ format: 2, tree: {}, spots: [] })).toBeNull(); // (the several-size index.json)
     expect(parseSsIndex(null)).toBeNull();
-    expect(
-      parseSsIndex({ ...IDX, spots: [{ id: "x" }, ...IDX.spots] })?.spots,
-    ).toHaveLength(2);
+    expect(parseSsIndex({ ...IDX, spots: [{ id: "x" }, ...IDX.spots] })?.spots).toHaveLength(2);
   });
 
   it("covers the flops every spot holds, in the build's order", () => {
@@ -127,11 +98,7 @@ describe("the single-size index", () => {
 describe("a hand's single-size spot", () => {
   it("is found by its preflop line, the flop named as the library names it, with that flop's size", () => {
     const m = ssMatch(IDX, hand(SRP, "7d2hAc"));
-    expect(m).toMatchObject({
-      label: "BTN vs BB single-raised pot, single size",
-      flop: "Ac7d2h",
-      pct: 25,
-    });
+    expect(m).toMatchObject({ label: "BTN vs BB single-raised pot, single size", flop: "Ac7d2h", pct: 25 });
     expect(m?.spot.id).toBe("ss_srp_btn_bb");
     expect(ssMatch(IDX, hand(SRP, "Ah7s2d"))?.flop).toBe("Ac7d2h"); // (an isomorphic flop)
     expect(ssMatch(IDX, hand(SRP, "Ac7d2h5s"))?.pct).toBe(25); // (a turn: the flop's size)
@@ -139,39 +106,22 @@ describe("a hand's single-size spot", () => {
   });
 
   it("reads an alias line's spot under the alias's label", () => {
-    const m = ssMatch(
-      IDX,
-      hand("UTG:f,HJ:r2,CO:f,BTN:f,SB:r9,BB:f,HJ:r23,SB:c", "KcQc8d"),
-    );
-    expect(m).toMatchObject({
-      label: "HJ 4bet vs SB, single size",
-      pct: 166.6,
-    });
+    const m = ssMatch(IDX, hand("UTG:f,HJ:r2,CO:f,BTN:f,SB:r9,BB:f,HJ:r23,SB:c", "KcQc8d"));
+    expect(m).toMatchObject({ label: "HJ 4bet vs SB, single size", pct: 166.6 });
     expect(m?.spot.id).toBe("ss_4bp_utg_sb");
   });
 
   it("is none for a flop it doesn't hold, a line it doesn't hold, another game or a setup of the hand's own", () => {
-    expect(ssMatch(IDX, hand(SRP, "Qs9h4c"))).toMatchObject({
-      flop: "Qc9d4h",
-      pct: null,
-    });
+    expect(ssMatch(IDX, hand(SRP, "Qs9h4c"))).toMatchObject({ flop: "Qc9d4h", pct: null });
     expect(ssMatch(IDX, hand(FOUR, "Ac7d2h"))).toBeNull();
     expect(ssMatch(IDX, { ...hand(SRP, "Ac7d2h"), stack: 40 })).toBeNull();
     expect(ssMatch(IDX, { ...hand(SRP, "Ac7d2h"), players: 2 })).toBeNull();
-    expect(
-      ssMatch(IDX, {
-        ...hand(SRP, "Ac7d2h"),
-        setup: { rake: { pct: 5, cap: 3 } },
-      }),
-    ).toBeNull();
+    expect(ssMatch(IDX, { ...hand(SRP, "Ac7d2h"), setup: { rake: { pct: 5, cap: 3 } } })).toBeNull();
     expect(ssMatch(null, hand(SRP, "Ac7d2h"))).toBeNull();
   });
 
   it("asks with the flop's own size and the model's later-street size, or not at all", () => {
-    expect(ssRequest(ssMatch(IDX, hand(SRP, "Ac7d2h")))).toEqual({
-      single_size: true,
-      sizes: { flop: [25], turn: [LATER_PCT], river: [LATER_PCT] },
-    });
+    expect(ssRequest(ssMatch(IDX, hand(SRP, "Ac7d2h")))).toEqual({ single_size: true, sizes: { flop: [25], turn: [LATER_PCT], river: [LATER_PCT] } });
     expect(ssRequest(ssMatch(IDX, hand(SRP, "Qs9h4c")))).toBeNull();
     expect(ssRequest(null)).toBeNull();
   });
@@ -289,16 +239,8 @@ describe("loading", () => {
     expect((await loadSingleSize("/lib/", ok))?.spots).toHaveLength(2);
     await loadSingleSize("/lib/", ok);
     expect(seen).toEqual([["/lib/ss_index.json", { cache: "no-cache" }]]);
-    expect(
-      await loadSingleSize(
-        "/none/",
-        (async () => new Response("", { status: 404 })) as typeof fetch,
-      ),
-    ).toBeNull();
-    expect(
-      await loadSingleSize("/down/", (async () =>
-        Promise.reject(new TypeError("offline"))) as typeof fetch),
-    ).toBeNull();
+    expect(await loadSingleSize("/none/", (async () => new Response("", { status: 404 })) as typeof fetch)).toBeNull();
+    expect(await loadSingleSize("/down/", (async () => Promise.reject(new TypeError("offline"))) as typeof fetch)).toBeNull();
   });
 
   it("goes into the catalogue as its own source, with the flops covered and its target", () => {

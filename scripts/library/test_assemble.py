@@ -774,6 +774,24 @@ class SingleSizeTest(unittest.TestCase):
         self.assertIn("ss_srp_3: kept the previous release", r.stdout)
         self.assertEqual(spots["ss_srp_3"]["report"], h((self.out / "ss_srp_3" / "report.json").read_bytes(), 10))
 
+    def test_a_kept_copy_that_would_pass_the_file_cap_stops_the_publish(self):
+        sys.path.insert(0, str(HERE))
+        try:
+            import assemble
+        finally:
+            sys.path.remove(str(HERE))
+        prev = self.tmp / "prev"
+        self.assertEqual(self.stage(out=prev).returncode, 0)
+        self.out.mkdir()
+        old = assemble.MAX_FILES
+        try:  # the stage nearly full: no flop fits, and the previous release's copies don't either
+            assemble.MAX_FILES = 1000 + assemble.LATE_FILES + 4
+            with self.assertRaises(SystemExit) as cm:
+                assemble.add_single_size(self.ss, self.out, set(), prev, False, 1000, [])
+        finally:
+            assemble.MAX_FILES = old
+        self.assertIn("would pass the", str(cm.exception))
+
     def test_the_source_is_not_modified(self):
         before = {p: p.read_bytes() for p in self.ss.rglob("*") if p.is_file()}
         self.assertEqual(self.stage().returncode, 0)
@@ -841,6 +859,34 @@ class SingleSizeGamesTest(unittest.TestCase):
         ids = [s["id"] for s in json.loads((self.out / "ss_index.json").read_text())["spots"]]
         self.assertEqual(ids, ["ss_srp_btn_bb", "ss_srp_btn_utg_straddle"])
         self.assertIn("not a game spot", r.stdout)
+
+    def test_a_game_spot_kept_from_the_previous_release_shrinks_rather_than_pass_the_file_cap(self):
+        sys.path.insert(0, str(HERE))
+        try:
+            import assemble
+        finally:
+            sys.path.remove(str(HERE))
+        prev = self.tmp / "prev"
+        r = run("--out", prev, "--base", self.base, "--hu", self.hu, "--single-size", self.ss, "--ss-games", self.games)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        pg = [s for s in json.loads((prev / "ss_index.json").read_text())["spots"] if s.get("game")]
+        self.assertEqual(len(pg), 3)
+        per = assemble.spot_files(pg[0])
+        self.out.mkdir()
+        old = assemble.MAX_FILES
+        try:  # a source before the games grew: the stage holds 1000 files, room for no flop and one kept copy
+            assemble.MAX_FILES = 1000 + assemble.LATE_FILES + per
+            log = []
+            idx, _ = assemble.add_single_size(self.games, self.out, set(), prev, False, 1000, log, games=True)
+        finally:
+            assemble.MAX_FILES = old
+        self.assertEqual([s["id"] for s in idx["spots"]], [pg[0]["id"]])
+        self.assertEqual(sorted(idx["spots"][0]["flops"]), sorted(pg[0]["flops"]))
+        self.assertTrue(any(f"{pg[0]['id']}: kept the previous release" in x for x in log), log)
+        for s in pg[1:]:
+            self.assertTrue(any(f"{s['id']}: shrinks from 1 flops" in x and "file cap" in x for x in log), log)
+            self.assertFalse((self.out / s["id"]).exists())
+        self.assertLessEqual(sum(1 for p in self.out.rglob("*") if p.is_file()), per)  # (within the cap)
 
     def test_the_games_alone(self):
         r = self.stage("--single-size", NO_SS)

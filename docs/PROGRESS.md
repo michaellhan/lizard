@@ -6791,3 +6791,17 @@ Every figure below is lz4's.
 - Not done: nothing published or checked in a browser; the game spots need W11 (the stored games) and this branch
   merged, `build_single_size.py index --set games` after the build, then the usual assemble and publish. FEATURE_MATRIX:
   Single-size library, Heads-up and Solution browser rows updated; grades unchanged.
+- Review fixes (same day): (1) `assemble.py` counts a single-size spot kept from `--previous` against the file cap
+  (`spot_files`, `LATE_FILES`): the games, capped by what's left, could fill to the cap and a later release's restore of
+  their previous copies would then pass 120,000 files and stop the whole publish at the final check; now a game spot
+  that can't fit its previous copy shrinks (logged), and a 100bb spot stops the publish early with a message naming
+  `--allow-shrink`. (2) `engine/single_size.py` `game_spot` gives no game spot to a request with bunching, the pool's
+  opponents or locks (besides stacks and ranges): bunching's wrap, inside single_size's, put the charts' ranges back
+  while the answer named the preflop solve's (reproduced by the new test before the fix). (3) The web files' untouched
+  lines are back in their original wrapping (W13 had reflowed about 120 lines to 80 columns, which conflicted with W12's
+  `catalog.ts`). Gates: `test_assemble.py` 43 (2 new: the 100bb stop and the games' shrink at the cap),
+  `test_single_size_games.py` 8 (1 new, with `LIZARD_PF_DIR` set), `test_single_size.py` 10; typecheck (only the 2
+  known `tesseract.js` errors) and lint clean; vitest for `src/library`, `src/features/library`, `FlopSource` and
+  `solver/singleSize` (11 files, 85 passed, 1 skipped). The full vitest was not re-run: both slot.sh slots were held (W11's
+  forced build and this workstream's own 14-hour games build, which also blocks slot jobs from this worktree's root),
+  and the web change is whitespace only.

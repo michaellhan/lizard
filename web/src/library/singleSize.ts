@@ -67,27 +67,12 @@ export interface SsIndex {
 /** ss_index.json read like anything from outside: null unless it's the format this page reads. */
 export function parseSsIndex(raw: unknown): SsIndex | null {
   const r = raw as Partial<SsIndex> | null | undefined;
-  if (!r || r.format !== 2 || r.ss_format !== 1 || !Array.isArray(r.spots))
-    return null;
+  if (!r || r.format !== 2 || r.ss_format !== 1 || !Array.isArray(r.spots)) return null;
   const spots = r.spots.filter(
     (s): s is SsSpot =>
-      !!s &&
-      typeof s.id === "string" &&
-      typeof s.line === "string" &&
-      typeof s.label === "string" &&
-      !!s.flops &&
-      typeof s.flops === "object" &&
-      !!s.sizes &&
-      typeof s.sizes === "object",
+      !!s && typeof s.id === "string" && typeof s.line === "string" && typeof s.label === "string" && !!s.flops && typeof s.flops === "object" && !!s.sizes && typeof s.sizes === "object",
   );
-  return {
-    format: 2,
-    ss_format: 1,
-    ...(Array.isArray(r.flops)
-      ? { flops: r.flops.filter((f): f is string => typeof f === "string") }
-      : {}),
-    spots,
-  };
+  return { format: 2, ss_format: 1, ...(Array.isArray(r.flops) ? { flops: r.flops.filter((f): f is string => typeof f === "string") } : {}), spots };
 }
 
 /** A hand's ante and straddle: its forced bets from its setup, or null where the setup holds anything else (sizes, rake,
@@ -184,12 +169,8 @@ export interface SsMatch {
 
 /** The single-size spot a hand's preflop line reaches (its own line or an alias), with the flop and its size; null
  * where the library holds no such line, or the hand isn't its game. */
-export function ssMatch(
-  idx: SsIndex | null | undefined,
-  h: SsHand,
-): SsMatch | null {
-  if (!idx || h.players !== SS_GAME.players || h.stack !== SS_GAME.stack)
-    return null;
+export function ssMatch(idx: SsIndex | null | undefined, h: SsHand): SsMatch | null {
+  if (!idx || h.players !== SS_GAME.players || h.stack !== SS_GAME.stack) return null;
   const game = ssHandGame(h.setup);
   if (!game) return null;
   const line = h.preflop.map(lineToken).join();
@@ -205,49 +186,28 @@ export function ssMatch(
   }
   if (!hit) return null;
   const b = h.board;
-  const flop =
-    b.length >= 6
-      ? flopName([b.slice(0, 2), b.slice(2, 4), b.slice(4, 6)])
-      : null;
-  const pct =
-    flop &&
-    Object.hasOwn(hit.spot.flops, flop) &&
-    typeof hit.spot.sizes[flop] === "number"
-      ? hit.spot.sizes[flop]!
-      : null;
+  const flop = b.length >= 6 ? flopName([b.slice(0, 2), b.slice(2, 4), b.slice(4, 6)]) : null;
+  const pct = flop && Object.hasOwn(hit.spot.flops, flop) && typeof hit.spot.sizes[flop] === "number" ? hit.spot.sizes[flop]! : null;
   return { ...hit, flop, pct };
 }
 
 /** The request's single-size part: `single_size` and the flop's own size (turn and river LATER_PCT), so the advisor's tree
  * is the stored one; null where the library doesn't hold the hand's flop (that node is asked as it would be without). */
-export function ssRequest(
-  m: SsMatch | null,
-): (Pick<AdvisorState, "sizes"> & { single_size: true }) | null {
+export function ssRequest(m: SsMatch | null): Pick<AdvisorState, "sizes"> & { single_size: true } | null {
   if (!m || m.pct === null) return null;
-  return {
-    single_size: true,
-    sizes: { flop: [m.pct], turn: [LATER_PCT], river: [LATER_PCT] },
-  };
+  return { single_size: true, sizes: { flop: [m.pct], turn: [LATER_PCT], river: [LATER_PCT] } };
 }
 
 /** A flop size in words: "33%", or "all-in (167%)" where one bet of it puts the stack in. */
-export function sizeWords(
-  pct: number,
-  spot?: Pick<SsSpot, "pot" | "stack">,
-): string {
+export function sizeWords(pct: number, spot?: Pick<SsSpot, "pot" | "stack">): string {
   const p = `${Math.round(pct * 10) / 10}%`;
-  return spot && (pct / 100) * spot.pot >= spot.stack - 1e-6
-    ? `all-in (${p})`
-    : p;
+  return spot && (pct / 100) * spot.pot >= spot.stack - 1e-6 ? `all-in (${p})` : p;
 }
 
 const cache = new Map<string, Promise<SsIndex | null>>();
 
 /** A library's ss_index.json (null where it has none or it won't read), once a page load per library. */
-export function loadSingleSize(
-  base: string,
-  fetchImpl: typeof fetch = (...a) => fetch(...a),
-): Promise<SsIndex | null> {
+export function loadSingleSize(base: string, fetchImpl: typeof fetch = (...a) => fetch(...a)): Promise<SsIndex | null> {
   let p = cache.get(base);
   if (!p) {
     p = fetchImpl(`${base}ss_index.json`, { cache: "no-cache" })
