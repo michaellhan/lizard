@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { parseLine } from "@/features/study/studyState";
-import { clearSingleSizeCache, coveredFlops, LATER_PCT, loadSingleSize, parseSsIndex, sizeWords, ssMatch, ssRequest, type SsIndex } from "./singleSize";
+import { clearSingleSizeCache, coveredFlops, gameWords, LATER_PCT, loadSingleSize, parseSsIndex, sameGame, sizeWords, ssHandGame, ssMatch, ssRequest, type SsIndex } from "./singleSize";
 import { summarizeSingleSize } from "./catalog";
 
 const SRP = "UTG:f,HJ:f,CO:f,BTN:r2.5,SB:f,BB:c";
@@ -37,6 +37,42 @@ const IDX: SsIndex = {
   ],
 };
 const hand = (line: string, board = "") => ({ players: 6, stack: 100, board, preflop: parseLine(line) });
+const GAMES: SsIndex = {
+  ...IDX,
+  spots: [
+    ...IDX.spots,
+    {
+      id: "ss_srp_btn_bb_ante",
+      label:
+        "BTN vs BB single-raised pot, 1bb big-blind ante (0.17bb a seat), single size",
+      line: SRP,
+      seats: ["BB", "BTN"],
+      pot: 6.52,
+      stack: 97.33,
+      flops: { "5c4d2h": "6666666666", Ac7d2h: "7777777777" },
+      sizes: { "5c4d2h": 33, Ac7d2h: 50 },
+      game: { players: 6, stack: 100, ante: 0.17, straddle: false },
+      pf: {
+        key: "lz4_6max_100bb_a0.17_ch",
+        sha1: "7fd4d92bdcb4",
+        model: "calibrated class-level model",
+        words: "1bb big-blind ante (0.17bb a seat)",
+      },
+    },
+    {
+      id: "ss_srp_btn_utg_straddle",
+      label: "BTN vs UTG single-raised pot, 2bb straddle from UTG, single size",
+      line: "HJ:f,CO:f,BTN:r5,SB:f,BB:f,UTG:c",
+      seats: ["UTG", "BTN"],
+      pot: 11.5,
+      stack: 95,
+      flops: { "5c4d2h": "8888888888" },
+      sizes: { "5c4d2h": 200 },
+      game: { players: 6, stack: 100, ante: 0, straddle: true },
+      pf: { key: "lz4_6max_100bb_s_ch", words: "2bb straddle from UTG" },
+    },
+  ],
+};
 
 afterEach(() => {
   clearSingleSizeCache();
@@ -94,6 +130,102 @@ describe("a hand's single-size spot", () => {
     expect(sizeWords(25)).toBe("25%");
     expect(sizeWords(166.6, IDX.spots[1])).toBe("all-in (166.6%)");
     expect(sizeWords(75, IDX.spots[0])).toBe("75%");
+  });
+});
+
+describe("the ante and straddle games' spots", () => {
+  it("are read from a setup holding only an ante or a straddle", () => {
+    expect(ssHandGame(undefined)).toEqual({ ante: 0, straddle: false });
+    expect(ssHandGame({ ante: 0.17 })).toEqual({ ante: 0.17, straddle: false });
+    expect(ssHandGame({ straddle: true, ante: undefined })).toEqual({
+      ante: 0,
+      straddle: true,
+    });
+    expect(ssHandGame({ ante: 0.17, rake: { pct: 5, cap: 3 } })).toBeNull();
+    expect(sameGame(undefined, { ante: 0, straddle: false })).toBe(true);
+    expect(
+      sameGame(GAMES.spots[2]!.game, { ante: 0.17, straddle: false }),
+    ).toBe(true);
+    expect(sameGame(GAMES.spots[2]!.game, { ante: 0.2, straddle: false })).toBe(
+      false,
+    );
+  });
+
+  it("match a hand of their game only, and the 100bb spots only a hand without an ante or straddle", () => {
+    const anted = { ...hand(SRP, "5c4d2h"), setup: { ante: 0.17 } };
+    expect(ssMatch(GAMES, anted)).toMatchObject({ pct: 33, flop: "5c4d2h" });
+    expect(ssMatch(GAMES, anted)?.spot.id).toBe("ss_srp_btn_bb_ante");
+    expect(ssMatch(GAMES, hand(SRP, "Ac7d2h"))?.spot.id).toBe("ss_srp_btn_bb");
+    expect(ssMatch(GAMES, { ...anted, setup: { ante: 0.1 } })).toBeNull();
+    expect(
+      ssMatch(GAMES, { ...anted, setup: { ante: 0.17, straddle: true } }),
+    ).toBeNull();
+    expect(ssMatch(IDX, anted)).toBeNull();
+    const straddled = {
+      ...hand("HJ:f,CO:f,BTN:r5,SB:f,BB:f,UTG:c", "4d5c2h"),
+      setup: { straddle: true },
+    };
+    expect(ssMatch(GAMES, straddled)).toMatchObject({
+      pct: 200,
+      flop: "5c4d2h",
+    });
+    expect(ssRequest(ssMatch(GAMES, straddled))).toEqual({
+      single_size: true,
+      sizes: { flop: [200], turn: [LATER_PCT], river: [LATER_PCT] },
+    });
+  });
+
+  it("cover their own flops, and leave the 100bb spots' as they were", () => {
+    expect(coveredFlops(GAMES)).toEqual(["Ac7d2h", "KcQc8d"]);
+    expect(coveredFlops(GAMES, { ante: 0.17, straddle: false })).toEqual([
+      "5c4d2h",
+      "Ac7d2h",
+    ]);
+    expect(coveredFlops(GAMES, { ante: 0, straddle: true })).toEqual([
+      "5c4d2h",
+    ]);
+    expect(coveredFlops(GAMES, { ante: 0.5, straddle: false })).toEqual([]);
+    expect(gameWords({ ante: 0.17, straddle: false }, GAMES.spots[2]!.pf)).toBe(
+      "1bb big-blind ante (0.17bb a seat)",
+    );
+    expect(gameWords({ ante: 0.1, straddle: false })).toBe("0.1bb ante a seat");
+  });
+
+  it("go into the catalogue under their games, with their own flops", () => {
+    const c = summarizeSingleSize(GAMES, {
+      singleSize: { target: 552, games: { target: 1755 } },
+    })!;
+    expect(c.flops).toEqual(["Ac7d2h", "KcQc8d"]);
+    expect(c.games).toEqual([
+      {
+        ante: 0.17,
+        straddle: false,
+        words: "1bb big-blind ante (0.17bb a seat)",
+        flops: ["5c4d2h", "Ac7d2h"],
+        target: 1755,
+      },
+      {
+        ante: 0,
+        straddle: true,
+        words: "2bb straddle from UTG",
+        flops: ["5c4d2h"],
+        target: 1755,
+      },
+    ]);
+    expect(c.spots[2]).toMatchObject({
+      id: "ss_srp_btn_bb_ante",
+      game: { ante: 0.17, straddle: false },
+      gameWords: "1bb big-blind ante (0.17bb a seat)",
+      target: 1755,
+    });
+    expect(c.spots[0]).not.toHaveProperty("game");
+    const only = summarizeSingleSize({
+      ...GAMES,
+      flops: [],
+      spots: GAMES.spots.slice(2),
+    })!;
+    expect(only.flops).toEqual([]);
+    expect(only.games).toHaveLength(2);
   });
 });
 

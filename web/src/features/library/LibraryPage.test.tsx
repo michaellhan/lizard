@@ -54,6 +54,7 @@ describe("LibraryPage", () => {
         spots: [{ id: "ss_srp_btn_bb", label: "BTN vs BB single-raised pot, single size", line: "UTG:f,HJ:f,CO:f,BTN:r2.5,SB:f,BB:c", flops: 2 }],
         flops: ["Ac7d2h", "KcQc8d"],
         target: 552,
+        games: [],
       },
     } as LibraryCatalog);
     open();
@@ -61,7 +62,66 @@ describe("LibraryPage", () => {
     const table = cap.closest("table")!;
     expect(within(table).getByText("2 / 552")).toBeInTheDocument();
     expect(within(table).getByRole("link", { name: "Study →" }).getAttribute("href")).toContain("lib=ss");
-    expect(screen.getAllByText(/Flops covered on every spot \(2 of 552 planned\)/)[0]).toBeInTheDocument();
+    expect(screen.getAllByText(/Flops covered on every 100bb spot \(2 of 552 planned\)/)[0]).toBeInTheDocument();
     expect(screen.getAllByText("Ac7d2h KcQc8d")[0]).toBeInTheDocument();
+  });
+
+  it("shows an ante game's spots with their ranges' source, its own flops, and Study links that carry the ante", async () => {
+    load.mockResolvedValue({
+      source: "lizard-library",
+      base: "x/",
+      available: true,
+      fetchedAt: 0,
+      spots: [],
+      singleSize: {
+        spots: [
+          {
+            id: "ss_srp_btn_bb_ante",
+            label:
+              "BTN vs BB single-raised pot, 1bb big-blind ante (0.17bb a seat), single size",
+            line: "UTG:f,HJ:f,CO:f,BTN:r2.5,SB:f,BB:c",
+            flops: 3,
+            target: 1755,
+            game: { ante: 0.17, straddle: false },
+            gameWords: "1bb big-blind ante (0.17bb a seat)",
+          },
+        ],
+        flops: [],
+        target: 552,
+        games: [
+          {
+            ante: 0.17,
+            straddle: false,
+            words: "1bb big-blind ante (0.17bb a seat)",
+            flops: ["5c4d2h", "6c5d2h", "7c4d3h"],
+            target: 1755,
+          },
+        ],
+      },
+    } as LibraryCatalog);
+    open();
+    const cap = (
+      await screen.findAllByText(
+        /^Single-size library: 6-max 100bb, one bet size a node/,
+      )
+    )[0]!;
+    const table = cap.closest("table")!;
+    expect(within(table).getByText("3 / 1755")).toBeInTheDocument();
+    expect(
+      within(table).getByText(
+        /Lizard's stored preflop solve of this game \(1bb big-blind ante \(0.17bb a seat\)\), not the charts/,
+      ),
+    ).toBeInTheDocument();
+    const href = within(table)
+      .getByRole("link", { name: "Study →" })
+      .getAttribute("href")!;
+    expect(new URLSearchParams(href.split("?")[1]).get("ante")).toBe("0.17");
+    expect(href).toContain("lib=ss");
+    expect(
+      screen.getAllByText(
+        /Flops covered on every spot with a 1bb big-blind ante \(0.17bb a seat\) \(3 of 1755 planned\)/,
+      )[0],
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Flops covered on every 100bb spot/)).toBeNull();
   });
 });

@@ -102,6 +102,7 @@ def make_mw(root: Path, spots: dict, tree=None, fp=None) -> dict:
 
 NO_BREADTH = Path(tempfile.gettempdir()) / "assemble-test-no-breadth"  # (never created: no breadth source)
 NO_SS = Path(tempfile.gettempdir()) / "assemble-test-no-single-size"  # (nor the single-size library's)
+NO_SS_GAMES = Path(tempfile.gettempdir()) / "assemble-test-no-ss-games"  # (nor its ante and straddle games')
 
 
 def run(*args) -> subprocess.CompletedProcess:
@@ -117,6 +118,8 @@ def run(*args) -> subprocess.CompletedProcess:
         args = (*args, "--breadth", NO_BREADTH)
     if "--single-size" not in args:
         args = (*args, "--single-size", NO_SS)
+    if "--ss-games" not in args:
+        args = (*args, "--ss-games", NO_SS_GAMES)
     env = {k: v for k, v in os.environ.items() if k != "LIZARD_R2_BASE"}  # (only --r2-base sets it here)
     return subprocess.run([sys.executable, str(HERE / "assemble.py"), *map(str, args)], capture_output=True, text=True,
                           env=env)
@@ -984,10 +987,126 @@ class SingleSizeTest(unittest.TestCase):
         self.assertIn("ss_srp_3: kept the previous release", r.stdout)
         self.assertEqual(spots["ss_srp_3"]["report"], h((self.out / "ss_srp_3" / "report.json").read_bytes(), 10))
 
+    def test_a_kept_copy_that_would_pass_the_file_cap_stops_the_publish(self):
+        sys.path.insert(0, str(HERE))
+        try:
+            import assemble
+        finally:
+            sys.path.remove(str(HERE))
+        prev = self.tmp / "prev"
+        self.assertEqual(self.stage(out=prev).returncode, 0)
+        self.out.mkdir()
+        old = assemble.MAX_FILES
+        try:  # the stage nearly full: no flop fits, and the previous release's copies don't either
+            assemble.MAX_FILES = 1000 + assemble.LATE_FILES + 4
+            with self.assertRaises(SystemExit) as cm:
+                assemble.add_single_size(self.ss, self.out, set(), prev, False, 1000, [])
+        finally:
+            assemble.MAX_FILES = old
+        self.assertIn("would pass the", str(cm.exception))
+
     def test_the_source_is_not_modified(self):
         before = {p: p.read_bytes() for p in self.ss.rglob("*") if p.is_file()}
         self.assertEqual(self.stage().returncode, 0)
         self.assertEqual(before, {p: p.read_bytes() for p in self.ss.rglob("*") if p.is_file()})
+
+
+class SingleSizeGamesTest(unittest.TestCase):
+    """The single-size ante and straddle games (--ss-games, build_single_size.py --set games): their spots go into the
+    same ss_index.json beside the 100bb ones, on their own flops, the 100bb spots' `flops` left theirs."""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+        self.base, self.hu, self.ss, self.games, self.out = (
+            self.tmp / n for n in ("base", "hu", "ss", "games", "stage"))
+        make_lib(self.base, "srp_btn_bb", ["a", "b"], {"Ks7d2c": b"entry-1"})
+        self.hu.mkdir()
+        make_ss(self.ss, {"ss_srp_btn_bb": {"Kc7d2h": (b"k", 25.0), "8c7c6c": (b"e", 75.0)}},
+                order=["8c7c6c", "Kc7d2h"])
+        g = {"ss_srp_btn_bb_ante": {"5c4d2h": (b"a5", 33.0), "6c5d2h": (b"a6", 25.0)},
+             "ss_srp_co_bb_ante": {"5c4d2h": (b"c5", 33.0), "6c5d2h": (b"c6", 33.0)},
+             "ss_srp_btn_utg_straddle": {"5c4d2h": (b"s5", 33.0)}}
+        idx = make_ss(self.games, g, order=["5c4d2h", "6c5d2h"], target=1755)
+        for s in idx["spots"]:
+            s.pop("base")
+            straddle = s["id"].endswith("straddle")
+            s["game"] = {"players": 6, "stack": 100.0, "ante": 0.0 if straddle else 0.17, "straddle": straddle}
+            s["pf"] = {"key": "lz4_6max_100bb_s_ch" if straddle else "lz4_6max_100bb_a0.17_ch", "sha1": "x",
+                       "model": "m", "words": "w"}
+            s["pf_ranges"] = [[1] * 169, [1] * 169]
+        (self.games / "ss-index.json").write_text(json.dumps(idx))
+
+    def stage(self, *extra) -> subprocess.CompletedProcess:
+        return run("--out", self.out, "--base", self.base, "--hu", self.hu, "--single-size", self.ss,
+                   "--ss-games", self.games, *extra)
+
+    def test_the_games_join_the_index_on_their_own_flops(self):
+        r = self.stage()
+        self.assertEqual(r.returncode, 0, r.stderr)
+        idx = json.loads((self.out / "ss_index.json").read_text())
+        spots = {s["id"]: s for s in idx["spots"]}
+        self.assertEqual(set(spots), {"ss_srp_btn_bb", "ss_srp_btn_bb_ante", "ss_srp_co_bb_ante",
+                                      "ss_srp_btn_utg_straddle"})
+        self.assertEqual(idx["flops"], ["8c7c6c", "Kc7d2h"])  # (the 100bb spots' own)
+        self.assertEqual(spots["ss_srp_btn_bb_ante"]["game"]["ante"], 0.17)
+        self.assertIn("pf_ranges", spots["ss_srp_btn_bb_ante"])
+        # 6c5d2h: 2 of 3 game spots (67%, under SS_SHARE_PCT): left out; 5c4d2h on all three
+        self.assertEqual(sorted(spots["ss_srp_btn_bb_ante"]["flops"]), ["5c4d2h"])
+        self.assertTrue((self.out / "ss_srp_btn_bb_ante" / "5c4d2h.bin").exists())
+        self.assertFalse((self.out / "ss_srp_btn_bb_ante" / "6c5d2h.bin").exists())
+        summary = json.loads((self.out / "lizard-library.json").read_text())["singleSize"]
+        self.assertEqual(summary["games"]["target"], 1755)
+        self.assertEqual(summary["games"]["flops"], {"a0.17": ["5c4d2h"], "s": ["5c4d2h"]})
+        self.assertEqual(summary["games"]["game"]["ss_srp_btn_utg_straddle"]["straddle"], True)
+        self.assertEqual(summary["spots"], {"ss_srp_btn_bb": 2})
+        kinds = [x["kind"] for x in json.loads((self.out / "lizard-library.json").read_text())["sources"]]
+        self.assertIn("single-size games build", kinds)
+
+    def test_a_spot_without_a_game_or_its_ranges_is_left_out_of_the_games(self):
+        idx = json.loads((self.games / "ss-index.json").read_text())
+        idx["spots"][0].pop("game")
+        idx["spots"][1].pop("pf_ranges")
+        (self.games / "ss-index.json").write_text(json.dumps(idx))
+        r = self.stage()
+        self.assertEqual(r.returncode, 0, r.stderr)
+        ids = [s["id"] for s in json.loads((self.out / "ss_index.json").read_text())["spots"]]
+        self.assertEqual(ids, ["ss_srp_btn_bb", "ss_srp_btn_utg_straddle"])
+        self.assertIn("not a game spot", r.stdout)
+
+    def test_a_game_spot_kept_from_the_previous_release_shrinks_rather_than_pass_the_file_cap(self):
+        sys.path.insert(0, str(HERE))
+        try:
+            import assemble
+        finally:
+            sys.path.remove(str(HERE))
+        prev = self.tmp / "prev"
+        r = run("--out", prev, "--base", self.base, "--hu", self.hu, "--single-size", self.ss, "--ss-games", self.games)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        pg = [s for s in json.loads((prev / "ss_index.json").read_text())["spots"] if s.get("game")]
+        self.assertEqual(len(pg), 3)
+        per = assemble.spot_files(pg[0])
+        self.out.mkdir()
+        old = assemble.MAX_FILES
+        try:  # a source before the games grew: the stage holds 1000 files, room for no flop and one kept copy
+            assemble.MAX_FILES = 1000 + assemble.LATE_FILES + per
+            log = []
+            idx, _ = assemble.add_single_size(self.games, self.out, set(), prev, False, 1000, log, games=True)
+        finally:
+            assemble.MAX_FILES = old
+        self.assertEqual([s["id"] for s in idx["spots"]], [pg[0]["id"]])
+        self.assertEqual(sorted(idx["spots"][0]["flops"]), sorted(pg[0]["flops"]))
+        self.assertTrue(any(f"{pg[0]['id']}: kept the previous release" in x for x in log), log)
+        for s in pg[1:]:
+            self.assertTrue(any(f"{s['id']}: shrinks from 1 flops" in x and "file cap" in x for x in log), log)
+            self.assertFalse((self.out / s["id"]).exists())
+        self.assertLessEqual(sum(1 for p in self.out.rglob("*") if p.is_file()), per)  # (within the cap)
+
+    def test_the_games_alone(self):
+        r = self.stage("--single-size", NO_SS)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        idx = json.loads((self.out / "ss_index.json").read_text())
+        self.assertEqual(idx["flops"], [])
+        self.assertEqual(len(idx["spots"]), 3)
 
 
 if __name__ == "__main__":

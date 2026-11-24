@@ -134,12 +134,14 @@ const SS_LISTED = 40;
 function SingleSizeSection({ ss }: { ss: SingleSizeCoverage }) {
   const [all, setAll] = useState(false);
   const shown = all ? ss.flops : ss.flops.slice(0, SS_LISTED);
+  const plain = ss.spots.some((s) => !s.game);
   return (
     <div className="space-y-2">
       <div className="scroll-x rounded-lg border border-border">
         <table className="w-full min-w-[560px] text-sm">
           <caption className="bg-surface-2 px-3 py-1.5 text-left font-medium">
             Single-size library: 6-max 100bb, one bet size a node, the flop&apos;s chosen for each flop by the solver&apos;s automatic sizing
+            {ss.games.length > 0 && "; also ante and straddle games, their ranges from Lizard's stored preflop solve of the game"}
           </caption>
           <thead className="text-xs text-muted">
             <tr>
@@ -156,14 +158,19 @@ function SingleSizeSection({ ss }: { ss: SingleSizeCoverage }) {
                 <td className="px-3 py-1.5">
                   <div>{s.label}</div>
                   <div className="font-mono text-xs text-faint">{s.id}</div>
+                  {s.game && (
+                    <div className="text-xs text-muted">
+                      Ranges entering the flop: Lizard&apos;s stored preflop solve of this game ({s.gameWords}), not the charts; preflop is approximate
+                    </div>
+                  )}
                 </td>
                 <td className="px-3 py-1.5 font-mono text-xs">
                   {s.flops}
-                  {ss.target ? ` / ${ss.target}` : ""}
+                  {(s.game ? s.target : ss.target) ? ` / ${s.game ? s.target : ss.target}` : ""}
                 </td>
                 <td className="px-3 py-1.5 text-right">
                   {parseLine(s.line).length > 0 && (
-                    <Link to={`/study?${new URLSearchParams({ p: "6", s: "100", pre: s.line, lib: "ss" }).toString()}`} className="text-accent hover:underline">
+                    <Link to={`/study?${ssStudyQuery(s)}`} className="text-accent hover:underline">
                       Study →
                     </Link>
                   )}
@@ -173,20 +180,52 @@ function SingleSizeSection({ ss }: { ss: SingleSizeCoverage }) {
           </tbody>
         </table>
       </div>
-      <p className="text-xs text-muted">
-        Flops covered on every spot ({ss.flops.length}
-        {ss.target ? ` of ${ss.target} planned` : ""}): <span className="font-mono">{shown.join(" ")}</span>
-        {ss.flops.length > SS_LISTED && (
-          <>
-            {all ? "" : " …"}{" "}
-            <button type="button" onClick={() => setAll(!all)} className="underline hover:text-text">
-              {all ? "Fewer" : `All ${ss.flops.length}`}
-            </button>
-          </>
-        )}
-        . Any other flop is asked from the library or solved live.
-      </p>
+      {ss.games.map((g) => <GameFlops key={`${g.ante}|${g.straddle}`} g={g} />)}
+      {plain && (
+        <p className="text-xs text-muted">
+          Flops covered on every 100bb spot ({ss.flops.length}
+          {ss.target ? ` of ${ss.target} planned` : ""}): <span className="font-mono">{shown.join(" ")}</span>
+          {ss.flops.length > SS_LISTED && (
+            <>
+              {all ? "" : " …"}{" "}
+              <button type="button" onClick={() => setAll(!all)} className="underline hover:text-text">
+                {all ? "Fewer" : `All ${ss.flops.length}`}
+              </button>
+            </>
+          )}
+          . Any other flop is asked from the library or solved live.
+        </p>
+      )}
     </div>
+  );
+}
+
+/** A single-size spot's Study query: the 6-max 100bb game, its line, the single-size source, and its ante or straddle. */
+function ssStudyQuery(s: { line: string; game?: { ante: number; straddle: boolean } }): string {
+  const q = new URLSearchParams({ p: "6", s: "100", pre: s.line, lib: "ss" });
+  if (s.game?.ante) q.set("ante", String(s.game.ante));
+  if (s.game?.straddle) q.set("straddle", "1");
+  return q.toString();
+}
+
+/** An ante or straddle game's covered flops, in a line under the table. */
+function GameFlops({ g }: { g: SingleSizeCoverage["games"][number] }) {
+  const [all, setAll] = useState(false);
+  const shown = all ? g.flops : g.flops.slice(0, SS_LISTED);
+  return (
+    <p className="text-xs text-muted">
+      Flops covered on every spot with a {g.words} ({g.flops.length}
+      {g.target ? ` of ${g.target} planned` : ""}): <span className="font-mono">{shown.join(" ")}</span>
+      {g.flops.length > SS_LISTED && (
+        <>
+          {all ? "" : " …"}{" "}
+          <button type="button" onClick={() => setAll(!all)} className="underline hover:text-text">
+            {all ? "Fewer" : `All ${g.flops.length}`}
+          </button>
+        </>
+      )}
+      . Any other flop is asked from the library or solved live.
+    </p>
   );
 }
 

@@ -38,6 +38,54 @@ describe("a single-size answer's provenance", () => {
     expect(describeProvenance(p)).toMatch(/^Live solve · single-size tree/);
   });
 
+  it("names an ante or straddle game's ranges as its stored preflop solve's, not the charts'", () => {
+    const r: AdvisorResponse = {
+      street: "flop",
+      precomputed: { spot: "ss_srp_btn_bb_ante" },
+      solver: { iterations: 300, exploitability_pct: 0.12 },
+      single_size: {
+        stored: true,
+        spot: "ss_srp_btn_bb_ante",
+        flop: { spot: "ss_srp_btn_bb_ante", flop: "5c4d2h", pct: 33 },
+        sizes: { flop: [33], turn: [75], river: [75] },
+        library: true,
+        game: {
+          spot: "ss_srp_btn_bb_ante",
+          players: 6,
+          stack: 100,
+          ante: 0.17,
+          straddle: false,
+        },
+        ranges: {
+          source: "preflop solve",
+          key: "lz4_6max_100bb_a0.17_ch",
+          sha1: "7fd4d92bdcb4",
+          words: "1bb big-blind ante (0.17bb a seat)",
+          model: "calibrated class-level model",
+        },
+      },
+    };
+    const p = provenanceOf(r, ctx);
+    expect(p.singleSize).toMatch(
+      /read from the single-size library; ranges entering the flop from Lizard's stored preflop solve of this game \(1bb big-blind ante \(0.17bb a seat\)\) lz4_6max_100bb_a0.17_ch \(7fd4d92bdcb4\), not the charts; preflop is approximate$/,
+    );
+    expect(describeProvenance(p)).toContain(
+      "1bb big-blind ante (0.17bb a seat)",
+    );
+    const turn = singleSizeWords(
+      {
+        stored: false,
+        flop: { spot: "ss_srp_btn_utg_straddle", pct: 200 },
+        library: true,
+        game: { straddle: true },
+      },
+      "turn",
+    );
+    expect(turn).toMatch(
+      /the turn solved live on the same tree; ranges entering the flop from Lizard's stored preflop solve of this game \(2bb straddle\)/,
+    );
+  });
+
   it("is nothing for an answer that isn't one", () => {
     expect(singleSizeWords(undefined)).toBeNull();
     expect(provenanceOf({ street: "flop", precomputed: { spot: "srp_btn_bb" } }, ctx).singleSize).toBeUndefined();

@@ -162,3 +162,55 @@ The tests are `SingleSizeTest` in `scripts/library/test_assemble.py` and `script
    simply wait for the 6-hourly launchd run, which picks the source up once the branch is merged.
 5. Deploy the app (push `main`; the Pages workflow builds it) so the Study picker and the Library table ship.
 6. Mark the `docs/FEATURE_MATRIX.md` row WORKING for the covered flops once the live `ss_index.json` reads in Study.
+
+## Ante and straddle games (2026-11-24, W13)
+
+Six heads-up spots in two games beside the 100bb ones, on the same one-size tree and flop sets
+(`build_single_size.py --set games`, `GAME_SPOTS`; source `library-build/sources/ss-games`):
+
+| Spot | Game | Line | Pot / stack (bb) |
+| --- | --- | --- | --- |
+| `ss_srp_btn_bb_ante` | 6-max 100bb, 1bb big-blind ante (0.17bb a seat) | BTN opens 2.5, BB calls | 6.52 / 97.33 |
+| `ss_srp_co_bb_ante` | same | CO opens 2.5, BB calls | 6.52 / 97.33 |
+| `ss_srp_sb_bb_ante` | same | SB opens 3, BB calls | 7.02 / 96.83 |
+| `ss_3bp_bb_btn_ante` | same | BTN opens 2.5, BB 3bets 10, BTN calls | 21.52 / 89.83 |
+| `ss_srp_btn_utg_straddle` | 6-max 100bb, 2bb straddle from UTG | BTN opens 5, UTG calls | 11.5 / 95 |
+| `ss_srp_co_utg_straddle` | same | CO opens 5, UTG calls | 11.5 / 95 |
+
+- **Ranges:** not the charts. Each spot's two ranges entering the flop come from Lizard's stored preflop solve of the
+  same game (`engine/pf_solve.py`, keys `lz4_6max_100bb_a0.17_ch` and `lz4_6max_100bb_s_ch`, W11's files): each seat's
+  reach at its last decision times its share of that move, by hand class. `build_single_size.py pf-ranges --set games`
+  writes them to `pf-ranges.json` (with each game file's sha1), checking that the solve's raise sizes are the line's; the
+  index carries them as `pf_ranges` and the game file as `pf`. The raise sizes are the charts' (the stored solve plays
+  them), so the lines are the charts' lines.
+- **Reading:** a single-size request in that game (the setup's ante exactly 0.17, or the straddle and no ante) on that
+  exact line plays those ranges (`engine/single_size.py` `game_spot`), so the stored entry's fingerprint matches and is
+  read. The answer's `single_size.game` and `single_size.ranges` name the game and the preflop solve, and provenance says
+  "ranges entering the flop from Lizard's stored preflop solve of this game (…), not the charts; preflop is
+  approximate". Any other ante or a straddle with an ante plays the charts as before, with no game spot, and so does a
+  request with ranges of its own (stacks, ranges, bunching, the pool's opponents, locks): bunching's wrap would otherwise
+  put the charts back under the solve's name (review fix, 2026-11-24).
+- **Study:** the flop source (Library / Single size) is offered at 6-max 100bb with no setup, or with exactly one of
+  these games; the note lists the game's own covered flops and says whose ranges they are. The Library page lists the
+  game spots with their ranges' source, each game's covered flops, and Study links that carry `ante=0.17` or
+  `straddle=1`.
+- **Flops:** the 184, then the rest of the 552, then the rest of the 1,755 in a golden-ratio stride (so a stop partway
+  still spreads over the textures), within a 14-hour run (about 28 CPU hours at 2 workers).
+- **Publishing:** `assemble.py --ss-games` (default the source above) puts them into the same `ss_index.json` after the
+  100bb spots, on their own flops by the same 90% rule, within `SS_GAMES_BYTES` (100 MB) and what the file cap leaves; the
+  100bb spots' `flops` list stays theirs. `lizard-library.json`'s `singleSize.games` carries the target and each game's
+  flops. About 7 files a flop for the six spots (single-raised entries 1 file, the 3bet pot 2): 552 flops is about 3,900
+  files and 25 MB, which fits beside the 111,655 files published; more than about 1,150 flops needs a higher file cap or
+  the R2 path. A game spot keeps the previous release's copy when it would hold fewer flops, as the 100bb spots do, but
+  only while that copy fits the file cap (counted, less the 5 index files still to come); where it doesn't (a source
+  before the games grew), the game spot shrinks, logged, rather than stop the publish. The 100bb spots stop it, as before,
+  with a message naming `--allow-shrink`.
+- **Not covered:** the straddle's SB open (6bb) and the 3bet and 4bet pots in the straddled game, other antes and stacks,
+  multiway. The preflop solve is a class-level model at the charts' raise sizes (approximate, labeled so).
+
+Tests: `scripts/engine/test_single_size_games.py` (a one-entry library built on a fake pf-ranges file; the real stored
+games where W11's files are in `engine/pf/`), `test_assemble.py` `SingleSizeGamesTest`, and the web tests named in the
+FEATURE_MATRIX row.
+
+Once the build has run: `build_single_size.py status --set games`, then `build_single_size.py index --set games`, merge
+W11 (the stored game files) and this branch, then assemble and publish by the usual path (above).

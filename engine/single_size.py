@@ -14,6 +14,14 @@ FlopLibrary.solution's checks (the tree's sizes, the entry's tree hash, its rang
 flop the single-size library doesn't hold is solved live on the same one-size tree, and later streets live at one size
 (75%, the library model's), with the stored turn file read where the flop line has one.
 
+The ante and straddle games (build_single_size.py --set games, W13 of docs/GAP_PLAN.md): a spot with `game` (6-max 100bb
+with a 0.17bb ante a seat, or a 2bb straddle from UTG) was built on the ranges entering the flop from Lizard's stored
+preflop solve of that game (engine/pf_solve.py; the index's `pf_ranges`, by class), not the charts. A single-size
+request in that game on that exact line plays those ranges (game_spot, then A.preflop_ranges swapped for the request
+only, as engine/bunching.py does), so the entry's fingerprint matches and is read; the answer's `single_size` names the
+game and the ranges' source, and a note says the ranges aren't the charts'. Any other ante, a straddle with an ante,
+stacks or ranges of the hand's own: no game spot, the charts play as before.
+
 The worker imports this module at start (scripts/pyodide/worker-edits.mjs, declared in solver/UPSTREAM.json); it wraps
 Advisor._advise_at, and a request without "single_size" is answered exactly as before. solver/ is untouched.
 """
@@ -21,6 +29,8 @@ from __future__ import annotations
 
 import json
 from typing import Optional
+
+import numpy as np
 
 from gto import advisor as A
 from gto import flop_library as fl
@@ -80,6 +90,72 @@ class SingleSizeLibrary(fl.FlopLibrary):
         return got
 
 
+# ----------------------------------------------------------------------------- the ante and straddle games
+# The index's game spots (build_single_size.py --set games) are lines of 6-max 100bb with a 1bb big-blind ante or a 2bb
+# straddle, their ranges entering the flop Lizard's stored preflop solve of that game (each row's `pf` and `pf_ranges`),
+# not the charts the advisor plays them by. A single-size request in that game on that line plays the row's ranges for
+# its two players (the stored entry is then found by them, as any library flop; a flop it doesn't hold is solved live on
+# them), and the answer says so (`single_size.game`, `single_size.ranges`, a note).
+GAME_TOL = 1e-9
+
+
+def _token(a: dict) -> str:
+    """A preflop action as the index's lines write it (web/src/library/flops.ts lineToken)."""
+    act = a.get("action")
+    if act in ("fold", "call", "check", "all-in"):
+        return f"{a['pos']}:{ {'fold': 'f', 'call': 'c', 'check': 'x', 'all-in': 'a'}[act]}"
+    return f"{a['pos']}:r{round(float(a.get('to') or 0.0), 2):g}"
+
+
+def game_spot(idx: dict, positions, stack: float, state: dict, preflop) -> Optional[dict]:
+    """The index's game spot this request's hand plays: the table's size, stack, ante and straddle the spot's game's,
+    every seat at that stack, and its preflop line the spot's; else None. Never for a request whose ranges entering the
+    flop are its own (stacks, ranges, bunching, the pool's opponents, locks): engine/bunching.py's wrap, for one, sits
+    inside this module's and puts the charts' ranges back, so the answer would play them while naming the solve's."""
+    ante = float(getattr(positions, "ante", 0.0) or 0.0)
+    straddle = bool(getattr(positions, "straddle", False))
+    if not ante and not straddle:
+        return None
+    if state.get("stacks") or state.get("ranges") or state.get("bunching") not in (None, False, "", "off", 0) or \
+            state.get("opponents") == "pool" or state.get("locks"):   # (bunching: engine/bunching.py parse's "off")
+        return None
+    line = ",".join(_token(a) for a in preflop)
+    for s in idx.get("spots", []):
+        g = s.get("game")
+        if not isinstance(g, dict) or s.get("line") != line or not s.get("pf_ranges"):
+            continue
+        if int(g.get("players", 0)) == len(positions) and abs(float(g.get("stack", 0)) - stack) < GAME_TOL and \
+                abs(float(g.get("ante", 0.0)) - ante) < GAME_TOL and bool(g.get("straddle")) == straddle:
+            return s
+    return None
+
+
+def class_range(w) -> np.ndarray:
+    """169 class weights x 10000 (gto.pf_classes.CLASSES order) -> the 1326-combo range, as the build made it
+    (scripts/library/build_single_size.py class_range), so the fingerprints agree."""
+    from gto.pf_classes import CLASS_OF
+    return (np.asarray(w, dtype=np.float64) / 10000.0)[CLASS_OF]
+
+
+def ranges_words(spot: dict) -> str:
+    pf = spot.get("pf") or {}
+    return (f"ranges entering the flop from Lizard's stored preflop solve of this game ({pf.get('words', 'its forced bets')}; "
+            f"{pf.get('model', 'class-level model')}, the charts' raise sizes; preflop is approximate), not the charts")
+
+
+def _with_game_ranges(upstream, line: list, ranges: dict):
+    """preflop_ranges with `ranges` ({seat: range}) for those seats after exactly `line`."""
+    def played(actions, positions, stack, pool_except=None, locks=None):
+        out = upstream(actions, positions, stack, pool_except, locks)
+        if len(actions) != len(line) or any(x != y for x, y in zip(actions, line)):
+            return out
+        new = A.PreflopRanges({**out, **{p: r.copy() for p, r in ranges.items() if p in out}})
+        new.rebuilt = list(getattr(out, "rebuilt", []))
+        return new
+    played.upstream = upstream
+    return played
+
+
 _LIBS: dict = {}
 
 
@@ -116,7 +192,15 @@ def _wrapping(upstream):
         if not asked:
             return upstream(self, state, *args, **kwargs)
         ss = library_for(self.library)
-        saved = self.library, self.mw_library
+        saved = self.library, self.mw_library, A.preflop_ranges
+        # a game spot (an ante or a straddle): its two players' ranges are the preflop solve's the spot was built on
+        gspot = None
+        if ss is not None and len(args) >= 8 and isinstance(args[7], dict):
+            positions, stack, streets = args[5], args[6], args[7]
+            gspot = game_spot(ss.index(), positions, float(stack), state, streets.get("preflop") or [])
+            if gspot is not None:
+                A.preflop_ranges = _with_game_ranges(A.preflop_ranges, list(streets["preflop"]),
+                                                     {p: class_range(w) for p, w in zip(gspot["seats"], gspot["pf_ranges"])})
         # (the 3-way library holds several-size solves: a single-size request at 3 players is solved live)
         self.library, self.mw_library = ss, None
         if ss is not None:
@@ -124,7 +208,7 @@ def _wrapping(upstream):
         try:
             res = upstream(self, state, *args, **kwargs)
         finally:
-            self.library, self.mw_library = saved
+            self.library, self.mw_library, A.preflop_ranges = saved
         if isinstance(res, dict) and "error" not in res and "skipped" not in res:
             pre = res.get("precomputed") if isinstance(res.get("precomputed"), dict) else None
             spot = pre.get("spot") if pre else None
@@ -137,6 +221,12 @@ def _wrapping(upstream):
                                   **({"flop": read} if read else {}),
                                   **({"sizes": sizes} if sizes else {}),
                                   "library": ss is not None and bool(ss.index().get("spots"))}
+            if gspot is not None:
+                pf = gspot.get("pf") or {}
+                res["single_size"]["game"] = dict(gspot["game"], spot=gspot["id"])
+                res["single_size"]["ranges"] = {"source": "preflop solve", "key": pf.get("key"), "sha1": pf.get("sha1"),
+                                                "words": pf.get("words"), "model": pf.get("model")}
+                res.setdefault("notes", []).insert(0, f"single size: {ranges_words(gspot)}")
         return res
 
     _advise_at.single_size_upstream = upstream
