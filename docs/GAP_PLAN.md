@@ -95,3 +95,21 @@ keeps it short of WORKING, and none is labelled as more than what was measured.
 - Only four rooms' payout tables. Bounty spots have equal bounties only, and no mystery-bounty spot is stored.
 - The arena isn't checked in Safari or on a phone. The arena and screenshot import are measured on synthetic data only.
 - The app's first script has about 1.3 kB left in its 358.4 kB budget.
+
+## Second run (started 2026-11-24)
+
+A comparison with GTO Wizard's pricing-page features found one feature missing (3-way single-size solutions) and four
+shallower than theirs. Owner decisions: up to 3 days of CPU, builds one at a time through `slot.sh`; library data past
+the Pages budget may go to Cloudflare R2; Lizard may read gtosolver's 3-way `.work/oneshot/mw-all/lib` read-only through
+`assemble.py`; a full-tree preflop solver is a measured prototype, switched to only if it is closer and fits.
+
+Two lanes, one workstream at a time in each, each in its own worktree, reviewed by two independent reviewers (correctness,
+project rules) and fixed before merging.
+
+| # | Workstream | Lane | Status |
+|---|---|---|---|
+| W10 | Flop GTO report by board texture in Analyze; preflop blockers | A | running |
+| W11 | Stored preflop games with antes and straddles | A, after W10 | queued |
+| W13 | Heads-up library spots in ante and straddle games | A, after W11 | queued |
+| W12 | 3-way library from gtosolver's mw-all; R2 hosting for library overflow | B | running |
+| W14 | Full-tree preflop solver prototype, measured | B, after W12 | queued |
