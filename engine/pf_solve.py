@@ -13,7 +13,8 @@ and the node's answer are pf_study.Solve's (DCFR averaged at t^8, to 1.5 mbb/han
 
 The stored games (engine/pf/<key>.bin, built by scripts/pf/build_stored.py): 2 to 6 players at the depths of
 STORED_DEPTHS, equal stacks, no ante or straddle, no rake or 5% capped at 3bb, answered at once (the page lists them in
-web/src/solver/pfStored.ts). Keys start with MODEL_TAG so neither the files, the page's cache nor a stamp can mix this
+web/src/solver/pfStored.ts); beside them the games with a straddle or a big-blind ante (forced_games, 2 to 9 players),
+those built so far listed in engine/pf_forced_built.py. Keys start with MODEL_TAG so neither the files, the page's cache nor a stamp can mix this
 model's solves with upstream's class-level model's.
 """
 from __future__ import annotations
@@ -135,6 +136,15 @@ class Spec:
             out.append("a 7-9 handed tree with " + " and ".join(
                 x for x, on in (("3-way flops", self.three_way), ("cold calls", self.cold_calls)) if on))
         return out
+
+    def forced_words(self) -> Optional[str]:
+        """The antes and the straddle in words, with what they leave unmeasured (None: neither)."""
+        bits = []
+        if self.ante:
+            bits.append(f"a {self.ante:g}bb ante a seat")
+        if self.straddle:
+            bits.append(f"a 2bb straddle from the {self.straddler or self.positions()[0]}")
+        return f"{' and '.join(bits)} ({FORCED_NOTE})" if bits else None
 
     def limits(self) -> Optional[str]:
         """What the tree leaves out that the full one has, in words (None: nothing)."""
@@ -412,7 +422,51 @@ def stored_games() -> List[Spec]:
     return grid + [chart_sized(s) for s in grid if s.players in STORED_CHART_PLAYERS]
 
 
-STORED_KEYS = frozenset(s.key for s in stored_games())
+# The stored games with antes and straddles (2026-11-24, docs/ACCURACY.md section 18.13), the same model and solve:
+# - a straddle (2bb from the first seat, the one the page's table, the charts and a site's history play: UTG from 4
+#   players, the button at 3) at 3 to 9 players, 50 to 200bb, no rake or 5% capped at 3bb;
+# - a 1bb big-blind ante as each seat's share to the cent (stored_ante; Practice's tournament stages send the same,
+#   tournament.ts stageAnte) at 2 to 9 players at the grid's depths to 100bb (tournament depths; a 6-max game deeper
+#   would pass the gigabyte a build process keeps under), no rake.
+# Each at the tree's own sizes (Study's Solver source) and at the charts' (Practice's and Analyze's grade); 7 to 9
+# players on the 7-9 handed tree (LIMITS_7UP). Not every one is built at once: STORED_KEYS takes those listed in
+# engine/pf_forced_built.py, which `scripts/pf/build_stored.py --forced --install DIR` writes with the files (and
+# web/src/solver/pfForcedBuilt.ts, the page's copy), so the page never offers a game whose file isn't there.
+STRADDLE_PLAYERS = (3, 4, 5, 6, 7, 8, 9)
+STRADDLE_DEPTHS = (50.0, 100.0, 150.0, 200.0)
+STRADDLE_RAKES = STORED_RAKES
+ANTE_PLAYERS = (2, 3, 4, 5, 6, 7, 8, 9)
+ANTE_DEPTHS = (20.0, 25.0, 30.0, 40.0, 50.0, 60.0, 80.0, 100.0)
+ANTE_RAKES = (None,)
+FORCED_WORDS = "stored preflop solve (class-level model) with ante/straddle"
+FORCED_NOTE = ("the flop values are fitted to published solves without antes or a straddle: not measured against a "
+               "fuller solve with them")
+
+
+def stored_ante(players: int) -> float:
+    """A 1bb big-blind ante as each seat's share, to the cent (half up, as tournament.ts stageAnte)."""
+    import math
+    return math.floor(100 / players + 0.5) / 100
+
+
+def forced_games() -> List[Spec]:
+    """Every stored game with an ante or a straddle, built or not, the most played first (the build's order)."""
+    def straddled(depths):
+        return [Spec(n, (d,), straddle=True, rake=r) for d in depths for n in STRADDLE_PLAYERS for r in STRADDLE_RAKES]
+
+    def anted(depths):
+        return [Spec(n, (d,), ante=stored_ante(n), rake=r) for d in depths for n in ANTE_PLAYERS for r in ANTE_RAKES]
+
+    first = (100.0, 200.0)
+    core = (20.0, 25.0, 30.0, 40.0, 50.0, 60.0)
+    out = (straddled(first) + anted(core) + straddled([d for d in STRADDLE_DEPTHS if d not in first])
+           + anted([d for d in ANTE_DEPTHS if d not in core]))
+    return [x for s in out for x in (chart_sized(s), s)]
+
+
+FORCED_KEYS = frozenset(s.key for s in forced_games())
+from .pf_forced_built import BUILT as FORCED_BUILT   # noqa: E402  ({key: iterations} of the files in engine/pf/)
+STORED_KEYS = frozenset(s.key for s in stored_games()) | (frozenset(FORCED_BUILT) & FORCED_KEYS)
 
 
 def read_stored(key: str) -> Optional[bytes]:
@@ -445,7 +499,7 @@ class Solve(OffPathValues, PS.Solve):
     def __init__(self, spec: "Spec", stored: Optional[bytes] = None):
         super().__init__(spec, stored)
         if self.stored:
-            self.iters = STORED_ITERS_OF.get(spec.key, self.iters)
+            self.iters = STORED_ITERS_OF.get(spec.key) or FORCED_BUILT.get(spec.key) or self.iters
 
     def status(self) -> dict:
         out = super().status()
@@ -466,6 +520,11 @@ class Solve(OffPathValues, PS.Solve):
             notes = self.spec.tree_notes()
             if notes:
                 res["pf_tree"] = notes
+            forced = self.spec.forced_words()
+            if forced:
+                # (the page says "stored preflop solve (class-level model) with ante/straddle" before these where the
+                # answer is a stored one: FORCED_WORDS, web/src/solver/provenance.ts)
+                res["pf_forced"] = forced
             if sum(1 for _, act, _ in node.line if act in ("raise", "all-in")) >= 2:
                 res["pf_3bet"] = AFTER_3BET
             res["solver"]["by"] = "Lizard's preflop solve"
