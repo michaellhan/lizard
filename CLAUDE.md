@@ -5,7 +5,7 @@
 - Never run `solver/scripts/deploy.sh` or `solver/scripts/deploy_library.sh` (they publish the legacy site). Never
   push to `michaellhan/gto-solver-library` or `michaellhan/michaellhan.github.io`.
 - `/Users/mhan/Desktop/projects/gtosolver` is another project with long precomputation builds running in `.work/`.
-  Read its `.work/hu-lib` and `.work/hu-lp-lib` only (via `scripts/library/assemble.py`); never write, move or
+  Read its `.work/hu-lib`, `.work/hu-lp-lib` and (owner, 2026-11-24) the 3-way `.work/oneshot/mw-all/lib` only (via `scripts/library/assemble.py`); never write, move or
   delete anything there, and never run git commands in that checkout or its `gto-wt/*` worktrees.
 - While those builds run: route anything over about a minute of CPU (the solver test suites, benchmarks, solves)
   through `/Users/mhan/Desktop/projects/gtosolver/.work/bin/slot.sh`. Never use `quiet.sh` (it pauses the builds).
