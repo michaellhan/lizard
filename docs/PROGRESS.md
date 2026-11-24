@@ -6785,7 +6785,7 @@ Every figure below is lz4's.
 - Tests: `scripts/engine/test_single_size_games.py` (7: 6 passed and the stored-game check skipped without W11's files
   in `engine/pf/`; it passes with `LIZARD_PF_DIR` set to a copy of them), `test_single_size.py` (10), `test_assemble.py`
   (41, with SingleSizeGamesTest's 3 new); vitest for the touched files and their neighbours (6 files, 58 tests, and
-  the Study folder, 27 files, 459 tests). Typecheck and lint clean apart from `tesseract.js`, which the shared
+  the Study folder, 27 files, 459 tests); the full vitest through slot.sh (`--maxWorkers=3`): 266 files, 4,243 passed, 26 skipped, 2 failed, both the OCR files tests (`ocr.test.ts`, and `ScreenshotImport.test.tsx` failing to import) for want of `tesseract.js`. Typecheck and lint clean apart from `tesseract.js`, which the shared
   `node_modules` lacks (a dependency in `web/package.json` not installed in the main checkout); vitest ran through a scratch config
   without the OCR plugin for the same reason.
 - Not done: nothing published or checked in a browser; the game spots need W11 (the stored games) and this branch
