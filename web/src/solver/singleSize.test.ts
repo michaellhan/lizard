@@ -100,10 +100,13 @@ describe("a single-size answer's provenance", () => {
     };
     const r: AdvisorResponse = { street: "flop", precomputed: { spot: "ss_mw_btn_sb_bb" }, solver: { iterations: 400 }, single_size: blk };
     const p = provenanceOf(r, ctx);
-    expect(p.singleSize).toMatch(new RegExp(`^${MW_SINGLE_SIZE_TREE}: one bet size a node, the flop's 33% one fixed size for every flop \\(measured best on a sample`));
+    expect(p.singleSize).toMatch(new RegExp(`^${MW_SINGLE_SIZE_TREE}: one bet size a node, the flop's 33% \\(one fixed size for every flop, as the automatic sizing is heads-up only; on a 24-pair sample`));
     expect(p.singleSize).toContain("turn and river bets 50%");
     expect(p.singleSize).toContain("400 iterations to a mean best-response gain of 0.08% of the pot");
     expect(p.singleSize).toContain("no Nash guarantee");
+    // (the fixed size tied 25 and 50% within noise on the sample, 25% a little ahead: never called the sample's best)
+    expect(p.singleSize).toContain("25, 33 and 50% gave up the same within noise (25% least)");
+    expect(p.singleSize).not.toContain("measured best");
     expect(p.singleSize).toMatch(/read from the 3-way single-size set$/);
     expect(describeProvenance(p)).toContain("3-way single-size tree");
     const live = singleSizeWords({ stored: false, players: 3, sizes: { flop: [33], turn: [50], river: [50] }, tree: { flop_pct: 33, later_pct: 50 }, library: true });

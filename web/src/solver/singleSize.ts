@@ -34,7 +34,7 @@ export interface SingleSizeBlock {
   /** 3: an answer of the 3-way set's lines (none: heads-up) */
   players?: number;
   /** the 3-way tree: its flop and later sizes (% of the pot), and how the flop's was chosen ("fixed": one size for every
-   * flop, measured best on a sample) */
+   * flop, tied within noise with 25 and 50% on a sample: ACCURACY 38.1) */
   tree?: { words?: string; flop_pct?: number; later_pct?: number; choice?: string };
   /** the stored entry this answer stands on: its iterations and mean best-response gain, % of the pot */
   conv?: { iters?: number; expl?: number };
@@ -67,6 +67,11 @@ const pctWords = (x: unknown) =>
 /** The 3-way set's tree in words, as the provenance line says it. */
 export const MW_SINGLE_SIZE_TREE = "3-way single-size tree";
 
+/** How the 3-way set's fixed flop size was chosen, as ACCURACY 38.1 measured it (engine/single_size.py MW_CHOICE): a tie
+ * within noise with 25 and 50%, 25% a little ahead, not the sample's best. */
+export const MW_CHOICE =
+  "one fixed size for every flop, as the automatic sizing is heads-up only; on a 24-pair sample 25, 33 and 50% gave up the same within noise (25% least)";
+
 /** A 3-way single-size answer's provenance (engine/single_size.py mw_words says the same in a note). */
 function mwWords(s: Partial<SingleSizeBlock>, street?: string): string {
   const flopPct = pctWords(s.tree?.flop_pct) ?? pctWords(s.flop?.pct) ?? pctWords(s.sizes?.flop?.[0]);
@@ -76,7 +81,7 @@ function mwWords(s: Partial<SingleSizeBlock>, street?: string): string {
     c && typeof c.iters === "number" && typeof c.expl === "number"
       ? `, the stored solve ${c.iters} iterations to a mean best-response gain of ${Math.round(c.expl * 100) / 100}% of the pot`
       : "";
-  const tree = `${MW_SINGLE_SIZE_TREE}: one bet size a node, the flop's${flopPct ? ` ${flopPct}` : ""} one fixed size for every flop (measured best on a sample against a wider menu: the automatic sizing is heads-up only), turn and river bets ${later}; three-player CFR${conv}, which has no Nash guarantee (the gain is not a distance from equilibrium)`;
+  const tree = `${MW_SINGLE_SIZE_TREE}: one bet size a node, the flop's${flopPct ? ` ${flopPct}` : ""} (${MW_CHOICE}), turn and river bets ${later}; three-player CFR${conv}, which has no Nash guarantee (the gain is not a distance from equilibrium)`;
   if (s.stored) return `${tree}; read from the 3-way single-size set`;
   if (s.flop?.spot) return `${tree}; the flop read from the 3-way single-size set, the ${street ?? "street"} solved live on the same tree`;
   return `${tree}; solved live: this flop isn't in the 3-way single-size set`;

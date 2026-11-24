@@ -122,7 +122,7 @@ describe("the flop source", () => {
 
   it("says a 3-way line's flop is on the 3-way single-size tree, with its own flops, and that it has no Nash guarantee", () => {
     const { rerender } = render(<SingleSizeNote hand={hand(MW_LINE, "Ac7d2h")} idx={MW3} />);
-    expect(screen.getByText(/this flop is held on the 3-way single-size tree, its one flop bet size 33% \(one fixed size for every flop, measured best on a sample\); turn and river bets 50%/)).toBeInTheDocument();
+    expect(screen.getByText(/this flop is held on the 3-way single-size tree, its one flop bet size 33% \(one fixed size for every flop, as the automatic sizing is heads-up only; on a 24-pair sample 25, 33 and 50% gave up the same within noise \(25% least\)\); turn and river bets 50%/)).toBeInTheDocument();
     expect(screen.getByText(/median 400 iterations, mean best-response gain 0.08% of the pot\), which has no Nash guarantee/)).toBeInTheDocument();
     expect(screen.getByText(/Covers 3 representative flops on every 3-way line/)).toBeInTheDocument();
     expect(screen.getByText("Qs9h4c Ac7d2h 5c4d2h")).toBeInTheDocument();

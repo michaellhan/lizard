@@ -9,6 +9,7 @@ import { rowKeys } from "@/components/rowKeys";
 import { LIBRARY_SOURCES } from "@/config";
 import { coveredFlops, gameSpots, gameWords, loadSingleSize, MW_LATER_PCT, sameGame, sizeWords, SS_FORCED, SS_GAME, ssHandGame, ssMatch, ssPlayers, type SsHand, type SsIndex } from "@/library/singleSize";
 import { useRuntime } from "@/solver/runtime";
+import { MW_CHOICE } from "@/solver/singleSize";
 
 export type FlopSourceId = "library" | "ss";
 
@@ -86,7 +87,7 @@ export function SingleSizeNote({ hand, idx }: { hand: SsHand; idx: SsIndex | nul
       : m.pct === null
         ? `${m.label}: this flop isn't one of its flops, so this node is asked from the library as usual.`
         : three
-          ? `${m.label}: this flop is held on the 3-way single-size tree, its one flop bet size ${sizeWords(m.pct, m.spot)} (one fixed size for every flop, measured best on a sample); turn and river bets ${MW_LATER_PCT}%.`
+          ? `${m.label}: this flop is held on the 3-way single-size tree, its one flop bet size ${sizeWords(m.pct, m.spot)} (${MW_CHOICE}); turn and river bets ${MW_LATER_PCT}%.`
           : `${m.label}: this flop is held, its one flop bet size ${sizeWords(m.pct, m.spot)} chosen by the solver's automatic sizing; turn and river bets 75%.`;
   return (
     <div role="group" aria-label="Single-size library" className="space-y-1 text-xs text-muted">

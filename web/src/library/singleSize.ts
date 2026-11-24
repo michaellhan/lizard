@@ -8,8 +8,8 @@
 // stored tree exactly: the worker then reads the stored entry as it reads any library flop. Pure but for loadSingleSize.
 //
 // The 3-way set (W15, build_single_size.py --set mw3) is rows of the same index with `players: 3`: 3-way 6-max 100bb
-// lines, every flop on one fixed flop size (measured best on a sample: the automatic sizing is heads-up only) and 50% on
-// the turn and river (the 3-way model's later-street size), solved by three-player CFR, which has no Nash guarantee.
+// lines, every flop on one fixed flop size (33%, tied within noise with 25 and 50% on a sample: the automatic sizing is
+// heads-up only) and 50% on the turn and river (the 3-way model's later-street size), solved by three-player CFR, which has no Nash guarantee.
 import type { AdvisorAction, AdvisorState } from "@/solver/protocol";
 import { flopName, lineToken } from "./flops";
 

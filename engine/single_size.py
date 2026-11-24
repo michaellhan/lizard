@@ -23,7 +23,7 @@ game and the ranges' source, and a note says the ranges aren't the charts'. Any 
 stacks or ranges of the hand's own: no game spot, the charts play as before.
 
 The 3-way set (build_single_size.py --set mw3, W15): rows with `players: 3` hold 3-way pots of 6-max 100bb on one bet size
-a node (one fixed flop size, measured on a sample: the engine's automatic sizing is heads-up only), solved by the
+a node (one fixed flop size, 33%, tied within noise with 25 and 50% on a sample: the engine's automatic sizing is heads-up only), solved by the
 3-player CFR (gto/multiway_solver.py) in the 3-way library's entry format (the flop's first decisions, every hand). A
 single-size request whose hand plays one of those lines (or an alias) at 6-max 100bb with no setup of its own (mw_spot)
 reads them through SingleSizeMWLibrary in place of the 3-way library: the request's custom sizes are taken off (upstream
@@ -170,8 +170,10 @@ class SingleSizeMWLibrary(ML.MWLibrary):
         if got is not None:
             spot = self.spot([fl.range_fp(r) for r in ranges], pot, stack) or {}
             name = cards_str(fl.canonical(board)[0])
-            self.read.append({"spot": spot.get("id"), "flop": name, "pct": (spot.get("sizes") or {}).get(name),
-                              "iters": int(got.iters), "expl": round(float(got.exploitability()), 4)})
+            rec = {"spot": spot.get("id"), "flop": name, "pct": (spot.get("sizes") or {}).get(name),
+                   "iters": int(got.iters), "expl": round(float(got.exploitability()), 4)}
+            self.read.append(rec)
+            got.ss_read = rec   # (a later street that walks this solve from the hand's _mw_lines names it: _cached_read)
         return got
 
 
@@ -197,6 +199,33 @@ def mw_spot(idx: dict, positions, stack: float, state: dict, preflop) -> Optiona
         if s.get("line") == line or any(isinstance(x, dict) and x.get("line") == line for x in s.get("aliases") or []):
             return s
     return None
+
+
+def _cached_read(lines: dict, board, hole, streets: dict, sid: str) -> Optional[dict]:
+    """The 3-way set's entry this hand's flop was read from earlier in the hand, kept in the hand's 3-way lines of the
+    one-size tree (Advisor._mw_lines, which upstream's _mw_walk reads a later street's flop from instead of asking the
+    library again): its read record (SingleSizeMWLibrary.solution's), or None."""
+    if not board or len(board) < 3:
+        return None
+    at = A._mw_line(list(board[:3]), None, list(hole or ()), {}, streets, "flop", 0)
+    for key, v in reversed(list(lines.items())):
+        rec = getattr(v[0], "ss_read", None) if isinstance(v, tuple) and v else None
+        if rec and rec.get("spot") == sid and key[0] == at[0] and key[2] == at[2] and key[4] == at[4] and not key[5]:
+            return rec
+    return None
+
+
+def _drop_gone(dicts, before: dict, cache: dict) -> None:
+    """Upstream's cache trim (Advisor._keep) drops an evicted solve from the _mw_lines in place at the time only: the
+    hand's lines of the tree a request didn't play (upstream's, or the 3-way set's) drop the solves evicted during it
+    (`before`: the solve cache's solves by id as it began, held so their ids stay theirs)."""
+    kept = {id(v) for v in cache.values()}
+    gone = {i for i in before if i not in kept}
+    if not gone:
+        return
+    for d in dicts:
+        for k in [k for k, v in d.items() if isinstance(v, tuple) and v and id(v[0]) in gone]:
+            del d[k]
 
 
 def _one_size_mw(config: dict, frac: float) -> dict:
@@ -225,6 +254,10 @@ def _later_sizes(self, sizes: dict) -> None:
 
 
 LIB_NOTE = "three-player CFR from the flop's start, bets of 33 and 75% pot"
+# How the fixed flop size was chosen, as ACCURACY 38.1 measured it (web/src/solver/singleSize.ts MW_CHOICE says the same):
+# not the best of the sample, a tie within noise with 25 and 50%, 25% a little ahead
+MW_CHOICE = ("one fixed size for every flop, as the automatic sizing is heads-up only; on a 24-pair sample 25, 33 and 50% "
+             "gave up the same within noise (25% least)")
 
 
 def mw_words(pct, conv: Optional[dict] = None) -> str:
@@ -235,8 +268,8 @@ def mw_words(pct, conv: Optional[dict] = None) -> str:
     if c.get("iters") is not None and c.get("expl") is not None:
         tail = (f"; solved by three-player CFR to a mean best-response gain of {float(c['expl']):.2f}% of the pot after "
                 f"{int(c['iters'])} iterations")
-    return (f"{MW_WORDS}: one bet size a node, the flop's {float(pct):g}% (one fixed size for every flop, measured best on "
-            f"a sample: the automatic sizing is heads-up only), turn and river bets {MW_LATER * 100:g}%, one raise size, "
+    return (f"{MW_WORDS}: one bet size a node, the flop's {float(pct):g}% ({MW_CHOICE}), turn and river bets "
+            f"{MW_LATER * 100:g}%, one raise size, "
             f"all-in at 1.5 pots or less{tail}; three-player CFR has no Nash guarantee, so that gain is not a distance "
             f"from equilibrium")
 
@@ -352,8 +385,17 @@ def _wrapping(upstream):
             asked = parse(state)
         except ValueError as e:
             return {"error": str(e)}
+        # the hand's 3-way lines are kept per tree: upstream's (the 3-way library's and its live solves') in
+        # _mw_lines, the 3-way set's per flop size in _ss_mw_lines, swapped in for its requests below, so a later street
+        # walks the flop solve of the tree it plays (switching Library and Single size mid-hand never crosses them)
+        sets = self.__dict__.get("_ss_mw_lines") or {}
+        before = {id(v): v for v in self._mw_cache.values()} if sets else None
         if not asked:
-            return upstream(self, state, *args, **kwargs)
+            try:
+                return upstream(self, state, *args, **kwargs)
+            finally:
+                if before is not None:
+                    _drop_gone(list(sets.values()), before, self._mw_cache)
         ss = library_for(self.library)
         mws = mw_library_for(self.library)
         saved = self.library, self.mw_library, A.preflop_ranges, self.mw_street_config, self.cfg, self.root_sizes, \
@@ -389,11 +431,21 @@ def _wrapping(upstream):
             ss.read = []
         if mws is not None:
             mws.read = []
+        main = self._mw_lines
+        lines = self.__dict__.setdefault("_ss_mw_lines", {}).setdefault(("mw3", mpct), {}) if mspot is not None \
+            else None
+        if lines is not None:
+            before = before if before is not None else {id(v): v for v in self._mw_cache.values()}
+            self._mw_lines = lines
         try:
             res = upstream(self, state, *args, **kwargs)
         finally:
             self.library, self.mw_library, A.preflop_ranges, self.mw_street_config, self.cfg, self.root_sizes, \
                 self.spr_sizes = saved
+            self._mw_lines = main
+            if before is not None:
+                _drop_gone([d for d in [main, *self._ss_mw_lines.values()] if d is not lines] if lines is not None
+                           else list(self._ss_mw_lines.values()), before, self._mw_cache)
         if isinstance(res, dict) and "error" not in res and "skipped" not in res:
             pre = res.get("precomputed") if isinstance(res.get("precomputed"), dict) else None
             spot = pre.get("spot") if pre else None
@@ -408,6 +460,9 @@ def _wrapping(upstream):
                                   "library": ss is not None and bool(ss.index().get("spots"))}
             if mspot is not None:
                 mread = mws.read[-1] if mws is not None and mws.read else None
+                if mread is None and lines is not None:
+                    # (a later street: upstream's walk read the flop's stored solve from the hand's lines, not the set)
+                    mread = _cached_read(lines, args[4], args[3], args[7], mspot["id"])
                 blk = res["single_size"]
                 blk["stored"] = bool(spot and str(spot) == mspot["id"])
                 blk["players"] = 3

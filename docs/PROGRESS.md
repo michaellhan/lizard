@@ -7077,12 +7077,13 @@ Workstream W11 of the second GAP_PLAN run (ACCURACY section 18.13).
   fingerprints, the tree's hash, the board, `players: 3`, iterations and gain in the header; rows go in the same
   `ss_index.json` with `players: 3` and `conv`.
 - Reading: `engine/single_size.py` (`SingleSizeMWLibrary`, `mw_spot`) reads a stored flop for a single-size request on
-  those lines and solves every other 3-way street of that request live on the same one-size tree (a flop the set
-  doesn't hold: live on the same tree, and the note says so). The answer's first note and its `single_size` block name
+  those lines and solves every other 3-way street of that request live on the same one-size tree (a single-size request
+  on a flop the set doesn't hold: live on the same tree, and the note says so; Study doesn't send one, see Web). The answer's first note and its `single_size` block name
   the "3-way single-size tree", the fixed size, the stored solve's iterations and gain, and `nash: false`.
 - Web: `web/src/library/singleSize.ts` (3-way rows, later streets 50%), Study's Single size source
   (`FlopSource.tsx`: offered on those lines, a note on the tree, the size choice, the convergence and the missing Nash
-  guarantee, the count of 3-way flops), provenance (`web/src/solver/singleSize.ts`: `MW_SINGLE_SIZE_TREE`, `mwWords`),
+  guarantee, the count of 3-way flops; on a flop the set doesn't hold it sends no single-size request, so the node is
+  asked from the 3-way library as usual, which holds every flop of these six lines), provenance (`web/src/solver/singleSize.ts`: `MW_SINGLE_SIZE_TREE`, `mwWords`),
   the Library page's caption and a line per 3-way row.
 - Publishing: `assemble.py --ss-mw3` stages the set after the heads-up and game sets, each entry checked by header
   (fingerprints, tree hash, board, players); with `LIZARD_R2_BASE` set, its host tier moves it to R2 first. 552 flops
@@ -7091,17 +7092,39 @@ Workstream W11 of the second GAP_PLAN run (ACCURACY section 18.13).
 - Proof: 3 flops x 6 spots, 18 entries, none failed, 0.049-0.096% of the pot, 9-11 s each, 435-450 MB peak (log
   `library-build/runs/ss-mw3/proof.log`). End to end through the native advisor at the worker's Fast config, all 6 lines
   and the 2 aliases read their stored entry on 5c4d2h.
-- Accuracy (ACCURACY 38.3, 12 pairs away from the size sample's flops): the stored answer gives up 0.10% of the pot in the settled multi-size game (flop bets 33 and 75%), the live one-size answer (Study's fallback on a flop the set doesn't hold) 0.13%, and the live multi-size answer 0.04%, so the one size costs about 0.06% of the pot and the live abstraction about 0.03 more; bet frequency 0.245 against 0.236. Log `library-build/runs/ss-mw3/accuracy.log`.
+- Accuracy (ACCURACY 38.3, 12 pairs away from the size sample's flops): the stored answer gives up 0.10% of the pot in the settled multi-size game (flop bets 33 and 75%), which is the price of one size a node (the same game, buckets and stopping rule with one flop size), up to that game's 0.1% stopping noise; the live one-size answer (a direct single-size request on a flop the set doesn't hold; Study asks the 3-way library there) 0.13%, about 0.03 more for the live abstraction; the live multi-size answer 0.04%, on a coarser game, so not a base to subtract the size's price from; bet frequency 0.245 against 0.236. Log `library-build/runs/ss-mw3/accuracy.log`.
 - Full build started 2026-11-24 10:49 through slot.sh, detached (2 workers, 8-hour deadline 18:49; frozen code
   `library-build/runs/ss-mw3/code-ef9a79fb565a`, log `library-build/runs/ss-mw3/build.log`, output
-  `library-build/sources/ss-mw3`; the 184 flops, then the 552): 3,294 entries left, 10-14 s each, so about 5.5-7 hours
-  and 9-10 CPU hours, about 17 MB. Status: `build_single_size.py status --set mw3`; it resumes where it stopped.
+  `library-build/sources/ss-mw3`; the 184 flops, then the 552), about 17 MB. Status: `build_single_size.py status --set
+  mw3`; it resumes where it stopped. Restarted 11:23 from the worktree (see review fixes), deadline kept.
 - Tests: `scripts/engine/test_single_size_mw.py` (9, new: index row, fingerprints against the worker's charts, the
   stored read at three decisions with its note, a flop not held solved live on the same tree, a turn standing on the
   stored flop, heads-up rows unchanged, aliases, a missing index), `test_single_size.py` (10),
   `test_single_size_games.py` (8), `test_assemble.py` (56, SingleSizeMW3Test's 5 new); typecheck and lint clean;
   vitest for the touched files (4 files, 35 tests) and their neighbours (5 files, 92 tests); the full vitest through
   slot.sh (`--maxWorkers=3`): 268 files passed, 3 skipped; 4,300 tests passed, 26 skipped.
+- Review fixes (same day):
+  - A turn after Study's flop answer on a stored 3-way flop named no stored flop ("this flop isn't in the 3-way
+    single-size set"): upstream's walk read the flop's solve from the hand's 3-way lines (`Advisor._mw_lines`), not the
+    set, so the read record was empty, and `test_a_turn_stands_on_the_stored_flop` failed when run after the flop test.
+    The set's solves now carry their read record (`ss_read`, found by `_cached_read`), and the set's lines are kept per
+    flop size in `_ss_mw_lines`, swapped in for its requests, so a Library and a Single size request in the same hand
+    never walk each other's flop solve (evicted solves are dropped from the lines not in use: `_drop_gone`). Tests: the
+    turn asked first and after the flop's node, and the lines kept apart (10 tests, all OK; the new turn test fails on
+    the old code).
+  - The fixed size's text: "measured best on a sample" was wrong (25% gave up least, 33% tied it within noise). The
+    engine note, provenance and Study's note now say "on a 24-pair sample 25, 33 and 50% gave up the same within noise
+    (25% least)" (`MW_CHOICE` in `engine/single_size.py` and `web/src/solver/singleSize.ts`).
+  - Docs: Study's fallback on a flop the set doesn't hold is the 3-way library's stored multi-size answer, not the live
+    one-size solve; the single size's price is the stored answer's 0.10% of the pot, not 0.06; the build's CPU is
+    about 13-16 hours, not 9-10 (its first 249 entries averaged 13.8 s, 8-30 s; the Q-high flops 17-26 s), and its
+    8-hour deadline on 2 workers caps it at 16 worker-hours, so the last of the 552 flops may be left for a later run.
+  - The build held its slot under `library-build/runs/ss-mw3`, so slot.sh's one-slot-a-worker check didn't see it as
+    W15's. Stopped cleanly at 11:20 (239 solved, 0 failures; 3,055 left) and restarted at 11:23 from the worktree's root
+    with the same deadline (18:49); the frozen code differs from the first copy in comments only.
+  - Gates: `test_single_size_mw.py` 10 OK, `test_single_size.py` 10 OK, `test_single_size_games.py` 8 OK (each alone
+    through slot.sh); typecheck and lint clean; the touched vitest files and Study's (33 files, 529 tests); the full vitest
+    through slot.sh (`--maxWorkers=3`): 268 files passed, 3 skipped; 4,300 tests passed, 26 skipped.
 - Not done: nothing published or checked in a browser. After the build: `build_single_size.py index --set mw3`, merge
   this branch, assemble with `--ss-mw3` and `LIZARD_R2_BASE` set, publish, and check a 3-way line in Study.
   FEATURE_MATRIX: Single-size library and Multiway rows updated; grades unchanged (PARTIAL, WORKING).

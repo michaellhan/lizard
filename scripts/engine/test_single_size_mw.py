@@ -127,6 +127,8 @@ class SingleSizeMW(unittest.TestCase):
             self.assertTrue(ss_note.startswith("single size: 3-way single-size tree: one bet size a node"), ss_note)
             self.assertIn("after 40 iterations", ss_note)
             self.assertIn("no Nash guarantee", ss_note)
+            self.assertIn("25, 33 and 50% gave up the same within noise (25% least)", ss_note)
+            self.assertNotIn("measured best", ss_note)
 
     def test_the_advisor_is_put_back(self):
         lib, mw, cfg, msc = self.adv.library, self.adv.mw_library, self.adv.cfg, self.adv.mw_street_config
@@ -149,17 +151,38 @@ class SingleSizeMW(unittest.TestCase):
         self.assertIn("solved live on the same tree", r["notes"][0])
         self.assertNotIn("iterations", r["notes"][0])
 
-    def test_a_turn_stands_on_the_stored_flop(self):
-        r = self.ask(board=FLOP + "Kd", flop=acts(("SB", "check", 0), ("BB", "check", 0), ("BTN", "check", 0)))
+    def check_turn(self, r):
         self.assertNotIn("error", r)
         self.assertEqual(r["street"], "turn")
         info = r["single_size"]
         self.assertFalse(info["stored"])
         self.assertEqual(info["players"], 3)
-        self.assertEqual(info["flop"]["spot"], SID)
+        self.assertEqual(info["flop"], {"spot": SID, "flop": FLOP, "pct": bss.MW3_FLOP_PCT})
         self.assertEqual(info["conv"]["iters"], 40)
         self.assertLessEqual(len([a for a in names(r) if a != "check"]), 1)   # (one turn size, 50%)
         self.assertTrue(r["notes"][0].startswith("single size: 3-way single-size tree"), r["notes"])
+        self.assertNotIn("isn't in the 3-way single-size set", r["notes"][0])
+
+    def test_a_turn_stands_on_the_stored_flop(self):
+        xxx = acts(("SB", "check", 0), ("BB", "check", 0), ("BTN", "check", 0))
+        # the turn asked first in the hand: upstream's walk asks the set for the flop
+        self.adv.__dict__.pop("_ss_mw_lines", None)
+        self.check_turn(self.ask(board=FLOP + "Kd", flop=xxx))
+        # Study's flow, the flop's node and then the turn: the walk reads the flop's solve kept from the flop's answer
+        # (the hand's 3-way lines), never asking the set again, and the answer still names the stored entry
+        self.adv.__dict__.pop("_ss_mw_lines", None)
+        self.assertTrue(self.ask(flop=acts(("SB", "check", 0), ("BB", "check", 0)))["single_size"]["stored"])
+        self.check_turn(self.ask(board=FLOP + "Kd", flop=xxx))
+
+    def test_the_set_s_lines_are_kept_apart_from_the_library_s(self):
+        from gto import mw_library as ml
+        self.adv.__dict__.pop("_ss_mw_lines", None)
+        self.ask()
+        held = lambda d: [v for v in d.values() if isinstance(v[0], ml.LibraryMWSolution)]
+        self.assertFalse([v for v in held(self.adv._mw_lines) if getattr(v[0], "ss_read", None)])
+        mine = held(self.adv._ss_mw_lines[("mw3", float(bss.MW3_FLOP_PCT))])
+        self.assertTrue(mine)
+        self.assertEqual(mine[-1][0].ss_read["spot"], SID)
 
     def test_the_heads_up_rows_are_read_as_before(self):
         pct = self.spot("ss_4bp_btn_bb")["sizes"][FLOP]

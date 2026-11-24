@@ -4188,8 +4188,10 @@ set's main approximation; per-flop sizing for 3-way pots is not implemented.
 
 The 3-flop proof (`run --set mw3 --limit 18`, log `library-build/runs/ss-mw3/proof.log`): 18 entries, none failed, mean
 gain 0.049-0.096% of the pot after 300-400 iterations, 9-11 s an entry, 435-450 MB peak, 4.2-7.2 KB an entry. The full
-build (2 workers, started 10:49) ran at the same rate: 10-14 s an entry, so the 552 flops' 3,312 entries take about 9-10
-CPU hours and about 17 MB.
+build (2 workers, started 10:49) runs slower than the proof: its first 249 entries averaged 13.8 s (8-30 s; the Q-high
+flops 17-26 s). At 14-18 s an entry the 552 flops' 3,312 entries take about 13-16 CPU hours (not the 9-10 first written
+here) and about 17 MB. Its 8-hour deadline on 2 workers caps it at 16 worker-hours, so the last of the 552 flops may be
+left for a later `start`.
 
 ### 38.3 The stored answer, the live one-size answer and the live multi-size answer against the settled multi-size game
 
@@ -4199,10 +4201,11 @@ flop's start:
 
 - ref: the multi-size answer, settled: the 3-way library's tree (flop bets 33 and 75%) by the set's rule.
 - stored: the set's entry, solved as the build solves it.
-- live: what Study plays on a flop the set doesn't hold, the advisor's Fast 3-way flop game (12 hand buckets, every
-  third river) with the one size, 200 iterations (what the browser's Fast reaches in its budget).
-- live_ms: what Study plays without the single-size source, the same Fast game on its own flop bets (33 and 75%), 200
-  iterations, as a baseline.
+- live: the engine's answer to a single-size request on a flop the set doesn't hold, the advisor's Fast 3-way flop
+  game (12 hand buckets, every third river) with the one size, 200 iterations (what the browser's Fast reaches in its
+  budget). Study doesn't send that request (see below).
+- live_ms: the same Fast game on the library's own flop bets (33 and 75%), 200 iterations: the live multi-size solve, as
+  a baseline.
 
 Each mix is priced in ref's EVs as in 38.1.
 
@@ -4235,15 +4238,20 @@ stored as the mean total-variation distance of the mixes):
 
 What this says:
 
-- The stored answer gives up 0.10% of the pot on average in the multi-size game (33 and 75%), against 0.04% for the
-  live multi-size answer, which has ref's own menu on a coarser game (paired difference 0.058 ± 0.023): most of the
-  stored answer's loss is the missing 75% bet, the price of one size a node. It is larger on QcTd6h (0.03-0.26) than on
-  QcJdTd (0.00-0.09; the one slightly negative pair is within ref's own 0.1% stopping rule). The bet frequency barely
+- The stored answer gives up 0.10% of the pot on average (median 0.08) in the multi-size game (33 and 75%). stored is
+  ref's game with one flop size, on the same buckets and to the same stopping rule, so that 0.10% is the price of one
+  size a node, up to ref's own 0.1% stopping noise. (live_ms gives up 0.04%, but it is a different abstraction, Fast's
+  12 buckets and 200 iterations, so the 0.058 ± 0.023 difference between the two mixes Fast's error into the size's
+  price and is not that price.) It is larger on QcTd6h (0.03-0.26) than on QcJdTd (0.00-0.09; the one slightly negative
+  pair is within ref's own 0.1% stopping rule). The bet frequency barely
   moves (0.245 against ref's 0.236: the one size stands in for both of ref's).
-- The live one-size answer Study plays on a flop the set doesn't hold gives up 0.032 ± 0.006% of the pot more than the
-  stored one (paired over the 12), the cost of the live abstraction (12 buckets, every third river, 200 iterations);
-  its mixes are 0.084 (mean total variation) from the stored ones and its values 0.25% of the pot from them. So a
-  stored flop is worth reading, and the live fallback on the same tree is close behind.
+- The live one-size answer gives up 0.032 ± 0.006% of the pot more than the stored one (paired over the 12), the cost
+  of the live abstraction (12 buckets, every third river, 200 iterations); its mixes are 0.084 (mean total variation)
+  from the stored ones and its values 0.25% of the pot from them. Study never plays it: on a flop the set doesn't hold,
+  its Single size source sends no single-size request (`ssRequest` has no size for that flop), so the node is asked as
+  usual, and for these six lines the 3-way library holds every flop (1,755 each), so Study shows the library's stored
+  multi-size answer (ref's game, 33 and 75%; mw_co_sb_bb's as gtosolver built it, section 35). The live one-size answer
+  is only what a direct single-size request on such a flop gets (the worker's API, `engine/single_size.py`).
 - This measures the single-size tree against the multi-size game with the library's two sizes; 38.1 measures it
   against a 25-200% menu (0.30% of the pot). Neither is against an equilibrium: no three-player answer here has a Nash
   guarantee, and ref is itself a CFR answer to 0.1% gain.
@@ -4256,3 +4264,11 @@ and the 2 alias lines on 5c4d2h read its stored entry (`stored`, `players: 3`, t
 (`scripts/engine/test_single_size_mw.py`) check the read at three decisions with its note (the "3-way single-size
 tree", the size, the stored solve's iterations, "no Nash guarantee"), that a flop the set doesn't hold is solved live on
 the same tree and says so, that a turn after the stored flop stands on it, and that the heads-up rows read as before.
+
+A review fix the same day: a turn after Study's flop answer named no stored flop. Upstream's walk reads a later street's
+flop from the hand's 3-way lines (`Advisor._mw_lines`), where the flop's answer kept the stored solve, so the set wasn't
+asked again and the answer said "this flop isn't in the 3-way single-size set" on a flop it holds (the turn test failed
+when run after the flop's). The set's solves now carry their read record and the answer names it from there
+(`_cached_read`), and the 3-way set's lines are kept apart from the library's (`_ss_mw_lines`, one per flop size, swapped
+in for the set's requests), so switching Library and Single size mid-hand never walks a turn through the other tree's
+flop. The engine tests check the turn both ways (asked first, and after the flop's node) and that the lines stay apart.

@@ -252,11 +252,16 @@ them are withheld from serving (ACCURACY section 35), and six lines keep the set
   setup of its own on one of these lines (or an alias) reads the stored entry through the advisor's 3-way library path
   (only exact flops; no stand-ins or borrowing). Every 3-way solve of that request plays the same one-size tree
   (`mw_street_config`), so a line behind a bet, a later street and a flop the set lacks are solved live on it; a street
-  that goes heads-up bets the turn's and river's 50%. The answer's `single_size` carries `players: 3`, the tree (flop and
+  that goes heads-up bets the turn's and river's 50%. A later street names the stored flop it stands on whether the walk
+  asked the set or reused the flop's solve kept from the hand's flop answer (`_cached_read`); the set's 3-way lines are
+  kept per flop size apart from the library's (`_ss_mw_lines`), so a hand switched between Library and Single size never
+  walks the other tree's flop. The answer's `single_size` carries `players: 3`, the tree (flop and
   later sizes, `choice: "fixed"`), the stored entry's iterations and gain, and `nash: false`; the first note names the
   "3-way single-size tree".
-- **Study:** the Single size flop source on those lines asks the flop's size and 50% turn and river (`ssRequest`), its note
-  says the flop is on the 3-way single-size tree at one fixed size, the convergence, that three-player CFR has no Nash
+- **Study:** the Single size flop source on those lines asks the flop's size and 50% turn and river (`ssRequest`); on a
+  flop the set doesn't hold it sends no single-size request, so the node is asked from the 3-way library as usual (which
+  holds every flop of these six lines, on 33 and 75% flop bets). Its note says the flop is on the 3-way single-size tree
+  at one fixed size (tied within noise with 25 and 50% on the sample, 25% least), the convergence, that three-player CFR has no Nash
   guarantee, and lists the 3-way flops; provenance says the same (`web/src/solver/singleSize.ts` `mwWords`). The Library
   page lists the 3-way rows with their convergence and their own covered flops.
 - **Publishing:** `assemble.py --ss-mw3` (default the source above) adds the rows last into `ss_index.json`, on their own
@@ -267,8 +272,9 @@ them are withheld from serving (ACCURACY section 35), and six lines keep the set
   (logged) until the R2 base is set. A spot kept from the previous release shrinks rather than pass the cap, as the
   games' do.
 - **Accuracy** (ACCURACY section 38.3, `scripts/library/ss_mw3_accuracy.py`, 12 pairs on flops the size wasn't chosen
-  on): priced in the settled multi-size game (flop bets 33 and 75%), the stored answer gives up 0.10% of the pot, the
-  live one-size answer Study plays on a flop the set lacks 0.13%, and the live multi-size answer 0.04%.
+  on): priced in the settled multi-size game (flop bets 33 and 75%), the stored answer gives up 0.10% of the pot (the one
+  size's price: the same game with one flop size), the live one-size answer 0.13% (a direct single-size request on a
+  flop the set lacks; Study shows the 3-way library there), and the live multi-size answer 0.04% (a coarser game).
 - **Not covered:** the other two 3-way lines, 3bet 3-way pots, other stacks and table sizes, 4-way pots, a flop size per
   flop (the automatic sizing is heads-up only).
 
