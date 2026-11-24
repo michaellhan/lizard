@@ -242,6 +242,9 @@ def copy_spot(src_root: Path, stage: Path, spot: dict, link: bool, log: list[str
         data = place(p, ddir / name, link)
         if name == "report.json" and spot.get("report") and sha(data, 10) != spot["report"]:
             log.append(f"{sid}: report.json does not match the index (an index rewrite in progress?)")
+            (ddir / name).unlink()   # (nothing of a spot that isn't staged may stay in the stage: the final check stops)
+            if ddir.is_dir() and not any(ddir.iterdir()):
+                ddir.rmdir()
             return None
     want_turns = turns_set(spot)
     flops: dict[str, str] = {}

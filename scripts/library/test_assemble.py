@@ -937,6 +937,16 @@ class SingleSizeTest(unittest.TestCase):
         self.assertEqual(summary["singleSize"]["target"], 552)
         self.assertEqual(summary["singleSize"]["flops"], ["8c7c6c", "Kc7d2h"])
 
+    def test_a_report_rewritten_mid_build_leaves_nothing_of_its_spot_in_the_stage(self):
+        # (the build rewrote report.json after writing ss-index.json: the spot is left out, and no file of it may stay
+        # in the stage, or the final check stops the publish with "unexpected file in the stage")
+        (self.ss / "ss_srp_3" / "report.json").write_bytes(b'{"flops": [], "rewritten": true}')
+        r = self.stage()
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("ss_srp_3: report.json does not match the index", r.stdout)
+        self.assertNotIn("ss_srp_3", [s["id"] for s in self.ss_index()["spots"]])
+        self.assertFalse((self.out / "ss_srp_3").exists())
+
     def test_no_build_means_no_ss_index(self):
         r = run("--out", self.out, "--base", self.base, "--hu", self.hu)
         self.assertEqual(r.returncode, 0, r.stderr)
