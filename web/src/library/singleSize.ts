@@ -6,11 +6,17 @@
 // A spot's flops are on different trees (a 25% flop, a 75% one), so Study asks a single-size node with that flop's own
 // size as the request's flop size, and 75% on the turn and river (the library model's later-street size), which is the
 // stored tree exactly: the worker then reads the stored entry as it reads any library flop. Pure but for loadSingleSize.
+//
+// The 3-way set (W15, build_single_size.py --set mw3) is rows of the same index with `players: 3`: 3-way 6-max 100bb
+// lines, every flop on one fixed flop size (33%, tied within noise with 25 and 50% on a sample: the automatic sizing is
+// heads-up only) and 50% on the turn and river (the 3-way model's later-street size), solved by three-player CFR, which has no Nash guarantee.
 import type { AdvisorAction, AdvisorState } from "@/solver/protocol";
 import { flopName, lineToken } from "./flops";
 
 /** The turn's and river's one bet size in every single-size tree (flop_library.library_config's later_sizes). */
 export const LATER_PCT = 75;
+/** The turn's and river's one bet size in the 3-way set's tree (gto/mw_library.library_config's turn and river bets). */
+export const MW_LATER_PCT = 50;
 /** The game the single-size library holds: 6-max, 100bb (no ante or straddle, and the games of SS_FORCED). */
 export const SS_GAME = { players: 6, stack: 100 } as const;
 
@@ -54,7 +60,15 @@ export interface SsSpot {
   game?: SsGame;
   /** that game's stored preflop solve, whose ranges the spot was built on (engine/pf_solve.py's key, its file's sha1) */
   pf?: { key?: string; sha1?: string; model?: string; words?: string };
+  /** 3 for a row of the 3-way set (none: heads-up) */
+  players?: number;
+  /** the 3-way set's convergence: its entries' median iterations and mean (and worst) best-response gain, % of the pot,
+   * and the target it stopped at */
+  conv?: { iters?: number; expl?: number; max_expl?: number; target?: number };
 }
+
+/** A spot's player count: 3 for the 3-way set's rows, else 2. */
+export const ssPlayers = (s: Pick<SsSpot, "players">): 2 | 3 => (s.players === 3 ? 3 : 2);
 
 export interface SsIndex {
   format: number;
@@ -125,27 +139,31 @@ export function gameWords(
   );
 }
 
-/** The flops the single-size library covers on every spot of a game, in the build's order: the 100bb spots' (no ante or
- * straddle) from the index's list, else the flops every one of the game's spots holds, in its first spot's order. */
+/** The flops the single-size library covers on every spot of a game, in the build's order: the 100bb heads-up spots' (no
+ * ante or straddle) from the index's list, else the flops every one of the game's spots holds (`players`: of the 3-way
+ * set's, or the heads-up ones), in its first spot's order. */
 export function coveredFlops(
   idx: SsIndex,
   game: { ante: number; straddle: boolean } = { ante: 0, straddle: false },
+  players: 2 | 3 = 2,
 ): string[] {
   const plain = !game.ante && !game.straddle;
-  if (plain && idx.flops?.length) return idx.flops;
-  const all = idx.spots
-    .filter((s) => sameGame(s.game, game))
-    .map((s) => Object.keys(s.flops));
+  if (plain && players === 2 && idx.flops?.length) return idx.flops;
+  const all = gameSpots(idx, game, players).map((s) => Object.keys(s.flops));
   const first = all[0] ?? [];
   const sets = all.map((x) => new Set(x));
   return first.filter((f) => sets.every((x) => x.has(f)));
 }
 
-/** The spots of a game (none given: the 100bb spots without an ante or straddle). */
-export const gameSpots = (
+/** The spots of a game (none given: the 100bb spots without an ante or straddle), the heads-up ones or (`players` 3) the
+ * 3-way set's. */
+export function gameSpots(
   idx: SsIndex,
   game: { ante: number; straddle: boolean } = { ante: 0, straddle: false },
-) => idx.spots.filter((s) => sameGame(s.game, game));
+  players: 2 | 3 = 2,
+): SsSpot[] {
+  return idx.spots.filter((s) => sameGame(s.game, game) && ssPlayers(s) === players);
+}
 
 /** What a hand needs for the single-size library to hold its spot: the game, and no setup of its own that changes the
  * tree or the ranges (sizes, rake, ranges, stacks, a tournament, bunching) beyond an ante or straddle game it holds. */
@@ -191,11 +209,13 @@ export function ssMatch(idx: SsIndex | null | undefined, h: SsHand): SsMatch | n
   return { ...hit, flop, pct };
 }
 
-/** The request's single-size part: `single_size` and the flop's own size (turn and river LATER_PCT), so the advisor's tree
- * is the stored one; null where the library doesn't hold the hand's flop (that node is asked as it would be without). */
+/** The request's single-size part: `single_size` and the flop's own size (turn and river LATER_PCT; the 3-way set's
+ * MW_LATER_PCT), so the advisor's tree is the stored one; null where the library doesn't hold the hand's flop (that node
+ * is asked as it would be without). */
 export function ssRequest(m: SsMatch | null): Pick<AdvisorState, "sizes"> & { single_size: true } | null {
   if (!m || m.pct === null) return null;
-  return { single_size: true, sizes: { flop: [m.pct], turn: [LATER_PCT], river: [LATER_PCT] } };
+  const later = ssPlayers(m.spot) === 3 ? MW_LATER_PCT : LATER_PCT;
+  return { single_size: true, sizes: { flop: [m.pct], turn: [later], river: [later] } };
 }
 
 /** A flop size in words: "33%", or "all-in (167%)" where one bet of it puts the stack in. */

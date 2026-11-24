@@ -66,6 +66,34 @@ describe("LibraryPage", () => {
     expect(screen.getAllByText("Ac7d2h KcQc8d")[0]).toBeInTheDocument();
   });
 
+  it("shows the 3-way single-size set's spots with their tree, convergence and own flops", async () => {
+    load.mockResolvedValue({
+      source: "lizard-library",
+      base: "x/",
+      available: true,
+      fetchedAt: 0,
+      spots: [],
+      singleSize: {
+        spots: [
+          { id: "ss_srp_btn_bb", label: "BTN vs BB single-raised pot, single size", line: "UTG:f,HJ:f,CO:f,BTN:r2.5,SB:f,BB:c", flops: 2 },
+          { id: "ss_mw_btn_sb_bb", label: "BTN open, SB and BB call, 3-way single size", line: "UTG:f,HJ:f,CO:f,BTN:r2.5,SB:c,BB:c", flops: 3, players: 3, target: 552, conv: { iters: 400, expl: 0.08 } },
+        ],
+        flops: ["Ac7d2h", "KcQc8d"],
+        target: 552,
+        games: [],
+        multiway: { flops: ["Qs9h4c", "Ac7d2h", "5c4d2h"], target: 552, pct: 33 },
+      },
+    } as LibraryCatalog);
+    open();
+    const cap = (await screen.findAllByText(/^Single-size library: 6-max 100bb, one bet size a node/))[0]!;
+    expect(cap.textContent).toContain("also 3-way lines on the 3-way single-size tree (one fixed flop size of 33% for every flop, turn and river 50%, three-player CFR: no Nash guarantee)");
+    const table = cap.closest("table")!;
+    expect(within(table).getByText("3 / 552")).toBeInTheDocument();
+    expect(within(table).getByText(/3-way single-size tree: median 400 iterations, mean best-response gain 0.08% of the pot; three-player CFR has no Nash guarantee/)).toBeInTheDocument();
+    expect(screen.getAllByText(/Flops covered on every 3-way spot \(3 of 552 planned\)/)[0]).toBeInTheDocument();
+    expect(screen.getAllByText(/Flops covered on every 100bb spot \(2 of 552 planned\)/)[0]).toBeInTheDocument();
+  });
+
   it("shows an ante game's spots with their ranges' source, its own flops, and Study links that carry the ante", async () => {
     load.mockResolvedValue({
       source: "lizard-library",

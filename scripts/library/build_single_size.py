@@ -44,6 +44,19 @@ then use (each spot's index row carries them, so the worker plays the same range
 
     build_single_size.py pf-ranges --set games [--pf-dir DIR]   # the stored preflop games' ranges -> pf-ranges.json
     build_single_size.py plan --set games                       # (and start, status, index... with --set games)
+
+The 3-way set (`--set mw3`, 2026-11-24, W15; docs/single-size-library.md "3-way single-size set"): six 3-way pots of
+6-max 100bb (MW3_SPOTS, lines of the 3-way library's spots, ranges from the charts as the worker serves them:
+engine/pf_charts.py installed) on one bet size a node, solved by the engine's 3-player CFR (gto/multiway_solver.py,
+mw_library.solve_all on the 3-way library's game with the flop's two sizes cut to one). The engine's automatic sizing is
+heads-up only (advisor: "bet sizes are optimized only heads-up"), so the flop size is one fixed size for every flop,
+MW3_FLOP_PCT, measured against the full menu on a sample (`size-sample`, docs/ACCURACY.md section 38.1: the smaller
+sizes tie on what they give up, and 33% moves values least of 25 and 33%). Entries are the 3-way library's format (mw_library.encode: the flop's first decisions, every hand), with
+`ss` in the header; the index rows carry `players: 3`, and engine/single_size.py reads them for a 3-way single-size
+request. Output library-build/sources/ss-mw3, run state runs/ss-mw3.
+
+    build_single_size.py size-sample --set mw3 [--flops 4]      # the fixed flop size's measurement
+    build_single_size.py plan --set mw3                         # (and one, start, status, index with --set mw3)
 """
 from __future__ import annotations
 
@@ -105,8 +118,9 @@ class Spot:
     base: str     # the library spot with the same line (several sizes)
     label: str
     line: str
-    tree: str     # "dealt" (the river dealt, a turn file; the old tree past --max-mb) or "old"
+    tree: str     # "dealt" (the river dealt, a turn file; the old tree past --max-mb), "old", or "mw" (a 3-way solve)
     game: str = ""   # a GAMES key: a game with an ante or a straddle, its ranges from the preflop solve ("": 100bb, the charts)
+    players: int = 2   # in the pot at the flop: 2, or 3 (the mw3 set: gto/multiway_solver.py, mw_library's entry format)
 
 
 @dataclass(frozen=True)
@@ -206,10 +220,51 @@ GAME_SPOTS = [
     _g("srp_co_utg", "straddle", "CO vs the straddle single-raised pot", "HJ:f,CO:r5,BTN:f,SB:f,BB:f,UTG:c"),
     _g("srp_sb_bb", "ante", "SB vs BB single-raised pot", "UTG:f,HJ:f,CO:f,BTN:f,SB:r3,BB:c"),
 ]
-# The two sets the script builds: their spots, output and run folders (under library-build/), flop phases (the games:
+
+
+def _m(base: str, label: str, line: str) -> Spot:
+    """A 3-way spot (the mw3 set): ss_<the 3-way library's id>, its line, a 3-player solve."""
+    return Spot("ss_" + base, base, label, line, "mw", players=3)
+
+
+# The 3-way set (`--set mw3`, W15): six of the 3-way library's eight lines (gto/mw_library.py SPOTS), the pots dealt most
+# (that file's shares: BTN opens and the blinds call 0.25% of hands, HJ opens and the CO or BTN and BB call 0.22% each,
+# UTG's open called by the BTN and BB 0.18%, the CO's 0.14%; of the flops seen 3-way UTG's open called by the HJ or CO
+# and BB 10.2%, the CO's by the blinds 8.3%), the big blind defending against two in each, most played first. The two
+# left out (HJ's and UTG's opens called by the blinds) are the least played and the CPU budget's margin.
+MW3_SPOTS = [
+    _m("mw_btn_sb_bb", "BTN open, SB and BB call", "UTG:f,HJ:f,CO:f,BTN:r2.5,SB:c,BB:c"),
+    _m("mw_hj_ip_bb", "HJ open, BTN and BB call", "UTG:f,HJ:r2.5,CO:f,BTN:c,SB:f,BB:c"),
+    _m("mw_utg_btn_bb", "UTG open, BTN and BB call", "UTG:r2.5,HJ:f,CO:f,BTN:c,SB:f,BB:c"),
+    _m("mw_co_btn_bb", "CO open, BTN and BB call", "UTG:f,HJ:f,CO:r2.5,BTN:c,SB:f,BB:c"),
+    _m("mw_utg_ip_bb", "UTG open, HJ and BB call", "UTG:r2.5,HJ:c,CO:f,BTN:f,SB:f,BB:c"),
+    _m("mw_co_sb_bb", "CO open, SB and BB call", "UTG:f,HJ:f,CO:r2.5,BTN:f,SB:c,BB:c"),
+]
+# The 3-way set's one flop bet size, the same on every flop (the engine's automatic sizing is heads-up only): measured
+# by `size-sample` (docs/ACCURACY.md section 38.1) on 24 (spot, flop) pairs, each candidate's one-size strategy priced by
+# a solve of the full menu (25-200%): 25, 33 and 50% gave up the same within noise (0.293, 0.300, 0.307% of the pot;
+# 25 less than 33 by 0.007 +- 0.021), 33% moved the players' values 0.22 +- 0.05% of the pot less than 25% and gave up
+# less than 50% at the median (0.18 against 0.30), so 33% (also the 3-way library's smaller flop size). Turn and river
+# bets are the 3-way library's 50% (advisor.MW_FLOP_BETS), raises its one size (the bet plus 75% of the pot after
+# calling, at most one a street), all-in at 1.5 pots behind or less.
+MW3_FLOP_PCT = 33.0
+MW3_LATER_PCT = 50.0
+MW3_CANDIDATES = [0.25, 0.33, 0.5, 0.75, 1.0]
+# The 3-way solve's stopping rule (the 3-way library's, solver/scripts/build_mw_library.py): at least 200 iterations, then
+# 100 at a time until the players' mean best-response gain is under 0.1% of the pot, at most 800. With three players that
+# gain is not a distance from equilibrium (three-player CFR has no Nash guarantee).
+MW3_OPTS = {"min_iters": 200, "max_iters": 800, "check": 100, "target": 0.1}
+# Lines whose three ranges, pot and stack are a spot's (the charts flat the same hands from those seats): read as it.
+MW3_ALIASES = {
+    "ss_mw_hj_ip_bb": [("HJ open, CO and BB call", "UTG:f,HJ:r2.5,CO:c,BTN:f,SB:f,BB:c")],
+    "ss_mw_utg_ip_bb": [("UTG open, CO and BB call", "UTG:r2.5,HJ:f,CO:c,BTN:f,SB:f,BB:c")],
+}
+
+# The sets the script builds: their spots, output and run folders (under library-build/), flop phases (the games:
 # the 184, the 552, then on toward every flop, in a spread order (flops()), until the run's deadline)
-SETS = {"classic": (SPOTS, "single-size", FLOP_PHASES), "games": (GAME_SPOTS, "ss-games", [184, 552, 1755])}
-BY_ID = {s.id: s for s in SPOTS + GAME_SPOTS}
+SETS = {"classic": (SPOTS, "single-size", FLOP_PHASES), "games": (GAME_SPOTS, "ss-games", [184, 552, 1755]),
+        "mw3": (MW3_SPOTS, "ss-mw3", FLOP_PHASES)}
+BY_ID = {s.id: s for s in SPOTS + GAME_SPOTS + MW3_SPOTS}
 # The other seven lines of the 45 play the same game as a spot above: the same two ranges, pot and stack (the charts
 # flat or 3bet the same hands from those seats), so the solve is that spot's with the seats renamed. They aren't solved
 # again: the index lists each under its spot's `aliases`, and Study reads the spot for them (as the advisor's library
@@ -245,8 +300,84 @@ _SETUPS: dict = {}
 
 def setup(s: Spot) -> dict:
     if s.id not in _SETUPS:
-        _SETUPS[s.id] = game_setup(s) if s.game else fl.spot_setup(s.line)
+        _SETUPS[s.id] = mw_setup(s.line) if s.players == 3 else game_setup(s) if s.game else fl.spot_setup(s.line)
     return _SETUPS[s.id]
+
+
+# ----------------------------------------------------------------------------- the 3-way set
+def worker_charts() -> None:
+    """The preflop charts as the worker serves them: engine/pf_charts.py's repairs (imported, it installs them). They
+    change the 3-way lines' ranges (docs/ACCURACY.md section 35), and a Study request's ranges must be the entry's to be
+    read (engine/single_size.py finds a 3-way spot by its three ranges' fingerprints)."""
+    if str(ROOT) not in sys.path:
+        sys.path.insert(0, str(ROOT))
+    from engine import pf_charts  # noqa: F401  (installs at import)
+
+
+def mw_setup(line: str) -> dict:
+    """A 3-way line's spot (mw_library.spot_setup at 6-max 100bb, with the worker's charts): {seats (postflop order),
+    ranges (three), pot, stack}."""
+    from gto import mw_library as ml
+    worker_charts()
+    return ml.spot_setup(line)
+
+
+def mw3_cfg(frac: float):
+    """The 3-way set's tree: the 3-way library's game (mw_library.library_config: 16 hand buckets on the later streets,
+    turn and river bets of 50%, one raise size, all-in at 1.5 pots or less) with one flop bet size."""
+    from gto import mw_library as ml
+    c = ml.library_config()
+    c.bet = dict(c.bet, flop=[float(frac)])
+    assert [c.bet["turn"], c.bet["river"]] == [MW3_LATER_PCT / 100] * 2, c.bet
+    return c
+
+
+def mw_solve(board, st: dict, cfg, opts: dict):
+    """A 3-way flop solve from the flop's start taking every hand (mw_library.solve_all), run by `opts` (MW3_OPTS's
+    shape); returns (solution, mean best-response gain % of the pot)."""
+    from gto import mw_library as ml
+    sol = ml.solve_all(board, st["ranges"], st["pot"], st["stack"], cfg=cfg)
+    sol.run(iters=opts["min_iters"])
+    expl = float(sol.br_gains().mean() / sol.root_pot() * 100)
+    while expl > opts["target"] and sol.iters < opts["max_iters"]:
+        sol.run(iters=min(opts["check"], opts["max_iters"] - sol.iters))
+        expl = float(sol.br_gains().mean() / sol.root_pot() * 100)
+    return sol, expl
+
+
+def solve_one_mw(out: Path, s: Spot, name: str, opts: dict) -> str:
+    """One 3-way entry: the fixed flop size's tree solved, written in the 3-way library's entry format."""
+    import resource
+    from gto import mw_library as ml
+    from gto.cards import cards as parse_cards
+    st = setup(s)
+    t0 = time.time()
+    frac = round(MW3_FLOP_PCT / 100, 3)
+    cfg = mw3_cfg(frac)
+    sol, expl = mw_solve(parse_cards(name), st, cfg, opts)
+    meta = {"spot": s.id, "fp": fps(st), "pot": st["pot"], "stack": st["stack"], "tree": ml.tree_key(cfg),
+            "seats": st["seats"], "board": name, "all_hands": True,
+            "ss": {"size": frac, "pct": pct_of(frac), "label": f"{pct_of(frac):g}%", "players": 3, "choice": "fixed"}}
+    data = ml.encode(sol, meta)
+    p = entry_path(out, s.id, name)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    tmp = p.with_name(p.name + ".tmp")
+    tmp.write_bytes(data)
+    os.replace(tmp, p)
+    rss = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 2**20
+    secs = time.time() - t0
+    return (f"{s.id} {name} size={pct_of(frac):g}% iters={sol.iters} expl={expl:.3f}% secs={secs:.0f} size_secs=0 "
+            f"solve_secs={secs:.0f} bytes={len(data)} turns=0 tree=mw peak_mb={rss:.0f}")
+
+
+def mw_head_ok(s: Spot, h) -> bool:
+    """An entry's header is the 3-way set's for this spot's ranges and the fixed size's tree."""
+    from gto import mw_library as ml
+    if not h or h.get("players") != 3 or h.get("all_hands") is not True or not isinstance(h.get("ss"), dict):
+        return False
+    st = setup(s)
+    return h.get("fp") == fps(st) and h.get("tree") == fl.tree_hash(ml.tree_key(mw3_cfg(float(h["ss"]["size"])))) \
+        and abs(float(h["ss"]["size"]) * 100 - MW3_FLOP_PCT) < 0.051
 
 
 # ----------------------------------------------------------------------------- the ante and straddle games' ranges
@@ -356,6 +487,8 @@ def make_pf_ranges(out: Path, pf_dir: Path, spots) -> int:
 
 
 def fps(st: dict) -> list:
+    if "ranges" in st:   # (a 3-way spot: its three ranges in postflop order)
+        return [fl.range_fp(r) for r in st["ranges"]]
     return [fl.range_fp(st["full0"]), fl.range_fp(st["full1"])]
 
 
@@ -439,6 +572,8 @@ def read_head(p: Path):
 def on_disk(out: Path, s: Spot, name: str):
     """'dealt' or 'old' for an entry on disk for the spot's ranges and its own tree (its header's ss size), else None."""
     h = read_head(entry_path(out, s.id, name))
+    if s.players == 3:
+        return "mw" if h and h.get("format") == fl.FORMAT and mw_head_ok(s, h) else None
     if not h or h.get("format") != fl.FORMAT or h.get("fp") != fps(setup(s)) or not isinstance(h.get("ss"), dict):
         return None
     st = setup(s)
@@ -453,6 +588,8 @@ def solve_one(out: Path, sid: str, name: str, tree: str, opts: dict) -> str:
     from gto.cards import cards as parse_cards
     from gto.solver import solve
     s = BY_ID[sid]
+    if s.players == 3:
+        return solve_one_mw(out, s, name, opts)
     st = setup(s)
     board = parse_cards(name)
     t0 = time.time()
@@ -514,6 +651,13 @@ def write_index(out: Path, spots=None) -> dict:
     for s in spots or SPOTS:
         d = out / s.id
         if not d.is_dir():
+            continue
+        if s.players == 3:
+            got = mw_index_row(out, s)
+            if got is not None:
+                idx["spots"].append(got[0])
+                total += got[1]
+                n += len(got[0]["flops"])
             continue
         st = setup(s)
         flops_, trees, flop_tree, sizes, olds, turns, usage = {}, {}, {}, {}, [], [], {}
@@ -601,6 +745,151 @@ def write_index(out: Path, spots=None) -> dict:
     os.replace(tmp, out / INDEX)
     print(f"index: {len(idx['spots'])} spots, {n} flops, {total / 1e6:.2f} MB of entries and turn files", flush=True)
     return idx
+
+
+def mw_index_row(out: Path, s: Spot):
+    """A 3-way spot's ss-index.json row from its entries on disk for its ranges and the fixed size's tree, and the
+    entries' bytes: `players: 3`, its three fingerprints and seats, per flop the entry's sha1[:10], its size and tree
+    (one tree: the size is fixed), and `conv` (the entries' median iterations, mean and largest mean best-response gain,
+    % of the pot). None where it holds none."""
+    from gto import mw_library as ml
+    st = setup(s)
+    flops_, sizes, flop_tree, trees, iters, gains = {}, {}, {}, {}, [], []
+    total = 0
+    for p in sorted((out / s.id).glob("*.bin")):
+        name = p.name[:-4]
+        data = p.read_bytes()
+        try:
+            h = fl.decode(data)["head"]
+        except ValueError:
+            continue
+        if not mw_head_ok(s, h):
+            continue
+        frac = float(h["ss"]["size"])
+        key = f"b{pct_of(frac):g}-mw"
+        trees[key], flop_tree[name], sizes[name] = ml.tree_key(mw3_cfg(frac)), key, pct_of(frac)
+        flops_[name] = hashlib.sha1(data).hexdigest()[:10]
+        iters.append(int(h.get("iters", 0)))
+        gains.append(float(h.get("expl", 0.0)))
+        total += len(data)
+    if not flops_:
+        return None
+    row = {"id": s.id, "base": s.base, "label": f"{s.label}, 3-way single size", "line": s.line, "players": 3,
+           "seats": list(st["seats"]), "fp": fps(st), "pot": st["pot"], "stack": st["stack"], "flops": flops_,
+           "sizes": sizes, "trees": trees, "flop_tree": flop_tree, "single_size": True,
+           "conv": {"iters": sorted(iters)[len(iters) // 2], "expl": round(sum(gains) / len(gains), 4),
+                    "max_expl": round(max(gains), 4), "target": MW3_OPTS["target"]}}
+    if MW3_ALIASES.get(s.id):
+        row["aliases"] = [{"label": f"{lab}, 3-way single size", "line": ln} for lab, ln in MW3_ALIASES[s.id]]
+    return row, total
+
+
+def size_sample(a) -> int:
+    """The 3-way set's fixed flop size, measured (docs/ACCURACY.md section 38): on `--flops` flops of
+    representative_flops(184) (spread over its order) for each spot, the full menu's game (the 3-way library's tree
+    with the flop bets of the advisor's automatic sizing, OPT_SIZES 25-200%) and each candidate's one-size game
+    (MW3_CANDIDATES), all solved by MW3_OPTS. Each candidate's one-size mix at the flop's stored decisions (first to act,
+    checked to once and twice) is priced by the full menu's EVs against that game's own mix, weighted by the acting
+    range (as section 35 prices a stored mix): % of the pot given up. Also each player's value in the one-size game
+    against the full menu's, and the full menu's own use of the size (the automatic sizing's measure). One JSON line a
+    (spot, flop) to RUN/size-sample.jsonl (resumable), then the table."""
+    import numpy as np
+    from gto import advisor as A
+    from gto import mw_library as ml
+    from gto.cards import cards as parse_cards
+    from gto.multiway_solver import Decision
+    out = RUN / "size-sample.jsonl"
+    RUN.mkdir(parents=True, exist_ok=True)
+    done = set()
+    if out.exists():
+        for ln in out.read_text().splitlines():
+            try:
+                r = json.loads(ln)
+                done.add((r["spot"], r["flop"]))
+            except (ValueError, KeyError):
+                pass
+    rep = flops(184)
+    step = len(rep) // a.flops
+    sample = [rep[i * step + step // 2] for i in range(a.flops)]
+    wide_sizes = sorted(set(A.OPT_SIZES) | set(MW3_CANDIDATES))
+    for s in a.spots:
+        st = setup(s)
+        for name in sample:
+            if (s.id, name) in done:
+                continue
+            board = parse_cards(name)
+            t0 = time.time()
+            wcfg = ml.library_config()
+            wcfg.bet = dict(wcfg.bet, flop=wide_sizes)
+            W, wexpl = mw_solve(board, st, wcfg, MW3_OPTS)
+            pot = W.root_pot()
+            wv = W.values()
+            row = {"spot": s.id, "flop": name, "wide_iters": int(W.iters), "wide_expl": round(wexpl, 4), "cand": {}}
+            # the full menu's stored decisions: (names, reach of the actor, EVs, mix), then its solve let go (each
+            # candidate's in its place: under 1 GB a process)
+            wnodes = {}
+            for path in ml.STORED:
+                try:
+                    node, R = ml._reach(W, path)
+                except (ValueError, IndexError):
+                    continue
+                if isinstance(node, Decision):
+                    wnodes[path] = (list(node.names), R[node.player, 0].copy(), W.action_evs(node, R),
+                                    node.avg_strategy()[0].copy())
+            W = node = R = None
+            for f in MW3_CANDIDATES:
+                S, sexpl = mw_solve(board, st, mw3_cfg(f), MW3_OPTS)
+                gives, use = [], 0.0
+                label = f"bet {int(round(f * 100))}%"
+                for path, (wnames, reach, evs, mix) in wnodes.items():
+                    try:
+                        snode, _ = ml._reach(S, path)
+                    except (ValueError, IndexError):
+                        continue
+                    if not isinstance(snode, Decision):
+                        continue
+                    smix = snode.avg_strategy()[0]
+                    # the one-size mix on the full menu's actions (check, the size; all-in where both have it)
+                    mapped = np.zeros_like(mix)
+                    for k, nm in enumerate(snode.names):
+                        if nm not in wnames:
+                            raise SystemExit(f"{s.id} {name} {path}: {nm} isn't on the full menu ({wnames})")
+                        mapped[wnames.index(nm)] = smix[k]
+                    tot = max(float(reach.sum()), 1e-12)
+                    own = (mix * evs).sum(axis=0)
+                    theirs = (mapped * evs).sum(axis=0)
+                    gives.append(float(((own - theirs) * reach).sum() / tot / pot * 100))
+                    if label in wnames:
+                        use = max(use, float((mix[wnames.index(label)] * reach).sum() / tot))
+                sv, s_iters = S.values(), int(S.iters)
+                S = None
+                row["cand"][f"{pct_of(f):g}"] = {
+                    "give": round(sum(gives) / max(len(gives), 1), 4), "give_max": round(max(gives or [0.0]), 4),
+                    "dv": round(float(np.abs(sv - wv).mean() / pot * 100), 4), "use": round(use, 3),
+                    "iters": s_iters, "expl": round(sexpl, 4)}
+            row["secs"] = round(time.time() - t0, 1)
+            with out.open("a") as fh:
+                fh.write(json.dumps(row) + "\n")
+            print(f"  {s.id} {name}: wide {row['wide_iters']} its {wexpl:.3f}%; " + "; ".join(
+                f"{k}% give {v['give']:.3f} dv {v['dv']:.3f} use {v['use']:.2f}" for k, v in row["cand"].items())
+                + f" ({row['secs']:.0f} s)", flush=True)
+    rows = [json.loads(ln) for ln in out.read_text().splitlines() if ln.strip()]
+    print(f"{len(rows)} (spot, flop) pairs: candidate | mean given up (% pot) | worst | mean |value change| | mean use")
+    best = None
+    for k in [f"{pct_of(f):g}" for f in MW3_CANDIDATES]:
+        g = [r["cand"][k]["give"] for r in rows if k in r["cand"]]
+        if not g:
+            continue
+        gm = [r["cand"][k]["give_max"] for r in rows if k in r["cand"]]
+        dv = [r["cand"][k]["dv"] for r in rows if k in r["cand"]]
+        us = [r["cand"][k]["use"] for r in rows if k in r["cand"]]
+        mean = sum(g) / len(g)
+        print(f"  {k:>4}%  {mean:.4f}  {max(gm):.4f}  {sum(dv) / len(dv):.4f}  {sum(us) / len(us):.3f}")
+        if best is None or mean < best[1]:
+            best = (k, mean)
+    if best:
+        print(f"least given up: {best[0]}% (MW3_FLOP_PCT is {MW3_FLOP_PCT:g})")
+    return 0
 
 
 def write_plan(out: Path, phases: list, spots) -> None:
@@ -823,9 +1112,13 @@ def deadline(a) -> float:
     return until
 
 
+# The engine/ files a build imports (the 3-way set's ranges are the worker's charts: worker_charts), frozen with it
+ENGINE_FILES = ["__init__.py", "pf_charts.py", "pf_dominance.py"]
+
+
 def code_hash() -> str:
     h = hashlib.sha1(Path(__file__).read_bytes())
-    for p in sorted((ROOT / "solver").rglob("*.py")):
+    for p in sorted((ROOT / "solver").rglob("*.py")) + [ROOT / "engine" / f for f in ENGINE_FILES]:
         if {"flop_library", "__pycache__", "build", ".venv"} & set(p.parts):
             continue
         h.update(p.relative_to(ROOT).as_posix().encode())
@@ -834,8 +1127,9 @@ def code_hash() -> str:
 
 
 def freeze() -> Path:
-    """A frozen copy of this script and solver/ in RUN/code-<hash> (as depths_build.py's): the build keeps running
-    the code it started with whatever happens to this checkout (a worktree removed, a branch switched)."""
+    """A frozen copy of this script, solver/ and the engine/ files it imports (ENGINE_FILES) in RUN/code-<hash> (as
+    depths_build.py's): the build keeps running the code it started with whatever happens to this checkout (a worktree
+    removed, a branch switched)."""
     snap = RUN / f"code-{code_hash()}"
     if not snap.exists():
         tmp = RUN / f".{snap.name}.tmp"
@@ -844,6 +1138,9 @@ def freeze() -> Path:
         shutil.copy2(Path(__file__), tmp / "scripts" / "library" / Path(__file__).name)
         shutil.copytree(ROOT / "solver", tmp / "solver",
                         ignore=shutil.ignore_patterns("flop_library", "build", "__pycache__", ".venv", "node_modules"))
+        (tmp / "engine").mkdir()
+        for f in ENGINE_FILES:
+            shutil.copy2(ROOT / "engine" / f, tmp / "engine" / f)
         os.replace(tmp, snap)
     return snap
 
@@ -911,32 +1208,40 @@ def plan(a) -> int:
         have = [on_disk(out, s, nm) for nm in names]
         left = have.count(None)
         total += left
+        if s.players == 3:
+            print(f"  {s.id:<18} {have.count('mw'):>4} done {left:>4} left   pot {st['pot']:<6} stack {st['stack']:<6} "
+                  f"seats {'/'.join(st['seats'])} combos {'/'.join(f'{r.sum():.0f}' for r in st['ranges'])}")
+            continue
         chart = (f" (the charts': {st['chart'][0].sum():.0f}/{st['chart'][1].sum():.0f}, ranges here from "
                  f"{GAMES[s.game].pf_key})") if s.game else ""
         print(f"  {s.id:<16} {have.count('dealt'):>4} dealt {have.count('old'):>4} old {left:>4} left   pot {st['pot']:<6} "
               f"stack {st['stack']:<6} combos {st['full0'].sum():.0f}/{st['full1'].sum():.0f}{chart}")
     bad = 0
     mine = {s.id for s in a.spots}
-    for sid, alias in ALIASES.items():
+    aliases = {**ALIASES, **MW3_ALIASES}
+    for sid, alias in aliases.items():
         if sid not in mine:
             continue
         st = setup(BY_ID[sid])
         for lab, ln in alias:
-            o = fl.spot_setup(ln)
+            o = mw_setup(ln) if BY_ID[sid].players == 3 else fl.spot_setup(ln)
             if fps(o) != fps(st) or (o["pot"], o["stack"]) != (st["pot"], st["stack"]):
                 bad += 1
                 print(f"  ALIAS NO LONGER MATCHES: {lab} ({ln}) is not {sid}'s game")
-    print(f"{total} entries left ({len(a.spots)} spots x {max(a.phases)} flops; {sum(len(v) for k, v in ALIASES.items() if k in mine)} "
+    print(f"{total} entries left ({len(a.spots)} spots x {max(a.phases)} flops; {sum(len(v) for k, v in aliases.items() if k in mine)} "
           f"lines read another spot{', ' + str(bad) + ' of them no longer match' if bad else ''})")
     return 1 if bad else 0
 
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("cmd", choices=["plan", "start", "run", "supervise", "one", "index", "status", "_one", "pf-ranges"])
+    ap.add_argument("cmd", choices=["plan", "start", "run", "supervise", "one", "index", "status", "_one", "pf-ranges",
+                                    "size-sample"])
     ap.add_argument("rest", nargs="*")
     ap.add_argument("--set", choices=list(SETS), default="classic",
-                    help="the 100bb spots (classic) or the ante and straddle games' (games): spots, folders, phases")
+                    help="the 100bb spots (classic), the ante and straddle games' (games) or the 3-way set's (mw3): "
+                    "spots, folders, phases")
+    ap.add_argument("--flops", type=int, default=4, help="size-sample: flops a spot")
     ap.add_argument("--solver", type=Path, default=ROOT / "solver", help="the solver snapshot to run")
     ap.add_argument("--out", type=Path, default=None, help="default: the set's library-build/sources/ folder")
     ap.add_argument("--pf-dir", type=Path, default=ROOT / "engine" / "pf",
@@ -950,10 +1255,11 @@ def main(argv=None) -> int:
     ap.add_argument("--stall-min", type=float, default=30.0, help="a worker using no CPU this long, not paused, is lost")
     ap.add_argument("--limit", type=int, default=0)
     ap.add_argument("--index-every", type=int, default=20)
-    ap.add_argument("--min-iters", type=int, default=200)
-    ap.add_argument("--max-iters", type=int, default=1000)
-    ap.add_argument("--check", type=int, default=100)
-    ap.add_argument("--target", type=float, default=0.15)
+    ap.add_argument("--min-iters", type=int, default=None, help="default 200 (the 3-way set: MW3_OPTS)")
+    ap.add_argument("--max-iters", type=int, default=None, help="default 1000 (the 3-way set: MW3_OPTS)")
+    ap.add_argument("--check", type=int, default=None, help="default 100")
+    ap.add_argument("--target", type=float, default=None, help="default 0.15 (the 3-way set: 0.1, a mean best-response "
+                    "gain)")
     ap.add_argument("--tree", choices=["dealt", "old"], default=None, help="one: the tree (default: the spot's)")
     ap.add_argument("--hours", type=float, default=None, help=f"start/supervise: a new deadline, this many hours from "
                     f"now (default: the recorded one, else {DEADLINE_H:g})")
@@ -963,6 +1269,10 @@ def main(argv=None) -> int:
     a = ap.parse_args(argv)
     a.solver = a.solver.resolve()
     use_set(a.set)
+    dflt = MW3_OPTS if a.set == "mw3" else {"min_iters": 200, "max_iters": 1000, "check": 100, "target": 0.15}
+    for k, v in dflt.items():
+        if getattr(a, k) is None:
+            setattr(a, k, v)
     set_spots, _folder, set_phases = SETS[a.set]
     a.phases = sorted(int(x) for x in str(a.phases or ",".join(map(str, set_phases))).split(",") if x)
     want = [x for x in a.spots.split(",") if x]
@@ -998,6 +1308,10 @@ def main(argv=None) -> int:
     if a.cmd == "index":
         write_index(a.out, a.spots)
         return 0
+    if a.cmd == "size-sample":
+        if a.set != "mw3":
+            ap.error("size-sample is the 3-way set's (--set mw3)")
+        return size_sample(a)
     if a.cmd == "supervise":
         return supervise(a)
     return plan(a) if a.cmd == "plan" else run(a)

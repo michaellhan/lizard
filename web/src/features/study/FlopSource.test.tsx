@@ -12,6 +12,14 @@ const IDX: SsIndex = {
   spots: [{ id: "ss_srp_btn_bb", label: "BTN vs BB single-raised pot, single size", line: SRP, seats: ["BB", "BTN"], pot: 5.5, stack: 97.5, flops: { Ac7d2h: "1", KcQc8d: "2" }, sizes: { Ac7d2h: 25, KcQc8d: 33 } }],
 };
 const hand = (line: string, board: string) => ({ players: 6, stack: 100, board, preflop: parseLine(line) });
+const MW_LINE = "UTG:f,HJ:f,CO:f,BTN:r2.5,SB:c,BB:c";
+const MW3: SsIndex = {
+  ...IDX,
+  spots: [
+    ...IDX.spots,
+    { id: "ss_mw_btn_sb_bb", label: "BTN open, SB and BB call, 3-way single size", line: MW_LINE, seats: ["SB", "BB", "BTN"], pot: 7.5, stack: 97.5, players: 3, flops: { Qs9h4c: "3", Ac7d2h: "4", "5c4d2h": "5" }, sizes: { Qs9h4c: 33, Ac7d2h: 33, "5c4d2h": 33 }, conv: { iters: 400, expl: 0.08 } },
+  ],
+};
 
 describe("the flop source", () => {
   it("is a two-way choice", () => {
@@ -110,6 +118,19 @@ describe("the flop source", () => {
     expect(screen.getByText(/this flop is held, its one flop bet size 25% chosen by the solver's automatic sizing/)).toBeInTheDocument();
     expect(screen.getByText(/Covers 2 representative flops on every line/)).toBeInTheDocument();
     expect(screen.getByText("Ac7d2h KcQc8d")).toBeInTheDocument();
+  });
+
+  it("says a 3-way line's flop is on the 3-way single-size tree, with its own flops, and that it has no Nash guarantee", () => {
+    const { rerender } = render(<SingleSizeNote hand={hand(MW_LINE, "Ac7d2h")} idx={MW3} />);
+    expect(screen.getByText(/this flop is held on the 3-way single-size tree, its one flop bet size 33% \(one fixed size for every flop, as the automatic sizing is heads-up only; on a 24-pair sample 25, 33 and 50% gave up the same within noise \(25% least\)\); turn and river bets 50%/)).toBeInTheDocument();
+    expect(screen.getByText(/median 400 iterations, mean best-response gain 0.08% of the pot\), which has no Nash guarantee/)).toBeInTheDocument();
+    expect(screen.getByText(/Covers 3 representative flops on every 3-way line/)).toBeInTheDocument();
+    expect(screen.getByText("Qs9h4c Ac7d2h 5c4d2h")).toBeInTheDocument();
+    rerender(<SingleSizeNote hand={hand(SRP, "Ac7d2h")} idx={MW3} />);
+    expect(screen.getByText(/Covers 2 representative flops on every line/)).toBeInTheDocument();
+    expect(screen.queryByText(/Nash/)).toBeNull();
+    rerender(<SingleSizeNote hand={hand("UTG:r2,HJ:c", "Qs9h4c")} idx={MW3} />);
+    expect(screen.getByText(/it has 1 heads-up 6-max 100bb lines and 1 3-way ones/)).toBeInTheDocument();
   });
 
   it("says when the flop or the line isn't held, or the library isn't published", () => {

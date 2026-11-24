@@ -134,7 +134,7 @@ const SS_LISTED = 40;
 function SingleSizeSection({ ss }: { ss: SingleSizeCoverage }) {
   const [all, setAll] = useState(false);
   const shown = all ? ss.flops : ss.flops.slice(0, SS_LISTED);
-  const plain = ss.spots.some((s) => !s.game);
+  const plain = ss.spots.some((s) => !s.game && s.players !== 3);
   return (
     <div className="space-y-2">
       <div className="scroll-x rounded-lg border border-border">
@@ -142,6 +142,7 @@ function SingleSizeSection({ ss }: { ss: SingleSizeCoverage }) {
           <caption className="bg-surface-2 px-3 py-1.5 text-left font-medium">
             Single-size library: 6-max 100bb, one bet size a node, the flop&apos;s chosen for each flop by the solver&apos;s automatic sizing
             {ss.games.length > 0 && "; also ante and straddle games, their ranges from Lizard's stored preflop solve of the game"}
+            {ss.multiway && `; also 3-way lines on the 3-way single-size tree (one fixed flop size${ss.multiway.pct !== null ? ` of ${ss.multiway.pct}%` : ""} for every flop, turn and river 50%, three-player CFR: no Nash guarantee)`}
           </caption>
           <thead className="text-xs text-muted">
             <tr>
@@ -163,10 +164,16 @@ function SingleSizeSection({ ss }: { ss: SingleSizeCoverage }) {
                       Ranges entering the flop: Lizard&apos;s stored preflop solve of this game ({s.gameWords}), not the charts; preflop is approximate
                     </div>
                   )}
+                  {s.players === 3 && (
+                    <div className="text-xs text-muted">
+                      3-way single-size tree{s.conv?.iters ? `: median ${s.conv.iters} iterations` : ""}
+                      {typeof s.conv?.expl === "number" ? `, mean best-response gain ${s.conv.expl.toFixed(2)}% of the pot` : ""}; three-player CFR has no Nash guarantee
+                    </div>
+                  )}
                 </td>
                 <td className="px-3 py-1.5 font-mono text-xs">
                   {s.flops}
-                  {(s.game ? s.target : ss.target) ? ` / ${s.game ? s.target : ss.target}` : ""}
+                  {(s.game || s.players === 3 ? s.target : ss.target) ? ` / ${s.game || s.players === 3 ? s.target : ss.target}` : ""}
                 </td>
                 <td className="px-3 py-1.5 text-right">
                   {parseLine(s.line).length > 0 && (
@@ -181,6 +188,9 @@ function SingleSizeSection({ ss }: { ss: SingleSizeCoverage }) {
         </table>
       </div>
       {ss.games.map((g) => <GameFlops key={`${g.ante}|${g.straddle}`} g={g} />)}
+      {ss.multiway && (
+        <GameFlops g={{ ante: 0, straddle: false, words: "3-way line", flops: ss.multiway.flops, target: ss.multiway.target }} what="every 3-way spot" />
+      )}
       {plain && (
         <p className="text-xs text-muted">
           Flops covered on every 100bb spot ({ss.flops.length}
@@ -209,12 +219,12 @@ function ssStudyQuery(s: { line: string; game?: { ante: number; straddle: boolea
 }
 
 /** An ante or straddle game's covered flops, in a line under the table. */
-function GameFlops({ g }: { g: SingleSizeCoverage["games"][number] }) {
+function GameFlops({ g, what }: { g: SingleSizeCoverage["games"][number]; what?: string }) {
   const [all, setAll] = useState(false);
   const shown = all ? g.flops : g.flops.slice(0, SS_LISTED);
   return (
     <p className="text-xs text-muted">
-      Flops covered on every spot with a {g.words} ({g.flops.length}
+      Flops covered on {what ?? `every spot with a ${g.words}`} ({g.flops.length}
       {g.target ? ` of ${g.target} planned` : ""}): <span className="font-mono">{shown.join(" ")}</span>
       {g.flops.length > SS_LISTED && (
         <>

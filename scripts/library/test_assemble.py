@@ -103,6 +103,7 @@ def make_mw(root: Path, spots: dict, tree=None, fp=None) -> dict:
 NO_BREADTH = Path(tempfile.gettempdir()) / "assemble-test-no-breadth"  # (never created: no breadth source)
 NO_SS = Path(tempfile.gettempdir()) / "assemble-test-no-single-size"  # (nor the single-size library's)
 NO_SS_GAMES = Path(tempfile.gettempdir()) / "assemble-test-no-ss-games"  # (nor its ante and straddle games')
+NO_SS_MW3 = Path(tempfile.gettempdir()) / "assemble-test-no-ss-mw3"  # (nor its 3-way set)
 
 
 def run(*args) -> subprocess.CompletedProcess:
@@ -120,6 +121,8 @@ def run(*args) -> subprocess.CompletedProcess:
         args = (*args, "--single-size", NO_SS)
     if "--ss-games" not in args:
         args = (*args, "--ss-games", NO_SS_GAMES)
+    if "--ss-mw3" not in args:
+        args = (*args, "--ss-mw3", NO_SS_MW3)
     env = {k: v for k, v in os.environ.items() if k != "LIZARD_R2_BASE"}  # (only --r2-base sets it here)
     return subprocess.run([sys.executable, str(HERE / "assemble.py"), *map(str, args)], capture_output=True, text=True,
                           env=env)
@@ -797,7 +800,8 @@ class HostsTest(unittest.TestCase):
             script.write_text(src)
             sys.path_importer_cache.clear()
         args = ["--out", self.out, "--base", self.base, "--hu", self.hu, "--mw-game", self.game, "--extend", NO_EXT,
-                "--mw", NO_MW, "--formats", NO_FORMATS, "--breadth", NO_BREADTH, "--single-size", NO_SS, "--ss-games", NO_SS_GAMES, *extra]
+                "--mw", NO_MW, "--formats", NO_FORMATS, "--breadth", NO_BREADTH, "--single-size", NO_SS, "--ss-games", NO_SS_GAMES, "--ss-mw3", NO_SS_MW3,
+                *extra]
         env = {k: v for k, v in os.environ.items() if k != "LIZARD_R2_BASE"}
         # (depths_build is imported from the script's own folder)
         env["PYTHONPATH"] = str(HERE)
@@ -1117,6 +1121,159 @@ class SingleSizeGamesTest(unittest.TestCase):
         idx = json.loads((self.out / "ss_index.json").read_text())
         self.assertEqual(idx["flops"], [])
         self.assertEqual(len(idx["spots"]), 3)
+
+
+MW3_TREE = {"version": 1, "bet": {"flop": [0.5], "turn": 0.5, "river": 0.5}, "raise_frac": 0.75}
+
+
+def mw3_entry(flop: str, fp: list, tree=None, tag: float = 0.5) -> bytes:
+    """A 3-way single-size entry (build_single_size.py solve_one_mw, gto/mw_library.encode): GTOFL3, its header naming
+    the spot's fingerprints, the tree's hash and the board."""
+    head = {"board": flop, "format": 2, "players": 3, "fp": fp, "tree": h(json.dumps(
+        tree or MW3_TREE, sort_keys=True, separators=(",", ":")).encode(), 12), "iters": 400, "expl": 0.08,
+        "ss": {"pct": 50.0, "players": 3}, "nodes": []}
+    hb = json.dumps(head).encode()
+    return b"GTOFL3" + zlib.compress(struct.pack("<I", len(hb)) + hb + b"\1" * 32 + str(tag).encode())
+
+
+def make_ss_mw3(root: Path, spots: dict, order=None, target=552) -> dict:
+    """A 3-way single-size build (build_single_size.py --set mw3's ss-index.json): `spots` maps id -> {flop: entry
+    bytes or None (an entry made on another tree)}; no report, ranges or turn files."""
+    idx = {"format": 2, "ss_format": 1, "spots": []}
+    key = "b50-mw"
+    for sid, flops in spots.items():
+        d = root / sid
+        d.mkdir(parents=True, exist_ok=True)
+        fp = [sid + "-a", sid + "-b", sid + "-c"]
+        listed = {}
+        for f, b in flops.items():
+            b = b if b is not None else mw3_entry(f, fp, tree={"version": 1, "other": True})
+            if b == b"":
+                b = mw3_entry(f, fp)
+            (d / f"{f}.bin").write_bytes(b)
+            listed[f] = h(b, 10)
+        idx["spots"].append({"id": sid, "base": sid[3:], "label": sid + ", 3-way single size", "players": 3,
+                             "line": "UTG:f,HJ:f,CO:f,BTN:r2.5,SB:c,BB:c", "seats": ["SB", "BB", "BTN"], "fp": fp,
+                             "pot": 7.5, "stack": 97.5, "flops": listed, "sizes": {f: 50.0 for f in flops},
+                             "trees": {key: MW3_TREE}, "flop_tree": {f: key for f in flops}, "single_size": True,
+                             "conv": {"iters": 400, "expl": 0.08, "max_expl": 0.1, "target": 0.1}})
+    root.mkdir(parents=True, exist_ok=True)
+    (root / "ss-index.json").write_text(json.dumps(idx))
+    (root / "plan.json").write_text(json.dumps({"spots": {sid: target for sid in spots}, "phases": [184, target],
+                                                "flops": order or []}))
+    return idx
+
+
+class SingleSizeMW3Test(unittest.TestCase):
+    """The 3-way single-size set (--ss-mw3, build_single_size.py --set mw3): its rows (`players: 3`) go into the same
+    ss_index.json beside the heads-up ones, on their own flops, each entry checked by its header; with R2 it is the
+    first set to move there."""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+        self.base, self.hu, self.ss, self.mw3, self.out = (self.tmp / n for n in ("base", "hu", "ss", "mw3", "stage"))
+        make_lib(self.base, "srp_btn_bb", ["a", "b"], {"Ks7d2c": b"entry-1"})
+        self.hu.mkdir()
+        make_ss(self.ss, {"ss_srp_btn_bb": {"Kc7d2h": (b"k", 25.0), "8c7c6c": (b"e", 75.0)}},
+                order=["8c7c6c", "Kc7d2h"])
+        make_ss_mw3(self.mw3, {"ss_mw_btn_sb_bb": {"Kc7d2h": b"", "Qh9c4d": b"", "5c4d2h": None},
+                               "ss_mw_co_btn_bb": {"Kc7d2h": b"", "Qh9c4d": b""}},
+                    order=["Qh9c4d", "Kc7d2h", "5c4d2h"], target=1755)
+
+    def stage(self, *extra) -> subprocess.CompletedProcess:
+        return run("--out", self.out, "--base", self.base, "--hu", self.hu, "--single-size", self.ss,
+                   "--ss-mw3", self.mw3, *extra)
+
+    def test_the_3_way_rows_join_the_index_on_their_own_flops(self):
+        r = self.stage()
+        self.assertEqual(r.returncode, 0, r.stderr)
+        idx = json.loads((self.out / "ss_index.json").read_text())
+        spots = {s["id"]: s for s in idx["spots"]}
+        self.assertEqual(set(spots), {"ss_srp_btn_bb", "ss_mw_btn_sb_bb", "ss_mw_co_btn_bb"})
+        self.assertEqual(idx["flops"], ["8c7c6c", "Kc7d2h"])   # (the 100bb heads-up spots' own)
+        m = spots["ss_mw_btn_sb_bb"]
+        self.assertEqual(m["players"], 3)
+        self.assertEqual(sorted(m["flops"]), ["Kc7d2h", "Qh9c4d"])   # (5c4d2h: on one spot of two, and on another tree)
+        self.assertEqual(set(m["sizes"]), {"Kc7d2h", "Qh9c4d"})
+        self.assertEqual(m["conv"]["iters"], 400)
+        self.assertNotIn("turns", m)
+        self.assertFalse((self.out / "ss_mw_btn_sb_bb" / "5c4d2h.bin").exists())
+        self.assertFalse((self.out / "ss_mw_btn_sb_bb" / "report.json").exists())
+        summary = json.loads((self.out / "lizard-library.json").read_text())
+        self.assertEqual(summary["singleSize"]["multiway"]["spots"], {"ss_mw_btn_sb_bb": 2, "ss_mw_co_btn_bb": 2})
+        self.assertEqual(summary["singleSize"]["multiway"]["flops"], ["Qh9c4d", "Kc7d2h"])
+        self.assertEqual(summary["singleSize"]["multiway"]["target"], 1755)
+        self.assertEqual(summary["singleSize"]["spots"], {"ss_srp_btn_bb": 2})
+        self.assertIn("3-way single-size build", [x["kind"] for x in summary["sources"]])
+
+    def test_an_entry_whose_header_differs_is_left_out(self):
+        sys.path.insert(0, str(HERE))
+        try:
+            import assemble
+        finally:
+            sys.path.remove(str(HERE))
+        idx = json.loads((self.mw3 / "ss-index.json").read_text())
+        s = idx["spots"][0]
+        self.out.mkdir()
+        log = []
+        st = assemble.stage_ss_spot(self.mw3, self.out, s, ["Kc7d2h", "5c4d2h"], link=False, log=log)
+        self.assertEqual(sorted(st["flops"]), ["Kc7d2h"])
+        self.assertFalse((self.out / s["id"] / "5c4d2h.bin").exists())
+        self.assertTrue(any("1 3-way single-size flop(s) failing their header" in x for x in log), log)
+        # another spot's fingerprints: nothing of it staged
+        bad = dict(s, fp=["x", "y", "z"])
+        shutil.rmtree(self.out / s["id"])
+        self.assertIsNone(assemble.stage_ss_spot(self.mw3, self.out, bad, ["Kc7d2h"], link=False, log=log))
+        self.assertFalse((self.out / s["id"]).exists())
+
+    def test_a_heads_up_row_in_the_3_way_source_and_a_3_way_row_in_the_heads_up_source_are_left_out(self):
+        idx = json.loads((self.mw3 / "ss-index.json").read_text())
+        idx["spots"][1].pop("players")
+        (self.mw3 / "ss-index.json").write_text(json.dumps(idx))
+        r = self.stage("--single-size", self.mw3, "--ss-mw3", NO_SS_MW3)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        ids = [s["id"] for s in json.loads((self.out / "ss_index.json").read_text())["spots"]]
+        self.assertEqual(ids, ["ss_mw_co_btn_bb"])
+        self.assertIn("ss_mw_btn_sb_bb: a 3-way row", r.stdout)
+
+    def test_with_r2_the_3_way_set_moves_first(self):
+        sys.path.insert(0, str(HERE))
+        try:
+            import assemble
+        finally:
+            sys.path.remove(str(HERE))
+        mw3 = {"id": "ss_mw_btn_sb_bb", "players": 3}
+        tiers = [assemble.host_tier(mw3, "ss"), assemble.host_tier({"id": "ss_srp_btn_bb"}, "ss"),
+                 assemble.host_tier({"id": "x"}, "breadth"), assemble.host_tier({"id": "srp_btn_bb"}, "hu"),
+                 assemble.host_tier({"id": "mw_x"}, "mw")]
+        self.assertEqual(tiers, sorted(tiers))
+        self.assertLess(tiers[0], tiers[1])
+        self.assertEqual(assemble.ss_kind(mw3), "mw3")
+        self.assertEqual(assemble.ss_kind({"game": {"ante": 0.17}}), "games")
+        self.assertEqual(assemble.ss_kind({}), "hu")
+
+    def test_a_3_way_spot_kept_from_the_previous_release_shrinks_rather_than_pass_the_file_cap(self):
+        sys.path.insert(0, str(HERE))
+        try:
+            import assemble
+        finally:
+            sys.path.remove(str(HERE))
+        prev = self.tmp / "prev"
+        r = run("--out", prev, "--base", self.base, "--hu", self.hu, "--single-size", self.ss, "--ss-mw3", self.mw3)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        pm = [s for s in json.loads((prev / "ss_index.json").read_text())["spots"] if s.get("players") == 3]
+        self.assertEqual(len(pm), 2)
+        self.out.mkdir()
+        old = assemble.CAPS["files"]
+        try:   # the stage holds 1000 files: room for no flop and one kept copy (2 files)
+            assemble.CAPS["files"] = 1000 + assemble.LATE_FILES + len(pm[0]["flops"]) + 2
+            log = []
+            idx, _ = assemble.add_single_size(self.mw3, self.out, set(), prev, False, 1000, log, mw3=True)
+        finally:
+            assemble.CAPS["files"] = old
+        self.assertEqual([s["id"] for s in idx["spots"]], [pm[0]["id"]])
+        self.assertTrue(any(f"{pm[0]['id']}: kept the previous release" in x for x in log), log)
+        self.assertTrue(any(f"{pm[1]['id']}: shrinks from 2 flops" in x for x in log), log)
 
 
 if __name__ == "__main__":
