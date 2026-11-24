@@ -3849,3 +3849,164 @@ stage, natively, with `engine/pf_charts.py` installed:
 
 With the worker's repaired charts (`engine/pf_charts.py`), the distances are 0.215, 0.142, 0.320 and 0.320 (the table
 above is without them), so the same two are served.
+
+## 36. A full-tree preflop prototype: every combo, card removal across seats (2026-11-24)
+
+**Not shipped.** `engine/pf_full.py` is a research prototype on its own branch. The site, the stored games
+(`engine/pf/lz4_*.bin`) and every answer still come from the class-level solver (`engine/pf_solve.py` on
+`engine/pf_engine.py`, "lz4"). The question was how far that solver is from a fuller solve, and whether moving closer
+is worth the cost. The prototype wraps an `engine.pf_engine.Game` and reuses its tree, terminal payoffs, rake, flop
+values (`engine/pf_calib.py` by default) and DCFR schedule. It changes two things:
+
+- **Every hand.** `level="combo"` plays the 1,326 combos, each with its own regrets and strategy. Card removal between
+  two seats is exact (two combos meet only when they share no card). The 1326 x 1326 products are summed by class and
+  by card, so the 6-max tree fits under 1 GB: float32, the values go up the tree a depth at a time, and terminals are
+  valued in batches of 256. `level="class"` runs the same code on lz4's 169 classes.
+- **Card removal across seats** (`cross=True`, at either level). lz4 removes cards between the hand being valued and
+  each other seat on its own, so at a showdown the caller's range is the one it reached with, as if the folders had
+  held nothing. With `cross`, each live opponent's combos are also weighed by the folders' hands:
+  rho(c) = prod_f m_f(c), normalised to a mean of 1 over that opponent's range. This is the first order of the exact
+  pair weight prod_f m_f(h, c), as `engine/bunching.py` does on the flop (section 23), and it covers heads-up and
+  three-way pots. Left out: collisions between folders, and the two live opponents' collision with each other in a
+  three-way pot.
+
+Not supported (each raises an error): side pots in a three-way pot with unequal stacks, a nonlinear (prize-equity)
+payoff, and a game rooted inside the tree. `scripts/engine/test_pf_full.py` has 5 tests (3.7 s, run with and without
+BLAS):
+
+- the card-removal sums equal the direct products;
+- `level="class", cross=False` is lz4: values agree to 1e-10, and regrets and the average after 3 iterations to 1e-9;
+- the combo level without `cross` is the class game;
+- `cross` leaves heads-up games untouched;
+- a 3-max 40bb solve converges with its combos staying together.
+
+### 36.1 What the combo level adds: nothing to an even solve
+
+Within a class every combo is the same hand up to a relabelling of the suits. Nothing in the game tells the suits
+apart, so a solve that starts even keeps every combo of a class on one strategy. On 6-max 100bb the largest difference
+within a class is 2.4e-5 after 700 iterations and 5.2e-5 after 1,500, which is float32 rounding. Every figure below is
+the same, to the digits shown, for `combo` + `cross` and `class` + `cross`. The combo level only matters for a strategy
+that tells suits apart (node-locked or exploitative) or for suit-aware flop values.
+
+### 36.2 Measured on 6-max 100bb
+
+**Setup.**
+
+- **Game:** 6-max 100bb at the published references' rake (5%, capped at 4bb), on the stored games' tree
+  (`pf_solve.Spec`) with `pf_calib`'s flop values.
+- **Runs:** `scripts/pf/measure_full.py`, every solve through the shared slot, detached under
+  `library-build/runs/w14-pf-full/`, about 45 minutes in all.
+- **Published references:** `pf_equilibrium.report` over the 26 certain published spots and the 15 hand facts, as in
+  section 31. The spots are `solver/tests/preflop_refs.py`, the set `TestPublishedPreflopReferences` checks the charts
+  against.
+- **Opener facing a 3bet:** `scripts/pf/vs3bet.py`.
+- **Distance to lz4:** at each decision, half the L1 distance between the class strategies, weighted by the acting
+  seat's reach. The table gives the mean and the maximum over the decisions played in more than 1% of hands: 45 at 700
+  iterations, 46 at 1,500, 41 with upstream's flop values. `compare` names the decision with the maximum (`max_node`).
+- **Exploitability:** mbb/hand a seat, measured in each model's game.
+
+| Solve | Iterations | Mean error (points) | Spots out / 26 | Facts off / 15 | Out of order vs 3bet | Distance to lz4: mean, max | In lz4's game | In the cross game |
+|---|---:|---:|---:|---:|---:|---|---:|---:|
+| lz4 | 700 | 1.955 | 5 | 11 | 1 | — | 0.922 | 1.020 |
+| class, no cross (= lz4) | 700 | 1.955 | 5 | 11 | 1 | 0.0%, 0.01% | 0.922 | 1.020 |
+| class / combo + cross | 700 | 1.874 | 4 | 11 | 1 | 0.79%, 4.2% | 1.048 | 0.925 |
+| lz4 | 1,500 | 2.020 | 8 | 9 | 5 | — | 0.386 | 0.551 |
+| class, no cross (= lz4) | 1,500 | 2.020 | 8 | 9 | 5 | 0.0%, 0.02% | 0.386 | 0.551 |
+| class / combo + cross | 1,500 | 1.976 | 5 | 11 | 7 | 0.75%, 3.0% | 0.536 | 0.386 |
+| lz4, upstream's flop values (`pf_model.Params()`) | 700 | 2.755 | 14 | 11 | 10 | — | 1.417 | 1.476 |
+| class + cross, upstream's flop values | 700 | 2.780 | 14 | 11 | 12 | 0.91%, 3.5% | 1.356 | 1.276 |
+
+What the table says:
+
+- **The model gap is smaller than the solve's own error.** lz4's 1,500-iteration strategy gives up 0.551 mbb/hand a
+  seat in the cross game, against 0.386 in its own game, so removal across seats is worth about 0.15-0.17 mbb/hand a
+  seat. The stored grid is converged to a mean of 0.51 (section 31), and a live solve stops at 1.5.
+- **Ranges barely move.** A node's range moves 0.5-0.8% of its weight on average. The largest move at 1,500 iterations
+  is 3.0%, for the BB facing a BTN open after the SB folds, where the four folds are tightest. At 700 iterations it is
+  4.2%, for the CO facing the BTN's 3bet after both blinds fold (a line reached in 1.9% of hands); the BB facing a BTN
+  open moves 1.9% there.
+- **No clear direction against the published solves.** With removal across seats the mean error falls by 0.04-0.08
+  points and 1-3 fewer spots are out. Hand facts are equal or 2 worse, and so are the hands out of order facing a 3bet.
+- **Iteration count moves the scores as much.** lz4 itself goes from 1.955 to 2.020 points, from 5 to 8 spots out and
+  from 1 to 5 out of order between 700 and 1,500 iterations. Part of that is classes that are indifferent between two
+  actions changing sides.
+- **The calibration favours lz4.** `pf_calib`'s flop values were fitted to the class-level game without removal across
+  seats, at 700 iterations, against these same spots. The reference columns are in-sample for lz4 and not for `cross`.
+- **Flop values matter far more.** Swapping `pf_calib` for upstream's model moves the mean error by 0.8 points and the
+  spots out by 9, 10 to 20 times what removal across seats moves.
+
+**What the first order leaves out at showdowns** (`measure_full.py pairterm`). This takes the 60 heads-up showdowns
+(flops and all-ins) the 1,500-iteration solve reaches most often. Each live hand's expected result is computed three
+ways:
+
+- lz4's, with the folders ignored;
+- the prototype's, with rho(c);
+- exact per folder given both live hands: m_f(h, c) = M_f - rem_f(h) - rem_f(c) + the folder's weight on combos holding
+  a card of each. Collisions between folders are still left out.
+
+Results, weighted by how often each terminal is reached:
+
+- lz4 is off from the exact value by 0.0285 bb on average (RMS 0.098). The prototype is off by 0.0013 bb (RMS 0.0054),
+  so the first order removes 95% of the error. On lz4's own strategy the two figures are 0.0277 and 0.0013.
+- In single-raised flop pots: lz4 about 0.01 bb, the prototype 0.0004.
+- In 3bet and 4bet pots: lz4 0.03-0.18 bb, the prototype 0.001-0.008.
+- At 4bet and 5bet all-ins: lz4 0.2-1.1 bb (0.1-0.6% of a 200bb pot), the prototype 0.01-0.05 bb.
+
+These are the folders' effect on the values of the hands that reach the terminal, the same size as section 23's
+bunching effect. They reach the strategy only through the small moves above.
+
+**Time and memory.** Measured natively on a machine at a load average of 10-13 on 10 cores during the runs, so the
+times compare with each other and not with section 20.4. Peak is the process's resident peak and includes an
+exploitability pass.
+
+| Solve | s / iteration | Peak |
+|---|---:|---:|
+| lz4 (float64) | 0.15-0.17 | 716-724 MB |
+| class + cross (float32) | 0.08 | 234 MB |
+| combo + cross (float32) | 1.15-1.26 | 799 MB |
+| class + cross, no BLAS (`PF_FULL_NO_BLAS=1`: numpy's own loops, as in Pyodide) | 0.18 | — |
+| combo + cross, no BLAS | 2.5 | — |
+
+**In the browser.** Pyodide's numpy has no BLAS, and its wasm is slower still: `pf_study.estimate_seconds` puts lz4's
+Pyodide iteration at 1.75 times its native one.
+
+- **Combo level:** about 3.5-4.5 s an iteration in the worker, so 45-55 minutes for 700 iterations and 1.5-2 hours for
+  1,500. Its 0.8 GB is near the panel's 1 GB cap (`pfCap.ts`) and over the 768 MB a touch device is allowed. Not
+  practical, and it would buy nothing over the class level (36.1).
+- **Class level with `cross`:** costs about what lz4 does or less (float32, a third of the memory) and could run in the
+  worker. Not run in a browser here.
+
+**Three-way flops** are 1.05% of hands in this game. The rest: heads-up flops 26.3%, heads-up all-ins 0.59%, folds
+before a flop 72.1% (lz4's 1,500-iteration strategy, without card removal: `measure_full.py shares`, in
+`library-build/runs/w14-pf-full/shares_lz4_1500.json`). The 3-way library
+(`.work/oneshot/mw-all/lib`, read through `scripts/library/assemble.py`) stores only check lines
+(`solver/gto/mw_library.py`), so it has no value for a player facing a bet, and its 8 spots cover a few of the tree's
+three-way flop terminals. Replacing `pf_model`'s three-way realisation factors with it was not attempted.
+
+### 36.3 Recommendation
+
+**Don't switch to the combo level.** On an even solve it gives the class level's strategy at 15 times the time and 3.4
+times the memory, and it is too slow for the browser.
+
+**Don't switch to removal across seats on its own either.** It is cheap at the class level: same tree, float32, faster
+than lz4 here. Its effect is real but small: 0.15-0.17 mbb/hand a seat, with ranges moving 0.5-0.8% (3-4% at most).
+Against the published solves it is mixed and inside the solve's own noise. That is not worth re-solving the stored grid
+(132 cash games, about 3 hours of CPU) and the tournament presets (115 games) for it alone.
+
+**What it would take to get closer to a full solve, largest effect first:**
+
+1. **Solved flop values instead of the calibrated model.** Which flop model is used moves the reference error 10 to 20
+   times more than card removal does. That means reading each heads-up flop terminal's values from the flop library's
+   solves (which exist for the stored 6-max spots), or fitting them per terminal. Section 18 and `AFTER_3BET` already
+   name the values in 3bet and 4bet pots as the least certain.
+2. **Removal across seats in the class-level engine,** added to the next lz rebuild rather than shipped alone. The
+   rho(c) weight is a few lines in `pf_engine._term_values`. The rest of the work is refitting `pf_calib` under it
+   (`scripts/pf/calibrate.py`, whose fit is to lz4's game), rebuilding the grid and presets, and timing it in the
+   worker.
+3. **The combo level only together with suit-aware flop values** (flush draws and blockers per combo). Without them it
+   adds nothing. With them it is out of the browser's reach and would be a precompute on a server or in the library.
+4. **The exact pair term** (the last 5% at showdowns, about 0.001 bb) and three-way library values facing a bet. Both
+   are small, and the second needs new 3-way builds.
+
+Not established: there was no comparison with another solver's full preflop solve (none is available locally). The
+Pyodide times are estimated from native no-BLAS runs, not measured in a browser.

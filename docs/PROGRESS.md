@@ -6905,3 +6905,50 @@ Local stage `library-build/runs/w12/stage`:
   - Full vitest through slot.sh (`--maxWorkers=3`, the same local config without the OCR plugin): 262 files, 4240
     passed, 26 skipped. The only failures were `ocr.test.ts` (2) and `ScreenshotImport.test.tsx`, for the missing
     `tesseract.js`.
+
+## 2026-11-24 — Full-tree preflop prototype (W14): every combo, card removal across seats, measured and not shipped
+
+- **What was built.** `engine/pf_full.py` is a new module that changes nothing else. `level="combo"` plays all 1,326
+  combos on the stored games' tree (`pf_solve.Spec`), using the same terminal payoffs, rake, flop values (`pf_calib`)
+  and DCFR. Card removal between two seats is exact, summed by class and by card. `cross=True`, at either level, also
+  weighs each live opponent's combos by the folders' hands, to first order. It is float32 and goes up the tree one
+  depth at a time, so the 6-max tree fits in 799 MB. A no-BLAS path (`PF_FULL_NO_BLAS=1`, and always under Pyodide)
+  times what a browser would do.
+- **Tools.** `scripts/pf/measure_full.py` has four subcommands: `solve`, `compare` (published references, the opener
+  facing a 3bet, distance per node with the node of the largest move, exploitability in each model's game),
+  `pairterm` (what the first order leaves out at showdowns) and `shares` (how often hands end at each kind of
+  terminal).
+- **Tests.** `scripts/engine/test_pf_full.py`, 5 tests. They show that the class level without `cross` is lz4 to 1e-9,
+  the combo level without `cross` is the class game, heads-up is untouched, and a 3-max solve converges.
+- **Measured** (ACCURACY section 36, 6-max 100bb at the references' rake, 700 and 1,500 iterations):
+  - Every combo of a class stays on one strategy (spread 5e-5), so on an even solve the combo level is the class
+    level, at 15 times the time (1.2 s against 0.08 s an iteration natively).
+  - Removal across seats moves a node's range 0.5-0.8%. The largest move is 3.0% at 1,500 iterations, for the BB
+    facing a BTN open, and 4.2% at 700, for the CO facing the BTN's 3bet. It is worth 0.15-0.17 mbb/hand a seat in
+    exploitability terms.
+  - Against the published solves the result is mixed: mean error 1.874 against 1.955 and 1.976 against 2.020, spots
+    out 4 against 5 and 5 against 8. But hand facts and hands out of order facing a 3bet come out equal or worse.
+    That is within how much lz4 itself moves between 700 and 1,500 iterations.
+  - At showdowns it takes out 95% of lz4's folder error: 0.0285 bb drops to 0.0013 bb.
+  - The flop values matter 10-20 times more than any of this: upstream's model against `pf_calib` adds 0.8 points of
+    error and 9 spots out.
+  - In a browser the combo level would take about 45-55 minutes for 700 iterations. The class level with `cross` costs
+    about what lz4 does.
+  - Three-way flops are 1.05% of hands, and the 3-way library holds only check lines, so library flop values were not
+    attempted.
+- **Recommendation:** don't switch. Solved flop values come first. Removal across seats belongs in the next lz rebuild,
+  with `pf_calib` refitted under it, and the combo level only together with suit-aware flop values.
+- **Docs.** FEATURE_MATRIX's Preflop solves row notes the prototype; grades are unchanged. GAP_PLAN was not edited.
+- **Gates**, all through slot.sh:
+  - `scripts/engine/test_pf_full.py`: 5 tests in 3.7 s at 215 MB, and again with `PF_FULL_NO_BLAS=1`.
+  - `scripts/engine/test_pf_engine.py`: 43 tests in 138 s at 976 MB.
+  - `tests.test_gto.TestPublishedPreflopReferences` alone: 3 tests.
+  - No web files were touched, so the web gates were not run.
+- **Cost.** The measurement run is `library-build/runs/w14-pf-full/run.sh`, eleven slot jobs one after another, about
+  45 minutes. With the prototyping, about 1.5 CPU hours in all.
+- **Review fixes.** The 4.2% move at 700 iterations had been put at the BB facing a BTN open, which moves 1.9% there;
+  `compare` now names each run's largest move (`max_node`), and the three compares were rerun through slot.sh
+  (`rerun_compare.sh`, every other figure unchanged). The decisions over 1% of hands are 45 at 700 iterations and 46
+  at 1,500. `solve` no longer records `cross: true` for lz4, which has no removal across seats (`lz4.json` and
+  `lz4_def.json` corrected). The terminal shares (three-way flops 1.05% of hands) come from the new `shares`
+  subcommand, saved as `shares_lz4_1500.json`.
