@@ -6,7 +6,7 @@
 - Across seats: the live opponents' reaches are re-weighed by the folders and nothing else moves (a seat's values at a
   terminal without folders are unchanged), the combo and class levels agree, and a short solve of it converges.
 
-~20 s. Run: .venv/bin/python -m unittest scripts/engine/test_pf_full.py
+About 3-4 s. Run: .venv/bin/python -m unittest scripts/engine/test_pf_full.py
 """
 import sys
 import unittest

@@ -3805,7 +3805,8 @@ that tells suits apart (node-locked or exploitative) or for suit-aware flop valu
   against.
 - **Opener facing a 3bet:** `scripts/pf/vs3bet.py`.
 - **Distance to lz4:** at each decision, half the L1 distance between the class strategies, weighted by the acting
-  seat's reach. The table gives the mean and the maximum over the 46 decisions played in more than 1% of hands.
+  seat's reach. The table gives the mean and the maximum over the decisions played in more than 1% of hands: 45 at 700
+  iterations, 46 at 1,500, 41 with upstream's flop values. `compare` names the decision with the maximum (`max_node`).
 - **Exploitability:** mbb/hand a seat, measured in each model's game.
 
 | Solve | Iterations | Mean error (points) | Spots out / 26 | Facts off / 15 | Out of order vs 3bet | Distance to lz4: mean, max | In lz4's game | In the cross game |
@@ -3824,8 +3825,10 @@ What the table says:
 - **The model gap is smaller than the solve's own error.** lz4's 1,500-iteration strategy gives up 0.551 mbb/hand a
   seat in the cross game, against 0.386 in its own game, so removal across seats is worth about 0.15-0.17 mbb/hand a
   seat. The stored grid is converged to a mean of 0.51 (section 31), and a live solve stops at 1.5.
-- **Ranges barely move.** A node's range moves 0.5-0.8% of its weight on average. The largest move is 3.0% at 1,500
-  iterations (4.2% at 700), for the BB facing a BTN open after the SB folds, where the four folds are tightest.
+- **Ranges barely move.** A node's range moves 0.5-0.8% of its weight on average. The largest move at 1,500 iterations
+  is 3.0%, for the BB facing a BTN open after the SB folds, where the four folds are tightest. At 700 iterations it is
+  4.2%, for the CO facing the BTN's 3bet after both blinds fold (a line reached in 1.9% of hands); the BB facing a BTN
+  open moves 1.9% there.
 - **No clear direction against the published solves.** With removal across seats the mean error falls by 0.04-0.08
   points and 1-3 fewer spots are out. Hand facts are equal or 2 worse, and so are the hands out of order facing a 3bet.
 - **Iteration count moves the scores as much.** lz4 itself goes from 1.955 to 2.020 points, from 5 to 8 spots out and
@@ -3878,7 +3881,8 @@ Pyodide iteration at 1.75 times its native one.
   worker. Not run in a browser here.
 
 **Three-way flops** are 1.05% of hands in this game. The rest: heads-up flops 26.3%, heads-up all-ins 0.59%, folds
-before a flop 72.1% (from lz4's 1,500-iteration strategy, without card removal). The 3-way library
+before a flop 72.1% (lz4's 1,500-iteration strategy, without card removal: `measure_full.py shares`, in
+`library-build/runs/w14-pf-full/shares_lz4_1500.json`). The 3-way library
 (`.work/oneshot/mw-all/lib`, read through `scripts/library/assemble.py`) stores only check lines
 (`solver/gto/mw_library.py`), so it has no value for a player facing a bet, and its 8 spots cover a few of the tree's
 three-way flop terminals. Replacing `pf_model`'s three-way realisation factors with it was not attempted.

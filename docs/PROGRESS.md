@@ -6761,16 +6761,18 @@ Every figure below is lz4's.
   weighs each live opponent's combos by the folders' hands, to first order. It is float32 and goes up the tree one
   depth at a time, so the 6-max tree fits in 799 MB. A no-BLAS path (`PF_FULL_NO_BLAS=1`, and always under Pyodide)
   times what a browser would do.
-- **Tools.** `scripts/pf/measure_full.py` has three subcommands: `solve`, `compare` (published references, the opener
-  facing a 3bet, distance per node, exploitability in each model's game) and `pairterm` (what the first order leaves
-  out at showdowns).
+- **Tools.** `scripts/pf/measure_full.py` has four subcommands: `solve`, `compare` (published references, the opener
+  facing a 3bet, distance per node with the node of the largest move, exploitability in each model's game),
+  `pairterm` (what the first order leaves out at showdowns) and `shares` (how often hands end at each kind of
+  terminal).
 - **Tests.** `scripts/engine/test_pf_full.py`, 5 tests. They show that the class level without `cross` is lz4 to 1e-9,
   the combo level without `cross` is the class game, heads-up is untouched, and a 3-max solve converges.
 - **Measured** (ACCURACY section 35, 6-max 100bb at the references' rake, 700 and 1,500 iterations):
   - Every combo of a class stays on one strategy (spread 5e-5), so on an even solve the combo level is the class
     level, at 15 times the time (1.2 s against 0.08 s an iteration natively).
-  - Removal across seats moves a node's range 0.5-0.8% (3.0-4.2% at most, for the BB facing a BTN open). It is worth
-    0.15-0.17 mbb/hand a seat in exploitability terms.
+  - Removal across seats moves a node's range 0.5-0.8%. The largest move is 3.0% at 1,500 iterations, for the BB
+    facing a BTN open, and 4.2% at 700, for the CO facing the BTN's 3bet. It is worth 0.15-0.17 mbb/hand a seat in
+    exploitability terms.
   - Against the published solves the result is mixed: mean error 1.874 against 1.955 and 1.976 against 2.020, spots
     out 4 against 5 and 5 against 8. But hand facts and hands out of order facing a 3bet come out equal or worse.
     That is within how much lz4 itself moves between 700 and 1,500 iterations.
@@ -6791,3 +6793,9 @@ Every figure below is lz4's.
   - No web files were touched, so the web gates were not run.
 - **Cost.** The measurement run is `library-build/runs/w14-pf-full/run.sh`, eleven slot jobs one after another, about
   45 minutes. With the prototyping, about 1.5 CPU hours in all.
+- **Review fixes.** The 4.2% move at 700 iterations had been put at the BB facing a BTN open, which moves 1.9% there;
+  `compare` now names each run's largest move (`max_node`), and the three compares were rerun through slot.sh
+  (`rerun_compare.sh`, every other figure unchanged). The decisions over 1% of hands are 45 at 700 iterations and 46
+  at 1,500. `solve` no longer records `cross: true` for lz4, which has no removal across seats (`lz4.json` and
+  `lz4_def.json` corrected). The terminal shares (three-way flops 1.05% of hands) come from the new `shares`
+  subcommand, saved as `shares_lz4_1500.json`.

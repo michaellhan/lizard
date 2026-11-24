@@ -8,6 +8,7 @@ one per process:
         --out DIR/combo_x
     .venv/bin/python scripts/pf/measure_full.py compare DIR/lz4_700.npz DIR/combo_x_700.npz ... --base DIR/lz4_700.npz
     slot.sh .venv/bin/python scripts/pf/measure_full.py pairterm DIR/combo_x_1500.npz --out DIR/pairterm.json
+    .venv/bin/python scripts/pf/measure_full.py shares DIR/lz4_1500.npz --out DIR/shares_lz4_1500.json
 
 `solve` writes <out>_<iters>.npz (the class-level average strategy, (decisions, 3, 169)) and <out>.json (time per
 iteration, peak resident memory, exploitability in its own game at each save). `compare` reads them into the class-level
@@ -16,7 +17,8 @@ the opener facing a 3bet (scripts/pf/vs3bet.py: out of order, and the per-hand g
 the distance per node to --base (half the L1 distance of the class strategies, weighted by the acting seat's class
 reach), and each strategy's exploitability in the other model's game (what a seat gains against it by best-responding,
 in the class-level game with and without removal across seats). `pairterm` measures what the first-order removal across
-seats leaves out at the heads-up showdowns of a solve (module doc of `pairterm`).
+seats leaves out at the heads-up showdowns of a solve (module doc of `pairterm`). `shares` reports how often a saved
+strategy's hands end folded before the flop, at a heads-up flop or all-in, or at a three-way flop.
 
 Game: 6-max 100bb, the references' rake (5% capped at 4bb), the stored games' tree (pf_solve.Spec), engine/pf_calib.py's
 flop values (--params default: upstream's library model, pf_model.Params()).
@@ -76,8 +78,9 @@ def cmd_solve(a):
         step = fg.iterate
         mem = fg.memory_mb()
     build = time.time() - t0
-    rec = {"engine": a.engine, "cross": bool(a.cross), "params": a.params, "game": spec.key, "build_s": round(build, 2),
-           "kept_mb": round(mem, 1), "saves": {}}
+    # lz4 has no removal across seats, whatever --cross says
+    rec = {"engine": a.engine, "cross": a.engine != "lz4" and bool(a.cross), "params": a.params, "game": spec.key,
+           "build_s": round(build, 2), "kept_mb": round(mem, 1), "saves": {}}
     t_iter, t = 0.0, 0
     for it in saves:
         t1 = time.time()
@@ -124,14 +127,18 @@ def node_distance(gA, gB) -> dict:
     node_d = (d_cls * w).sum(1) / np.maximum(w.sum(1), 1e-300)
     big = node_w > 0.01 * node_w[0]
     order = np.argsort(-node_w)
-    top = [(" ".join(f"{m[0]}:{m[1]}" for m in gB.nodes_all[gB.dec[k]].line) or "first in",
-            gB.positions[gB.player[k]], round(float(node_w[k] / node_w[0]), 4), round(float(node_d[k]), 4))
-           for k in order[:12]]
+
+    def row(k):
+        return (" ".join(f"{m[0]}:{m[1]}" for m in gB.nodes_all[gB.dec[k]].line) or "first in",
+                gB.positions[gB.player[k]], round(float(node_w[k] / node_w[0]), 4), round(float(node_d[k]), 4))
+
+    k_max = int(np.flatnonzero(big)[np.argmax(node_d[big])])
     return {"mean_reach_weighted": round(float((node_d * node_w).sum() / node_w.sum()), 4),
             "nodes_over_1pct": int(big.sum()),
             "mean_over_1pct": round(float(node_d[big].mean()), 4),
             "max_over_1pct": round(float(node_d[big].max()), 4),
-            "top_nodes": top}
+            "max_node": row(k_max),                         # where that maximum is: line, seat, reach, distance
+            "top_nodes": [row(k) for k in order[:12]]}
 
 
 def ref_report(g, spec, iters) -> dict:
@@ -171,6 +178,33 @@ def cmd_compare(a):
     if a.out:
         with open(a.out, "w") as f:
             json.dump(res, f, indent=1)
+
+
+# ----------------------------------------------------------------------------- terminal shares
+def cmd_shares(a):
+    """How often a saved strategy's hands end in each kind of terminal: folds before a flop, heads-up flops, heads-up
+    all-ins and three-way flops (or more). Each terminal weighs the product of the seats' class reaches there over the
+    root's (the class-level game, no card removal across seats), as node_distance weighs lines."""
+    import gto.native  # noqa: F401
+    spec = spec_of(a)
+    g = load_into(spec, a.run, params_of(a.params))
+    R = g.reach()                                           # (N, n, 169)
+    w = np.prod(R.sum(2), axis=1)
+    w = w / w[0]
+    tot = {"fold": 0.0, "hu_flop": 0.0, "hu_allin": 0.0, "multiway_flop": 0.0, "multiway_allin": 0.0}
+    for k in g.terms:
+        nd = g.nodes_all[k]
+        if nd.kind == "fold":
+            kind = "fold"
+        else:
+            kind = ("hu_" if len(nd.active) == 2 else "multiway_") + ("allin" if nd.allin else "flop")
+        tot[kind] += float(w[k])
+    out = {"run": os.path.basename(a.run), "shares": {k: round(v, 5) for k, v in tot.items()},
+           "total": round(sum(tot.values()), 6)}
+    print(json.dumps(out))
+    if a.out:
+        with open(a.out, "w") as f:
+            json.dump(out, f, indent=1)
 
 
 # ----------------------------------------------------------------------------- the pair term
@@ -259,7 +293,7 @@ def cmd_pairterm(a):
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
-    for name in ("solve", "compare", "pairterm"):
+    for name in ("solve", "compare", "pairterm", "shares"):
         p = sub.add_parser(name)
         p.add_argument("--players", type=int, default=6)
         p.add_argument("--stack", type=float, default=100.0)
@@ -275,12 +309,15 @@ def main():
             p.add_argument("runs", nargs="+")
             p.add_argument("--base")
             p.add_argument("--out")
-        else:
+        elif name == "pairterm":
             p.add_argument("run")
             p.add_argument("--terminals", type=int, default=40)
             p.add_argument("--out")
+        else:
+            p.add_argument("run")
+            p.add_argument("--out")
     a = ap.parse_args()
-    {"solve": cmd_solve, "compare": cmd_compare, "pairterm": cmd_pairterm}[a.cmd](a)
+    {"solve": cmd_solve, "compare": cmd_compare, "pairterm": cmd_pairterm, "shares": cmd_shares}[a.cmd](a)
 
 
 if __name__ == "__main__":
