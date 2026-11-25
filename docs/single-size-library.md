@@ -119,7 +119,7 @@ $PY $B index                      # rewrite ss-index.json from what's on disk (t
   of 250 MB (`SS_BYTES`).
 - At release b3d8a40c the library held 482 MB and 78,598 files. With all 552 single-size flops, that becomes about
   575 MB and about 114,000 files.
-- `MAX_FILES` went from 90,000 to 120,000 for this. GitHub Pages limits bytes, not files, and 49,298 files deployed
+- `MAX_FILES` went from 90,000 to 120,000 for this (and to 124,000 on 2026-11-24 for the 3-way set). GitHub Pages limits bytes, not files, and 49,298 files deployed
   in 80 s.
 
 The other options, more flops or wider sizing, were weighed:
@@ -156,7 +156,7 @@ The tests are `SingleSizeTest` in `scripts/library/test_assemble.py` and `script
    du -sm "$S"; find "$S" -type f | wc -l; python3 -m json.tool "$S/lizard-library.json" | grep -A8 singleSize
    ```
 
-   It must stay under 900 MB and 120,000 files; `assemble.py` refuses otherwise. Expect about 575 MB and about
+   It must stay under 900 MB and 124,000 files; `assemble.py` refuses otherwise. Expect about 575 MB and about
    114,000 files.
 4. Publish by the usual path in `docs/DEPLOYMENT.md` §2. That is `scripts/library/publish.sh` through `slot.sh`, or
    simply wait for the 6-hourly launchd run, which picks the source up once the branch is merged.

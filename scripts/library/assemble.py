@@ -105,8 +105,10 @@ HEADS_FORMAT = 1  # <mw spot>/heads.json (web/src/library/mwReport.ts reads it)
 MAX_FILE = 50 * 2**20
 MAX_TOTAL = 900 * 2**20
 # (GitHub Pages: 1 GB a site, no file limit; 49,298 files deployed in 80 s on 2026-11-15. 120,000 for the single-size
-# library's ~63 files a flop: 552 flops on its 38 spots take ~35k more beside the 78.6k of release b3d8a40c)
-MAX_FILES = 120_000
+# library's ~63 files a flop: 552 flops on its 38 spots take ~35k more beside the 78.6k of release b3d8a40c; 124,000 on
+# 2026-11-24 for the 3-way single-size set's one file a flop entry, ~3,320 at 552 flops: the ante and straddle games filled
+# the 120,000 and the 21:47 publish left the 3-way set out, which goes in last; the release was 591 MB)
+MAX_FILES = 124_000
 SS_SOURCE = SOURCES / "single-size"  # scripts/library/build_single_size.py
 SS_FORMAT = 1  # engine/single_size.py SS_FORMAT
 # The single-size library's own byte budget: the library (482 MB at b3d8a40c) + this + the app (~28 MB) stays well

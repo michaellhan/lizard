@@ -217,7 +217,7 @@ Guarantees, enforced by `assemble.py`:
 - a source on a different tree or format is skipped;
 - a 3-way build's flops join only a published 3-way spot of the same ranges, pot and stack, and the base's entry
   wins a flop both hold;
-- the stage stays under 50 MB per file, 900 MB in total and 120,000 files (raised from 60,000 to 90,000 on 2026-11-17, then to 120,000 for the single-size library's about 35,000: GitHub Pages limits a site to 1 GB, not a file count, and deployed 49,298 files in 80 s);
+- the stage stays under 50 MB per file, 900 MB in total and 124,000 files (raised from 60,000 to 90,000 on 2026-11-17, then to 120,000 for the single-size library's about 35,000, then to 124,000 on 2026-11-24 for the 3-way single-size set's about 3,320: GitHub Pages limits a site to 1 GB, not a file count, and deployed 49,298 files in 80 s);
 - the single-size library (`library-build/sources/single-size`, `docs/single-size-library.md`) goes in last, as its own `ss_index.json`: a flop once 90% of its spots hold it, within its own 250 MB.
 
 The tests are in `scripts/library/test_assemble.py`.
@@ -258,7 +258,7 @@ entries are read by the tree each spot carries.
 
 ### The library on R2 (past Pages' budget)
 
-GitHub Pages serves at most about 1 GB a site, and `assemble.py` keeps the Pages part under 900 MiB and 120,000 files.
+GitHub Pages serves at most about 1 GB a site, and `assemble.py` keeps the Pages part under 900 MiB and 124,000 files.
 Past that, whole spot directories ("sets") go to a Cloudflare R2 bucket:
 
 1. `assemble.py` takes `--r2-base`, or the `LIZARD_R2_BASE` environment variable: the bucket's public https base,
