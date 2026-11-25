@@ -73,6 +73,8 @@ NEAR_DIST = 0.25
 # (mw_utg_ip_bb, 0.216 away: 0.047 vs 0.059% of the pot given up; mw_co_sb_bb, 0.143: 0.041 vs 0.059), and the two past
 # it didn't (mw_hj_sb_bb, 0.314: 0.051 vs 0.047; mw_utg_sb_bb, 0.318: 0.080 vs 0.048, up to 0.66 on Ac4d3h), so those
 # two are withheld (withheld(): never served, borrowed or read as a stand-in) and their pots are solved live.
+# Rerun on the full build (2026-11-25, 12 flops each): mw_hj_sb_bb 0.057 vs 0.045, mw_utg_sb_bb 0.050 vs 0.042, the
+# stored entry giving up less on 5 of 12 flops each, so both stay withheld.
 NEAR_DIST_SPOT: dict = {}
 NEAR_COVER = 0.9      # each of today's ranges' weight the built range holds at least (as MW_BORROW_COVER)
 

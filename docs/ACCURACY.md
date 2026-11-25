@@ -3920,6 +3920,25 @@ marked approximate with the build named.
 Rerun the bench once gtosolver's build finishes `mw_hj_sb_bb` and `mw_utg_sb_bb`. It would only change what is served
 if a rebuild on today's charts brought them within `NEAR_DIST`.
 
+**Rerun on the full build (2026-11-25).** gtosolver's build now holds all 1,755 flops of `mw_hj_sb_bb` and
+`mw_utg_sb_bb` (gto-solver b0adda8d; the same entries, game and tree key as before). The two withheld spots were
+benched again with 12 flops each: section 28's six, all held now, plus six at random. The command was
+`bench_mw_game.py --stage library-build/stage --spots mw_hj_sb_bb,mw_utg_sb_bb --flops 12 --live-iters 200`, through
+`slot.sh`, and the rows are in `library-build/runs/w12-rebench/bench.jsonl`.
+
+| Spot | Flops | Stored entry: mean (max) | Live Fast: mean (max) | Flops where the stored entry gives up less |
+|---|---|---|---|---|
+| `mw_hj_sb_bb` | 12 | 0.057% (0.164) | 0.045% (0.179) | 5 of 12 |
+| `mw_utg_sb_bb` | 12 | 0.050% (0.149) | 0.042% (0.161) | 5 of 12 |
+
+The full build removed `mw_utg_sb_bb`'s outlier: its worst decision is now 0.15% of the pot, where it was 0.66 on
+Ac4d3h. But on today's charts neither spot beats the live Fast solve, on the mean or on most flops. So
+`NEAR_DIST_SPOT` stays empty, and both spots stay withheld and solved live.
+
+gtosolver measured these spots on its own game and charts, against a native Accurate 30 s solve, and found they give
+up 0.042% and 0.058% of the pot, about the same as `mw_co_sb_bb`. That doesn't contradict this result. Lizard serves
+today's charts, whose BB ranges moved 0.31-0.32 from the ones those spots were built on.
+
 **Review fix (2026-11-24).** The first version withheld those two only from `near_built`. Upstream's `borrow` and
 `stand_in` still read them through the built ranges. So a 6-max hand where HJ opens and SB and BB call got
 `mw_hj_sb_bb`'s stored mixes as the instant answer on Kc9d4h, with upstream's text "the same pot; the ranges differ by
