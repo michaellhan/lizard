@@ -37,14 +37,13 @@ export const PF_STRADDLE_PLAYERS = [3, 4, 5, 6, 7, 8, 9] as const;
 export const PF_STRADDLE_DEPTHS = [50, 100, 150, 200] as const;
 export const PF_ANTE_PLAYERS = [2, 3, 4, 5, 6, 7, 8, 9] as const;
 export const PF_ANTE_DEPTHS = [20, 25, 30, 40, 50, 60, 80, 100] as const;
-/** engine/pf_solve.py FORCED_WORDS: what a stored answer with an ante or a straddle is called */
 /** The full-ring games with neither an ante nor a straddle (engine/pf_solve.py RING_*, 2026-11-26): 7 to 9 players at the
  * grid's depths, no rake or 5% capped at 3bb, at the tree's sizes and the charts', built by the same set as the forced
  * games and listed in PF_FORCED_BUILT as they're built. Their answers carry no forced words (their flop values are the
  * grid's), only the 7-9 handed tree's limits. */
 export const PF_RING_PLAYERS = [7, 8, 9] as const;
 const isRing = (players: number) => (PF_RING_PLAYERS as readonly number[]).includes(players);
-export const PF_FORCED_WORDS = "stored preflop solve (class-level model) with ante/straddle";
+export { PF_FORCED_WORDS } from "./pfForcedWords";
 
 /** The ante stored at a table size: a 1bb big-blind ante as each seat's share, to the cent (engine/pf_solve.py stored_ante). */
 export const pfStoredAnte = (players: number) => Math.round(100 / players) / 100;

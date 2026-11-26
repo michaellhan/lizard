@@ -6,7 +6,7 @@ import { abstractionWords, flopModelOf } from "./abstraction";
 import { bunchingWords } from "./bunching";
 import { singleSizeWords } from "./singleSize";
 import { treeWords } from "./treeDepth";
-import { PF_FORCED_WORDS } from "./pfStored";
+import { PF_FORCED_WORDS } from "./pfForcedWords";
 import type { ConvergenceBand, Provenance, ResultSource, SolveMode, TransportKind } from "./types";
 
 export interface ProvenanceContext {
