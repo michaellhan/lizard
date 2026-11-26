@@ -435,6 +435,10 @@ def stored_games() -> List[Spec]:
 # Beside them, by the same build and list (2026-11-26), the full-ring games with neither: 7 to 9 players at the grid's
 # depths, equal stacks, no rake or 5% capped at 3bb, on the 7-9 handed tree, so a full-ring cash hand's preflop is graded
 # by EV as a 6-max one is (RING_*). They carry no forced words: their flop values are the grid's.
+# And, for the grade alone (the charts' sizes), the full-ring games with 3-way flops (RING3, 2026-11-26) wherever their
+# solve keeps under the gigabyte a build process here keeps under (Spec.estimate_mb: 7 players at every depth, 827 MB at
+# 200bb; 8 to 125bb, 818 MB; 9 to 60bb, 760 MB): an open with a caller can be overcalled, as the table lets you, so at 7
+# players 100bb the grade answers 93.6% of decisions where the 2-way tree answers 90.0% (docs/ACCURACY.md section 39).
 STRADDLE_PLAYERS = (3, 4, 5, 6, 7, 8, 9)
 STRADDLE_DEPTHS = (50.0, 100.0, 150.0, 200.0)
 STRADDLE_RAKES = STORED_RAKES
@@ -444,6 +448,7 @@ ANTE_RAKES = (None,)
 RING_PLAYERS = (9, 8, 7)
 RING_DEPTHS = (100.0, 200.0, 50.0, 150.0, 60.0, 80.0, 125.0, 40.0, 30.0, 25.0, 20.0)   # the build's order; the grid's
 RING_RAKES = STORED_RAKES
+RING3 = ((7, 200.0), (8, 125.0), (9, 60.0))   # (players, the deepest stored with 3-way flops)
 FORCED_WORDS = "stored preflop solve (class-level model) with ante/straddle"
 FORCED_NOTE = ("the flop values are fitted to published solves without antes or a straddle: not measured against a "
                "fuller solve with them")
@@ -456,8 +461,8 @@ def stored_ante(players: int) -> float:
 
 
 def forced_games() -> List[Spec]:
-    """Every stored game beyond the grid (an ante or a straddle, then the full-ring games with neither), built or not,
-    the most played first (the build's order)."""
+    """Every stored game beyond the grid (an ante or a straddle, then the full-ring games with neither, then those with
+    3-way flops at the charts' sizes), built or not, the most played first (the build's order)."""
     def straddled(depths):
         return [Spec(n, (d,), straddle=True, rake=r) for d in depths for n in STRADDLE_PLAYERS for r in STRADDLE_RAKES]
 
@@ -469,7 +474,10 @@ def forced_games() -> List[Spec]:
     out = (straddled(first) + anted(core) + straddled([d for d in STRADDLE_DEPTHS if d not in first])
            + anted([d for d in ANTE_DEPTHS if d not in core]))
     out += [Spec(n, (d,), rake=r) for d in RING_DEPTHS for n in RING_PLAYERS for r in RING_RAKES]
-    return [x for s in out for x in (chart_sized(s), s)]
+    both = [x for s in out for x in (chart_sized(s), s)]
+    # (3-way flops: the charts' sizes only, as only the grade asks them)
+    return both + [Spec(n, (d,), rake=r, flop3=True, chart=True) for d in RING_DEPTHS for n, top in RING3 if d <= top
+                   for r in RING_RAKES]
 
 
 FORCED_KEYS = frozenset(s.key for s in forced_games())

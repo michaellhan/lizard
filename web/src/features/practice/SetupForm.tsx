@@ -58,17 +58,17 @@ import {
  * games at the charts' own raise sizes, lz4 (scripts/pf_practice_coverage.py --chart-sizes, 10,000 hands at 2 to 5 players and
  * 30,000 at 6: 234 of 9,595 hands with a decision, 62 of 9,035, 77 of 9,509, 97 of 9,717, 541 of 29,347; docs/ACCURACY.md
  * section 18.12). At 6 players most are moves the solve never trains (pfGrade.ts untrainedMoves), left to the chart.
- * At 7 to 9 players, the full-ring games (2026-11-26, 10,000 hands each: 1,020 of 9,839, 1,150 of 9,899, 1,254 of 9,915;
- * section 39): their smaller tree lets at most two see a flop, so a cold call of an open that has a caller, or of a 3-bet,
- * isn't on it and that spot keeps the chart's grade. */
+ * At 7 to 9 players, the full-ring games (2026-11-26, 10,000 hands each; section 39): 7 and 8 players at 100bb are asked
+ * with 3-way flops (655 of 9,839, 654 of 9,899), 9 players at 100bb on the 2-way tree (1,254 of 9,915; 649 of 9,946 at
+ * 40bb, where 3-way flops are stored). Either tree leaves out cold calls of a 3-bet, so that spot keeps the chart's grade. */
 const PF_UNGRADED: Record<number, string> = {
   2: "about 1 hand in 40",
   3: "about 1 hand in 145",
   4: "about 1 hand in 125",
   5: "about 1 hand in 100",
   6: "about 1 hand in 55",
-  7: "about 1 hand in 10",
-  8: "about 1 hand in 9",
+  7: "about 1 hand in 15",
+  8: "about 1 hand in 15",
   9: "about 1 hand in 8",
 };
 

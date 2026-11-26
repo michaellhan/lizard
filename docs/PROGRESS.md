@@ -7147,3 +7147,20 @@ Workstream W11 of the second GAP_PLAN run (ACCURACY section 18.13).
 - FEATURE_MATRIX: Preflop trainer, EV-loss scoring, Preflop solves and 2–9 handed rows updated; grades unchanged.
 - Not done: not clicked through in a browser here. The smaller 7-to-9 tree leaves cold calls with two already in to the
   charts (a wider 7-to-9 tree wasn't tried).
+
+## 2026-11-26 — Full-ring games with 3-way flops for the grade
+
+- The 2-way 7-to-9 tree left 10 to 12% of decisions ungraded, mostly overcalls of an open with a caller. A wider tree with
+  cold calls of a 3-bet passes the gigabyte at every table size (1.1 GB at 7 players 100bb, 6.2 GB at 9), so only 3-way
+  flops are stored, where their solve keeps under it: `engine/pf_solve.py` `RING3`, 52 games at the charts' sizes (7
+  players at every depth, 8 to 125bb, 9 to 60bb, raked or not). Built through the CPU slot (`library-build/runs/pf-ring3`,
+  06:50 to 07:43, 53 CPU minutes, 0.032 to 0.787 mbb/hand a seat at 1,500 iterations), installed (424 of 424 built).
+- Page: `pfGradeSizes` asks `pf_tree: {sizing: "chart", flop3: true}` where the 3-way game is built (`PF_RING3`,
+  `pfGameKey`'s `flop3`), else the 2-way one. Graded decisions at 7 and 8 players 100bb and 9 players 40bb: 93.6% (from
+  88 to 90%); Practice's note says about 1 hand in 15 at 7 and 8 players (ACCURACY section 39.1).
+- The QQ 4-bet "Blunders" of the chart's main move are the model's 4-bet pots, as at 6-max (ACCURACY 18.8); section 39 now
+  says so.
+- `scripts/pf_practice_coverage.py --flop3`. Gates: `test_pf_forced.py` 9 OK (a 3-way game answered from its file);
+  typecheck and lint clean; solver, practice and analyze vitest (98 files, 2,029 tests).
+- Left: cold calls and cold 4-bets against a 3-bet at 7 to 9 players (past the gigabyte); 3-way flops at 8 players past
+  125bb and 9 players past 60bb; stacks off the grid and tournaments beyond the stored presets.

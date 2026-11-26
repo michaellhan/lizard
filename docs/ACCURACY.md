@@ -4335,7 +4335,55 @@ the solve's node doesn't have (a cold call of an open that already has a caller,
 those keep the chart's grade under the chart's name, as any spot the solve can't answer does. The charts' most played
 move was graded Mistake or worse 1, 2 and 3 times in 9,008, 8,905 and 8,741 graded decisions: QQ's 4-bet against a blind
 3-bet (7.7 to 12.4bb lost), AQs's and JJ's fold to a squeeze (6.9 to 7.7bb), and the big blind's JJ 3-bet (1.3bb). These
-are where the class-level model and the charts part, as in section 18.11. **[M]**
+are where the class-level model and the charts part, as at 6-max: section 18.8's largest was the same QQ 4-bet against
+a 3-bet, "lost" 8.8bb, and its 4-bet pots are the model's least certain EVs (90th percentile gap 4.4bb). They are rare
+(at most 3 in about 9,000) and past CLEAR_PCT, so the grade calls them Blunders as it does at 6-max. **[M]**
 
 **Practice's setup note** says the share for 7 to 9 players as for 2 to 6 (`SetupForm.tsx` `PF_UNGRADED`). A 7-to-9-player
 game off the grid's depths says the grid's depths and the nearest, as at 2 to 6 (`practice.ts` `pfBlocked`). **[V]**
+
+### 39.1 Full-ring games with 3-way flops (2026-11-26)
+
+Most of what the 2-way tree left ungraded facing an open was an overcall: an open with a caller, the table offering a
+call the solve's node didn't have. The engine already builds the 7-to-9 tree with 3-way flops (`Spec(flop3=True)`,
+key `_f3`). With cold calls of a 3-bet as well (`_c1`), a solve passes the gigabyte at every table size (7 players 100bb:
+1,129 MB; 9 players 100bb: 6.2 GB, `Spec.estimate_mb`), so only the 3-way flops are stored, where their solve keeps under
+a gigabyte. **[V]**
+
+| Players | 3-way flops stored at | Largest solve (MB, estimate) |
+|---|---|---|
+| 7 | every depth, 20 to 200bb | 827 (200bb) |
+| 8 | 20 to 125bb | 818 (125bb; 150bb would be 1,264) |
+| 9 | 20 to 60bb | 760 (60bb; 80bb would be 1,231) |
+
+52 games (`RING3`), raked or not, at the charts' sizes only, as only the grade asks them. Reading one is cheap: the 7-max
+100bb file read natively peaks at 147 MB, against 234 MB for the stored 6-max 200bb game the site already serves. The
+grade asks the 3-way game where it's built and the 2-way one elsewhere (`pfStored.ts` `pfGradeSizes`, request
+`pf_tree: {sizing: "chart", flop3: true}`); the answer's limits then say only "nobody cold 4bets or cold-calls a 3bet".
+**[V]**
+
+**The build** (`library-build/runs/pf-ring3`, one process through the CPU slot, 06:50 to 07:43): every game within target
+at 1,500 iterations. **[M]**
+
+| Players | Games | CPU seconds | mbb/hand a seat | Bytes |
+|---|---|---|---|---|
+| 7 | 22 | 1,103 | 0.032 to 0.787 | 635,844 |
+| 8 | 18 | 1,211 | 0.038 to 0.587 | 526,739 |
+| 9 | 12 | 840 | 0.043 to 0.479 | 261,449 |
+
+**What the grade answers** (`scripts/pf_practice_coverage.py --chart-sizes [--flop3] --policy chart --hands 10000`): **[M]**
+
+| Game | Tree | Decisions answered | Facing an open | Hands with a decision it can't grade |
+|---|---|---|---|---|
+| 7 players 100bb | 2-way | 90.0% | 91.0% | 1,020 of 9,839 (1 in 10) |
+| 7 players 100bb | 3-way | 93.6% | 99.5% | 655 of 9,839 (1 in 15) |
+| 8 players 100bb | 2-way | 88.7% | 87.6% | 1,150 of 9,899 (1 in 9) |
+| 8 players 100bb | 3-way | 93.6% | 99.2% | 654 of 9,899 (1 in 15) |
+| 9 players 40bb | 2-way | 87.8% | 86.3% | 1,248 of 9,946 (1 in 8) |
+| 9 players 40bb | 3-way | 93.6% | 99.2% | 649 of 9,946 (1 in 15) |
+
+What stays ungraded is mostly a cold call or cold 4-bet against a 3-bet (facing a 3-bet, about 30% answered). The newly
+graded overcalls added two small Blunders of the chart's main move at 8 players (the big blind's 99 overcall after an open
+and a call, 1.76bb; the button's 99 flat of a CO open, 1.22bb); the chart's main move was graded Mistake or worse 1, 4 and
+2 times in 9,358, 9,384 and 9,371 graded decisions. EV lost a graded decision, playing the charts: 0.021, 0.020 and
+0.014bb. **[M]**

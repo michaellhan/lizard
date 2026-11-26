@@ -43,6 +43,10 @@ export const PF_ANTE_DEPTHS = [20, 25, 30, 40, 50, 60, 80, 100] as const;
  * grid's), only the 7-9 handed tree's limits. */
 export const PF_RING_PLAYERS = [7, 8, 9] as const;
 const isRing = (players: number) => (PF_RING_PLAYERS as readonly number[]).includes(players);
+/** The full-ring games with 3-way flops (engine/pf_solve.py RING3, 2026-11-26), at the charts' sizes only, as only the grade
+ * asks them: a table size and the deepest stored, those whose solve keeps under a gigabyte. Where one is built the grade
+ * asks it (`pfGradeSizes`), so an overcall of an open with a caller is graded; elsewhere the 2-way game's. */
+export const PF_RING3: readonly (readonly [number, number])[] = [[7, 200], [8, 125], [9, 60]];
 export { PF_FORCED_WORDS } from "./pfForcedWords";
 
 /** The ante stored at a table size: a 1bb big-blind ante as each seat's share, to the cent (engine/pf_solve.py stored_ante). */
@@ -64,9 +68,9 @@ export function pfForcedOf(players: number, ante: number | undefined, straddle: 
 }
 
 /** Any stored game's key (engine/pf_solve.Spec.key): its ante, straddle, rake and the charts' sizes. */
-export const pfGameKey = (players: number, stack: number, o: { forced?: PfForced; raked?: boolean; chart?: boolean }) =>
+export const pfGameKey = (players: number, stack: number, o: { forced?: PfForced; raked?: boolean; chart?: boolean; flop3?: boolean }) =>
   `${PF_MODEL_TAG}_${players}max_${stack}bb${o.forced === "ante" ? `_a${pfStoredAnte(players)}` : ""}${o.forced === "straddle" ? "_s" : ""}` +
-  `${o.raked ? `_r${PF_STORED_RAKE.pct}c${PF_STORED_RAKE.cap}` : ""}${o.chart ? "_ch" : ""}`;
+  `${o.raked ? `_r${PF_STORED_RAKE.pct}c${PF_STORED_RAKE.cap}` : ""}${o.flop3 ? "_f3" : ""}${o.chart ? "_ch" : ""}`;
 
 const FORCED_BUILT = new Set(PF_FORCED_BUILT);
 
@@ -99,10 +103,36 @@ export const pfPlainStored = (players: number, stack: number) =>
   (PF_DEPTHS as readonly number[]).includes(stack) &&
   ((PF_PLAYERS as readonly number[]).includes(players) || (isRing(players) && FORCED_BUILT.has(pfGameKey(players, stack, {}))));
 
+/** The tree a full-ring grade asks with 3-way flops (engine/pf_solve.py RING3). */
+export const PF_CHART_TREE_F3 = { sizing: "chart", flop3: true } as const;
+
+/** The one stack of a request: its `stack`, or its seats' when they're all the same (none where they differ). */
+const equalStack = (state: { stack?: number; stacks?: Record<string, number> }) => {
+  const v = Object.values(state.stacks ?? {});
+  if (!v.length) return state.stack;
+  return v.every((x) => Math.abs(x - v[0]!) < 1e-9) ? v[0] : undefined;
+};
+
 /** What a grade's request adds to ask the stored game at the charts' raise sizes, where one is stored for the table size
- * and its forced bets (nothing for a tournament's request, whose stored presets are of the tree's own sizes). */
-export const pfGradeSizes = (state: { players?: number; payouts?: unknown; bounties?: unknown; ante?: number; straddle?: boolean }): { pf_tree?: typeof PF_CHART_TREE } =>
-  chartFor(state.players ?? 0, pfForcedOf(state.players ?? 0, state.ante, state.straddle)) && !state.payouts && !state.bounties ? { pf_tree: PF_CHART_TREE } : {};
+ * and its forced bets (nothing for a tournament's request, whose stored presets are of the tree's own sizes); at 7 to 9
+ * players with neither, the game with 3-way flops where that one is built (PF_RING3). */
+export const pfGradeSizes = (state: {
+  players?: number;
+  payouts?: unknown;
+  bounties?: unknown;
+  ante?: number;
+  straddle?: boolean;
+  stack?: number;
+  stacks?: Record<string, number>;
+  rake?: unknown;
+}): { pf_tree?: typeof PF_CHART_TREE | typeof PF_CHART_TREE_F3 } => {
+  const players = state.players ?? 0;
+  const forced = pfForcedOf(players, state.ante, state.straddle);
+  if (!chartFor(players, forced) || state.payouts || state.bounties) return {};
+  const stack = equalStack(state);
+  const f3 = forced === "none" && isRing(players) && stack !== undefined && FORCED_BUILT.has(pfGameKey(players, stack, { raked: !!state.rake, chart: true, flop3: true }));
+  return { pf_tree: f3 ? PF_CHART_TREE_F3 : PF_CHART_TREE };
+};
 
 /** Depths in words: "20, 25, 30, … or 200bb". */
 export const depthsWords = (ds: readonly number[]) => (ds.length > 1 ? `${ds.slice(0, -1).join(", ")} or ${ds.at(-1)}bb` : `${ds[0] ?? 0}bb`);

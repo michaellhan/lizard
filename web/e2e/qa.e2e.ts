@@ -631,6 +631,7 @@ const FORMATS = [
   { name: "cash at 5% capped at 3bb, 6 players at 100bb", players: "6", stack: "100", rake: ["5", "3"], file: "lz4_6max_100bb_r5c3_ch.bin" },
   { name: "full ring, 9 players at 100bb (stored since 2026-11-26)", players: "9", stack: "100", file: "lz4_9max_100bb_ch.bin" },
   { name: "full ring, 8 players at 90bb, between the stored depths", players: "8", stack: "90", file: null },
+  { name: "full ring with 3-way flops, 7 players at 100bb", players: "7", stack: "100", file: "lz4_7max_100bb_f3_ch.bin" },
   { name: "short, 3 players at 25bb", players: "3", stack: "25", file: "lz4_3max_25bb_ch.bin" },
   { name: "short, 6 players at 15bb, between push/fold and the stored depths", players: "6", stack: "15", file: null },
   { name: "deep, heads-up at 200bb", players: "2", stack: "200", file: "lz4_2max_200bb_ch.bin" },

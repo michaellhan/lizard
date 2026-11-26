@@ -18,6 +18,7 @@ import {
   PF_MODEL_TAG,
   PF_PLAYERS,
   PF_RING_PLAYERS,
+  PF_RING3,
   PF_STRADDLE_DEPTHS,
   PF_STRADDLE_PLAYERS,
   pfChartKey,
@@ -76,6 +77,9 @@ describe("the stored preflop games", () => {
     expect(tuple("RING_PLAYERS")).toEqual([...PF_RING_PLAYERS].reverse());
     expect([...tuple("RING_DEPTHS")].sort((a, b) => a - b)).toEqual([...PF_DEPTHS]);
     expect(py).toMatch(/^RING_RAKES = STORED_RAKES$/m);
+    expect(py).toMatch(/^RING3 = \(\(7, 200\.0\), \(8, 125\.0\), \(9, 60\.0\)\)/m);
+    expect(PF_RING3).toEqual([[7, 200], [8, 125], [9, 60]]);
+    expect(pfGameKey(7, 100, { raked: true, chart: true, flop3: true })).toBe("lz4_7max_100bb_r5c3_f3_ch");
     expect(tuple("STRADDLE_PLAYERS")).toEqual([...PF_STRADDLE_PLAYERS]);
     expect(tuple("STRADDLE_DEPTHS")).toEqual([...PF_STRADDLE_DEPTHS]);
     expect(tuple("ANTE_PLAYERS")).toEqual([...PF_ANTE_PLAYERS]);
@@ -94,13 +98,15 @@ describe("the stored preflop games", () => {
     expect(pfGameKey(6, 100, { forced: "none", raked: true })).toBe(pfKey(6, 100, true));
   });
   it("offer only the forced games whose files are in engine/pf/, each a game of the set", () => {
-    const all = new Set(
-      [...PF_STRADDLE_PLAYERS.flatMap((n) => PF_STRADDLE_DEPTHS.flatMap((d) => [false, true].map((r) => ({ n, d, forced: "straddle" as const, raked: r })))),
+    const all = new Set([
+      ...[...PF_STRADDLE_PLAYERS.flatMap((n) => PF_STRADDLE_DEPTHS.flatMap((d) => [false, true].map((r) => ({ n, d, forced: "straddle" as const, raked: r })))),
         ...PF_ANTE_PLAYERS.flatMap((n) => PF_ANTE_DEPTHS.map((d) => ({ n, d, forced: "ante" as const, raked: false }))),
         ...PF_RING_PLAYERS.flatMap((n) => PF_DEPTHS.flatMap((d) => [false, true].map((r) => ({ n, d, forced: "none" as const, raked: r }))))]
         .flatMap(({ n, d, forced, raked }) => [false, true].map((chart) => pfGameKey(n, d, { forced, raked, chart }))),
-    );
-    expect(all.size).toBe(240 + 132);
+      // (with 3-way flops, at the charts' sizes alone)
+      ...PF_RING3.flatMap(([n, top]) => PF_DEPTHS.filter((d) => d <= top).flatMap((d) => [false, true].map((raked) => pfGameKey(n, d, { raked, chart: true, flop3: true })))),
+    ]);
+    expect(all.size).toBe(240 + 132 + 52);
     expect(PF_FORCED_BUILT.filter((k) => !all.has(k))).toEqual([]);
     expect(PF_FORCED_BUILT.filter((k) => !existsSync(resolve(ROOT, "engine/pf", `${k}.bin`)))).toEqual([]);
     expect(PF_KEYS).toEqual(expect.arrayContaining([...PF_FORCED_BUILT]));
@@ -122,6 +128,17 @@ describe("the stored preflop games", () => {
     expect(pfPlainStored(6, 90)).toBe(false);
     for (const n of PF_RING_PLAYERS) for (const d of PF_DEPTHS) expect(pfPlainStored(n, d)).toBe(PF_FORCED_BUILT.includes(pfKey(n, d, false)));
     expect(pfGradeDepths(6, null, false)).toEqual([]);
+    // the grade asks the full-ring game with 3-way flops where it's built, else the 2-way one
+    for (const [n, top] of PF_RING3)
+      for (const d of PF_DEPTHS)
+        for (const raked of [false, true]) {
+          const f3 = d <= top && PF_FORCED_BUILT.includes(pfGameKey(n, d, { raked, chart: true, flop3: true }));
+          expect(pfGradeSizes({ players: n, stack: d, ...(raked ? { rake: 0.05, rake_cap: 3 } : {}) }), `${n} ${d} ${raked}`).toEqual({ pf_tree: f3 ? { sizing: "chart", flop3: true } : { sizing: "chart" } });
+        }
+    // (unequal stacks have no such file; nor a straddle or an ante, nor 2 to 6 players)
+    expect(pfGradeSizes({ players: 7, stack: 100, stacks: { UTG: 100, BB: 60 } })).toEqual({ pf_tree: { sizing: "chart" } });
+    expect(pfGradeSizes({ players: 7, stack: 100, straddle: true })).toEqual({ pf_tree: { sizing: "chart" } });
+    expect(pfGradeSizes({ players: 6, stack: 100 })).toEqual({ pf_tree: { sizing: "chart" } });
   });
   it("read a game's forced bets: the table size's stored ante, a straddle, or neither", () => {
     expect(pfForcedOf(6, 0, false)).toBe("none");

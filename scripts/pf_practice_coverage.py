@@ -17,6 +17,7 @@ the table's half big blind). Anywhere else your raise stays the chart's, and tha
 
     .venv/bin/python scripts/pf_practice_coverage.py --hands 30000 --policy chart,uniform,solve [--rake] [--own-sizes]
         [--players 2..9] [--stack 20..200]   (a stored game: the grid at 2 to 6, the full-ring games at 7 to 9; 6 at 100bb by default)
+        [--flop3]         (with --chart-sizes at 7 to 9 players: the game with 3-way flops, pf_solve.RING3)
         [--chart-sizes]   (the grid's game at the charts' raise sizes, engine/pf_solve.py chart_sized: what Practice's
                            grade asks, at 2 to 6 players since 2026-11-17; at 6-max the 4x blind 3bet alone from 11-13)
         [--upstream]      (pf_study's stored grid, what ACCURACY sections 18 to 18.3 measured)
@@ -44,6 +45,7 @@ SEATS = ["UTG", "HJ", "CO", "BTN", "SB", "BB"]
 RANKS = "23456789TJQKA"
 DECK = [r + s for r in RANKS for s in "shdc"]
 STACK = 100.0
+FLOP3 = False                            # --flop3: the full-ring game with 3-way flops (pf_solve.RING3)
 SIZE_EPS = 0.051                         # pf_study.Solve.walk's, and pfGrade.ts SIZE_EPS
 CHIP_EPS = 0.011                         # pfGrade.ts CHIP_EPS
 TOL, MIX, INACCURACY_PCT, MISTAKE_PCT = 0.011, 0.1, 2.0, 8.0     # web/src/grading/grade.ts
@@ -222,6 +224,8 @@ def held_solve(rake, upstream, sizes=()):
     r = (0.05, 3.0) if rake else None
     if upstream:
         return pf_study.held(pf_study.Spec(len(SEATS), STACK, 0.0, False, r))
+    if sizes == "chart" and FLOP3:
+        return LZ.held(LZ.Spec(len(SEATS), (STACK,), rake=r, flop3=True, chart=True))
     if sizes == "chart":
         return LZ.held(LZ.chart_sized(LZ.Spec(len(SEATS), (STACK,), rake=r)))
     return LZ.held(LZ.Spec(len(SEATS), (STACK,), rake=r, sizes=tuple(sizes)))
@@ -322,19 +326,21 @@ def main():
                     "(engine/pf_solve.py chart_sized), as Practice's grade asks it since 2026-11-17")
     ap.add_argument("--upstream-flat", action="store_true", help="a short-stack jam's flat alternative as upstream's "
                     "(engine/pf_charts.py _upstream_flat): the charts before ACCURACY 18.11's fix")
+    ap.add_argument("--flop3", action="store_true", help="with --chart-sizes at 7 to 9 players: the game with 3-way flops "
+                    "(engine/pf_solve.py RING3), as Practice's grade asks it where it's built since 2026-11-26")
     a = ap.parse_args()
     if a.upstream_flat:
         import gto.advisor
         # (set for the whole run: an _upstream_flat() context left unreferenced is collected at once, restoring the fix)
         gto.advisor._flat_ev = engine.pf_charts._flat_ev
-    global SEATS, STACK
-    SEATS, STACK = list(TABLES[a.players]), a.stack
+    global SEATS, STACK, FLOP3
+    SEATS, STACK, FLOP3 = list(TABLES[a.players]), a.stack, a.flop3
     for pol in a.policy.split(","):
         t0 = time.time()
         sizes = "chart" if a.chart_sizes else ()
         o = run(pol, a.hands, a.seed, a.rake, a.own_sizes, a.upstream, sizes)
         n = sum(o["seen"].values())
-        print(f"== {a.players} players {a.stack:g}bb {pol}{' raked' if a.rake else ''}{' own-sizes' if a.own_sizes else ''}{' upstream' if a.upstream else ''}{' chart-sizes' if a.chart_sizes else ''}{' upstream-flat' if a.upstream_flat else ''}: {a.hands} hands, {n} decisions, {time.time() - t0:.0f}s", flush=True)
+        print(f"== {a.players} players {a.stack:g}bb {pol}{' raked' if a.rake else ''}{' own-sizes' if a.own_sizes else ''}{' upstream' if a.upstream else ''}{' chart-sizes' if a.chart_sizes else ''}{' flop3' if a.flop3 else ''}{' upstream-flat' if a.upstream_flat else ''}: {a.hands} hands, {n} decisions, {time.time() - t0:.0f}s", flush=True)
         for k, v in o["seen"].most_common():
             print(f"  {k:12s} {v:7d} {v / n:6.1%}")
         for pot in ("first in", "facing an open", "facing a 3-bet", "facing a 4-bet", "facing a 5-bet+"):

@@ -53,6 +53,8 @@ def request(spec, chart=None):
         st["rake"], st["rake_cap"] = spec.rake
     if spec.chart if chart is None else chart:
         st["pf_tree"] = {"sizing": "chart"}
+    if spec.flop3 is not None:
+        st.setdefault("pf_tree", {})["flop3"] = spec.flop3
     return st
 
 
@@ -63,9 +65,10 @@ def built_specs():
 class TheSet(unittest.TestCase):
     def test_the_games(self):
         games = P.forced_games()
-        # 240 with an ante or a straddle, then 132 full-ring games with neither (7 to 9 players, 2026-11-26)
-        self.assertEqual(len(games), 240 + 132)
-        self.assertEqual(len({s.key for s in games}), 240 + 132)
+        # 240 with an ante or a straddle, then 132 full-ring games with neither (7 to 9 players, 2026-11-26), then 52 of
+        # those with 3-way flops at the charts' sizes
+        self.assertEqual(len(games), 240 + 132 + 52)
+        self.assertEqual(len({s.key for s in games}), 240 + 132 + 52)
         self.assertFalse({s.key for s in games} & {s.key for s in P.stored_games()})
         self.assertEqual([P.stored_ante(n) for n in P.ANTE_PLAYERS], [0.5, 0.33, 0.25, 0.2, 0.17, 0.14, 0.13, 0.11])
         keys = {s.key for s in games}
@@ -80,13 +83,24 @@ class TheSet(unittest.TestCase):
         self.assertTrue(all(s.ante and s.stack <= 60.0 for s in games[56:56 + 96]))
         self.assertTrue(all(s.ante or s.straddle for s in games[:240]))
         # the full-ring games: every grid depth at 7 to 9 players, raked or not, at both sizes; 9-max 100bb first
-        ring = games[240:]
+        ring = games[240:240 + 132]
         self.assertTrue(all(not s.ante and not s.straddle and s.players in (7, 8, 9) for s in ring))
         self.assertEqual({(s.players, s.stack, s.rake, s.chart) for s in ring},
                          {(n, d, r, c) for n in (7, 8, 9) for d in P.STORED_DEPTHS for r in P.STORED_RAKES for c in (False, True)})
         self.assertEqual(ring[0].key, "lz4_9max_100bb_ch")
         for k in ("lz4_9max_100bb", "lz4_7max_20bb_r5c3_ch", "lz4_8max_200bb_r5c3"):
             self.assertIn(k, keys)
+        # with 3-way flops: the charts' sizes, each table size to the deepest whose solve keeps under a gigabyte
+        ring3 = games[240 + 132:]
+        self.assertTrue(all(s.flop3 and s.three_way and s.chart and not s.ante and not s.straddle for s in ring3))
+        self.assertEqual({(s.players, s.stack, s.rake) for s in ring3},
+                         {(n, d, r) for n, top in P.RING3 for d in P.STORED_DEPTHS if d <= top for r in P.STORED_RAKES})
+        self.assertEqual(P.RING3, ((7, 200.0), (8, 125.0), (9, 60.0)))
+        self.assertEqual(ring3[0].key, "lz4_7max_100bb_f3_ch")
+        self.assertIn("lz4_9max_60bb_r5c3_f3_ch", keys)
+        self.assertNotIn("lz4_9max_80bb_f3_ch", keys)
+        self.assertTrue(all(s.estimate_mb() < 1000 for s in ring3 if s.stack == dict(P.RING3)[s.players]))
+        self.assertEqual(ring3[0].limits(), "nobody cold 4bets or cold-calls a 3bet")
 
     def test_only_built_games_are_stored(self):
         self.assertTrue(set(P.FORCED_BUILT) <= P.FORCED_KEYS)
@@ -154,6 +168,12 @@ class Built(unittest.TestCase):
             self.assertTrue(r["pf_solve"]["stored"] and r["pf_solve"]["done"])
             self.assertNotIn("pf_forced", r)
             self.assertEqual(r["pf_limits"], P.LIMITS_7UP)
+        # with 3-way flops (the page's PF_CHART_TREE_F3): its own file, its limits the cold calls alone
+        spec = next(s for s in built_specs() if s.key == "lz4_7max_100bb_f3_ch")
+        r = P.answer(Adv, request(spec))
+        self.assertEqual(r["study"], "node", r)
+        self.assertTrue(r["pf_solve"]["stored"] and r["pf_solve"]["done"])
+        self.assertEqual(r["pf_limits"], "nobody cold 4bets or cold-calls a 3bet")
         # a game of the set not built yet is offered as unsolved, as any other
         missing = sorted(P.FORCED_KEYS - set(P.FORCED_BUILT))
         if missing:
