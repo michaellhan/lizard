@@ -104,7 +104,10 @@ describe("each Practice setting", () => {
     const ps = pfState(h) as Record<string, unknown>;
     // (the grade asks the game stored at the charts' own raise sizes: the tree option, not sizes of its own)
     expect([ps.preflop_solve, ps.study, ps.pf_tree, !!ps.pf_sizes]).toEqual([true, true, { sizing: "chart" }, false]);
-    for (const [p, s] of [[7, 100], [6, 37], [9, 100]] as const) expect(newHand(p, s, 0, 7, { ...BASE, pfSolve: true }).pfSolve, `${p} players, ${s}bb`).toBeFalsy();
+    // (the full-ring games: 7 to 9 players at the grid's depths, at the charts' sizes too)
+    const ring = newHand(9, 100, 0, 7, { ...BASE, pfSolve: true });
+    expect([!!ring.pfSolve, (pfState(ring) as Record<string, unknown>).pf_tree]).toEqual([true, { sizing: "chart" }]);
+    for (const [p, s] of [[7, 90], [6, 37], [9, 65]] as const) expect(newHand(p, s, 0, 7, { ...BASE, pfSolve: true }).pfSolve, `${p} players, ${s}bb`).toBeFalsy();
   });
 
   it("seat: the one chosen, or each seat in turn", () => {

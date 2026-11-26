@@ -38,6 +38,12 @@ export const PF_STRADDLE_DEPTHS = [50, 100, 150, 200] as const;
 export const PF_ANTE_PLAYERS = [2, 3, 4, 5, 6, 7, 8, 9] as const;
 export const PF_ANTE_DEPTHS = [20, 25, 30, 40, 50, 60, 80, 100] as const;
 /** engine/pf_solve.py FORCED_WORDS: what a stored answer with an ante or a straddle is called */
+/** The full-ring games with neither an ante nor a straddle (engine/pf_solve.py RING_*, 2026-11-26): 7 to 9 players at the
+ * grid's depths, no rake or 5% capped at 3bb, at the tree's sizes and the charts', built by the same set as the forced
+ * games and listed in PF_FORCED_BUILT as they're built. Their answers carry no forced words (their flop values are the
+ * grid's), only the 7-9 handed tree's limits. */
+export const PF_RING_PLAYERS = [7, 8, 9] as const;
+const isRing = (players: number) => (PF_RING_PLAYERS as readonly number[]).includes(players);
 export const PF_FORCED_WORDS = "stored preflop solve (class-level model) with ante/straddle";
 
 /** The ante stored at a table size: a 1bb big-blind ante as each seat's share, to the cent (engine/pf_solve.py stored_ante). */
@@ -72,17 +78,27 @@ export const PF_KEYS: readonly string[] = [
   ...PF_FORCED_BUILT,
 ];
 
-/** Whether the grade asks a game at the charts' raise sizes: every game with an ante or a straddle, else 2 to 6 players. */
-const chartFor = (players: number, forced: PfForced | null) => (forced !== null && forced !== "none") || (PF_CHART_PLAYERS as readonly number[]).includes(players);
+/** Whether the grade asks a game at the charts' raise sizes: every game with an ante or a straddle, else 2 to 6 players
+ * and the full-ring games (7 to 9). */
+const chartFor = (players: number, forced: PfForced | null) =>
+  (forced !== null && forced !== "none") || (PF_CHART_PLAYERS as readonly number[]).includes(players) || (forced === "none" && isRing(players));
 
-/** The depths a grade can ask at a table size with these forced bets and rake: the grid's for none, else those built of
- * the forced set (each at the sizes the grade asks); none for a game no stored set has. */
+/** The depths a grade can ask at a table size with these forced bets and rake: the grid's for none at 2 to 6 players,
+ * else those built of the forced set or the full-ring games (each at the sizes the grade asks); none for a game no
+ * stored set has. */
 export function pfGradeDepths(players: number, forced: PfForced | null, raked: boolean): readonly number[] {
   if (forced === null) return [];
-  if (forced === "none") return (PF_PLAYERS as readonly number[]).includes(players) ? PF_DEPTHS : [];
+  if (forced === "none" && (PF_PLAYERS as readonly number[]).includes(players)) return PF_DEPTHS;
+  if (forced === "none") return isRing(players) ? PF_DEPTHS.filter((d) => FORCED_BUILT.has(pfGameKey(players, d, { raked, chart: true }))) : [];
   const depths = forced === "ante" ? PF_ANTE_DEPTHS : PF_STRADDLE_DEPTHS;
   return depths.filter((d) => FORCED_BUILT.has(pfGameKey(players, d, { forced, raked, chart: chartFor(players, forced) })));
 }
+
+/** Whether a game with neither an ante nor a straddle is stored at the tree's own sizes (Study's, a preflop drill's): the
+ * grid at 2 to 6 players, the full-ring games built at 7 to 9. */
+export const pfPlainStored = (players: number, stack: number) =>
+  (PF_DEPTHS as readonly number[]).includes(stack) &&
+  ((PF_PLAYERS as readonly number[]).includes(players) || (isRing(players) && FORCED_BUILT.has(pfGameKey(players, stack, {}))));
 
 /** What a grade's request adds to ask the stored game at the charts' raise sizes, where one is stored for the table size
  * and its forced bets (nothing for a tournament's request, whose stored presets are of the tree's own sizes). */

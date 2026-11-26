@@ -10,14 +10,15 @@ import { parseLine } from "@/features/study/studyState";
 import type { LibrarySpotIndex } from "@/library/catalog";
 import type { LibraryReport } from "@/library/files";
 import type { AdvisorAction, AdvisorResponse, AdvisorState } from "@/solver/protocol";
-import { PF_DEPTHS, PF_PLAYERS } from "@/solver/pfStored";
+import { pfPlainStored } from "@/solver/pfStored";
 import { pick, preflopWords, type Story } from "./drills";
 import { optionLabel, type Decision } from "./practice";
 
-/** Whether the worker stores the preflop solve of the spot's game: its table size and depth, no ante, no straddle. */
+/** Whether the worker stores the preflop solve of the spot's game: its table size and depth, no ante, no straddle (the
+ * grid at 2 to 6 players, the full-ring games built at 7 to 9). */
 export function pfDrillable(spot: Pick<LibrarySpotIndex, "game">): boolean {
   const g = spot.game ?? { players: 6, stack: 100, ante: 0, straddle: false };
-  return (PF_PLAYERS as readonly number[]).includes(g.players) && (PF_DEPTHS as readonly number[]).includes(g.stack) && !g.ante && !g.straddle;
+  return pfPlainStored(g.players, g.stack) && !g.ante && !g.straddle;
 }
 
 export interface PfSpotAt {

@@ -1,7 +1,8 @@
-"""engine/pf_solve.py's stored games with antes and straddles (forced_games, built by scripts/pf/build_stored.py --forced):
+"""engine/pf_solve.py's stored games with antes and straddles, and the full-ring games with neither (forced_games, built by
+scripts/pf/build_stored.py --forced):
 
 - the set: a straddle at 3 to 9 players and 50 to 200bb (raked or not), a big-blind ante's share at 2 to 9 players and
-  20 to 100bb, each at the tree's and the charts' sizes, keyed as engine/pf_solve.Spec.key keys them;
+  20 to 100bb, 7 to 9 players with neither at the grid's depths (raked or not), each at the tree's and the charts' sizes, keyed as engine/pf_solve.Spec.key keys them;
 - a request as the page sends it (Study's setup, Practice's and Analyze's grade with the charts' sizes) asks the very key
   of the stored game, so it's answered from the file at once, never "pf_unsolved";
 - every built file is its game's tree, within its bound, its iterations those of the build's log;
@@ -62,8 +63,9 @@ def built_specs():
 class TheSet(unittest.TestCase):
     def test_the_games(self):
         games = P.forced_games()
-        self.assertEqual(len(games), 240)
-        self.assertEqual(len({s.key for s in games}), 240)
+        # 240 with an ante or a straddle, then 132 full-ring games with neither (7 to 9 players, 2026-11-26)
+        self.assertEqual(len(games), 240 + 132)
+        self.assertEqual(len({s.key for s in games}), 240 + 132)
         self.assertFalse({s.key for s in games} & {s.key for s in P.stored_games()})
         self.assertEqual([P.stored_ante(n) for n in P.ANTE_PLAYERS], [0.5, 0.33, 0.25, 0.2, 0.17, 0.14, 0.13, 0.11])
         keys = {s.key for s in games}
@@ -76,6 +78,15 @@ class TheSet(unittest.TestCase):
         self.assertEqual(games[0].key, "lz4_3max_100bb_s_ch")
         self.assertTrue(all(s.straddle and s.stack in (100.0, 200.0) for s in games[:56]))
         self.assertTrue(all(s.ante and s.stack <= 60.0 for s in games[56:56 + 96]))
+        self.assertTrue(all(s.ante or s.straddle for s in games[:240]))
+        # the full-ring games: every grid depth at 7 to 9 players, raked or not, at both sizes; 9-max 100bb first
+        ring = games[240:]
+        self.assertTrue(all(not s.ante and not s.straddle and s.players in (7, 8, 9) for s in ring))
+        self.assertEqual({(s.players, s.stack, s.rake, s.chart) for s in ring},
+                         {(n, d, r, c) for n in (7, 8, 9) for d in P.STORED_DEPTHS for r in P.STORED_RAKES for c in (False, True)})
+        self.assertEqual(ring[0].key, "lz4_9max_100bb_ch")
+        for k in ("lz4_9max_100bb", "lz4_7max_20bb_r5c3_ch", "lz4_8max_200bb_r5c3"):
+            self.assertIn(k, keys)
 
     def test_only_built_games_are_stored(self):
         self.assertTrue(set(P.FORCED_BUILT) <= P.FORCED_KEYS)
@@ -88,6 +99,9 @@ class TheSet(unittest.TestCase):
         self.assertEqual(P.Spec(3, (100.0,), straddle=True).forced_words(), f"a 2bb straddle from the BTN ({P.FORCED_NOTE})")
         self.assertEqual(P.Spec(9, (40.0,), ante=0.11).forced_words(), f"a 0.11bb ante a seat ({P.FORCED_NOTE})")
         self.assertIsNone(P.Spec(6, (100.0,)).forced_words())
+        # a full-ring game has no forced words, only the 7-9 handed tree's limits
+        self.assertIsNone(P.Spec(9, (100.0,)).forced_words())
+        self.assertEqual(P.Spec(9, (100.0,)).limits(), P.LIMITS_7UP)
 
 
 class Built(unittest.TestCase):
@@ -132,6 +146,14 @@ class Built(unittest.TestCase):
             self.assertEqual(r["pf_solve"]["iterations"], P.FORCED_BUILT[key])
             self.assertIn(P.FORCED_NOTE, r["pf_forced"])
             self.assertAlmostEqual(sum(x["freq"] for x in r["actions"]), 1.0, places=2)
+        # a full-ring game: answered from its file, with the 7-9 handed tree's limits and no forced words
+        for key in ("lz4_9max_100bb_ch", "lz4_7max_40bb"):
+            spec = next(s for s in built_specs() if s.key == key)
+            r = P.answer(Adv, request(spec))
+            self.assertEqual(r["study"], "node", r)
+            self.assertTrue(r["pf_solve"]["stored"] and r["pf_solve"]["done"])
+            self.assertNotIn("pf_forced", r)
+            self.assertEqual(r["pf_limits"], P.LIMITS_7UP)
         # a game of the set not built yet is offered as unsolved, as any other
         missing = sorted(P.FORCED_KEYS - set(P.FORCED_BUILT))
         if missing:

@@ -13,8 +13,8 @@ and the node's answer are pf_study.Solve's (DCFR averaged at t^8, to 1.5 mbb/han
 
 The stored games (engine/pf/<key>.bin, built by scripts/pf/build_stored.py): 2 to 6 players at the depths of
 STORED_DEPTHS, equal stacks, no ante or straddle, no rake or 5% capped at 3bb, answered at once (the page lists them in
-web/src/solver/pfStored.ts); beside them the games with a straddle or a big-blind ante (forced_games, 2 to 9 players),
-those built so far listed in engine/pf_forced_built.py. Keys start with MODEL_TAG so neither the files, the page's cache nor a stamp can mix this
+web/src/solver/pfStored.ts); beside them the games with a straddle or a big-blind ante (2 to 9 players) and the
+full-ring games with neither (7 to 9 players at the grid's depths) (forced_games), those built so far listed in engine/pf_forced_built.py. Keys start with MODEL_TAG so neither the files, the page's cache nor a stamp can mix this
 model's solves with upstream's class-level model's.
 """
 from __future__ import annotations
@@ -432,12 +432,18 @@ def stored_games() -> List[Spec]:
 # players on the 7-9 handed tree (LIMITS_7UP). Not every one is built at once: STORED_KEYS takes those listed in
 # engine/pf_forced_built.py, which `scripts/pf/build_stored.py --forced --install DIR` writes with the files (and
 # web/src/solver/pfForcedBuilt.ts, the page's copy), so the page never offers a game whose file isn't there.
+# Beside them, by the same build and list (2026-11-26), the full-ring games with neither: 7 to 9 players at the grid's
+# depths, equal stacks, no rake or 5% capped at 3bb, on the 7-9 handed tree, so a full-ring cash hand's preflop is graded
+# by EV as a 6-max one is (RING_*). They carry no forced words: their flop values are the grid's.
 STRADDLE_PLAYERS = (3, 4, 5, 6, 7, 8, 9)
 STRADDLE_DEPTHS = (50.0, 100.0, 150.0, 200.0)
 STRADDLE_RAKES = STORED_RAKES
 ANTE_PLAYERS = (2, 3, 4, 5, 6, 7, 8, 9)
 ANTE_DEPTHS = (20.0, 25.0, 30.0, 40.0, 50.0, 60.0, 80.0, 100.0)
 ANTE_RAKES = (None,)
+RING_PLAYERS = (9, 8, 7)
+RING_DEPTHS = (100.0, 200.0, 50.0, 150.0, 60.0, 80.0, 125.0, 40.0, 30.0, 25.0, 20.0)   # the build's order; the grid's
+RING_RAKES = STORED_RAKES
 FORCED_WORDS = "stored preflop solve (class-level model) with ante/straddle"
 FORCED_NOTE = ("the flop values are fitted to published solves without antes or a straddle: not measured against a "
                "fuller solve with them")
@@ -450,7 +456,8 @@ def stored_ante(players: int) -> float:
 
 
 def forced_games() -> List[Spec]:
-    """Every stored game with an ante or a straddle, built or not, the most played first (the build's order)."""
+    """Every stored game beyond the grid (an ante or a straddle, then the full-ring games with neither), built or not,
+    the most played first (the build's order)."""
     def straddled(depths):
         return [Spec(n, (d,), straddle=True, rake=r) for d in depths for n in STRADDLE_PLAYERS for r in STRADDLE_RAKES]
 
@@ -461,6 +468,7 @@ def forced_games() -> List[Spec]:
     core = (20.0, 25.0, 30.0, 40.0, 50.0, 60.0)
     out = (straddled(first) + anted(core) + straddled([d for d in STRADDLE_DEPTHS if d not in first])
            + anted([d for d in ANTE_DEPTHS if d not in core]))
+    out += [Spec(n, (d,), rake=r) for d in RING_DEPTHS for n in RING_PLAYERS for r in RING_RAKES]
     return [x for s in out for x in (chart_sized(s), s)]
 
 

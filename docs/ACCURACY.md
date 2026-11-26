@@ -4291,3 +4291,51 @@ when run after the flop's). The set's solves now carry their read record and the
 (`_cached_read`), and the 3-way set's lines are kept apart from the library's (`_ss_mw_lines`, one per flop size, swapped
 in for the set's requests), so switching Library and Single size mid-hand never walks a turn through the other tree's
 flop. The engine tests check the turn both ways (asked first, and after the flop's node) and that the lines stay apart.
+
+## 39. Stored full-ring games: 7 to 9 players with no ante or straddle (2026-11-26)
+
+**Why.** Practice's and Analyze's preflop EV grade had a stored game for 2 to 6 players (the grid, section 18.3) and, at
+7 to 9, only for a table with an ante or a straddle (section 18.13). A plain 7-to-9-handed cash table was graded by the
+charts' frequencies alone. **[V]**
+
+**The set** (`engine/pf_solve.py` `forced_games`, after the 240 forced games: `RING_PLAYERS` 9, 8, 7; `RING_DEPTHS` the
+grid's 11; `RING_RAKES` the grid's two), 132 games keyed as the grid is (`lz4_9max_100bb`, `lz4_7max_40bb_r5c3_ch`):
+
+| | Players | Depths (bb) | Rake | Sizes | Games |
+|---|---|---|---|---|---|
+| no ante, no straddle | 7, 8, 9 | 20, 25, 30, 40, 50, 60, 80, 100, 125, 150, 200 | none, 5% capped at 3bb | tree's, charts' | 132 |
+
+They are solved on the 7-to-9 tree (`LIMITS_7UP`: at most two see a flop, no cold 4-bets or cold calls of a 3-bet), as
+any 7-to-9-player request is. The order was 100bb and 200bb first, so a build stopped part way has the most played. **[V]**
+
+**The build** (`library-build/runs/pf-ring`, `scripts/pf/build_stored.py --forced`, one process through the CPU slot,
+1,500 iterations each, 2026-11-26 03:23 to 04:43): every game within its target at the first 1,500 (1.5 mbb/hand a
+seat, the grid's: no forced chips in), so none needed more. **[M]**
+
+| Players | Games | CPU seconds | mbb/hand a seat (stored strategy) | Bytes |
+|---|---|---|---|---|
+| 7 | 44 | 857 | 0.014 to 0.277 | 452,898 |
+| 8 | 44 | 1,519 | 0.022 to 0.590 | 660,702 |
+| 9 | 44 | 2,369 | 0.026 to 0.335 | 915,699 |
+
+The worst is `lz4_8max_200bb_r5c3_ch` at 0.59; the slowest `lz4_9max_200bb_ch` at 105 s. 2.0 MB in all, fetched by the
+worker only for the game asked (`siteFetch "pf/<key>.bin"`), so a page load doesn't grow. **[M]**
+
+**What the grade answers** (`scripts/pf_practice_coverage.py --chart-sizes --policy chart --hands 10000`, 100bb, no rake,
+your moves from the charts' mix, the opponents the charts):
+
+| Players | Decisions answered | Hands with a decision the solve can't grade | First in | Facing an open | Facing a 3-bet | EV lost a graded decision |
+|---|---|---|---|---|---|---|
+| 7 | 90.0% | 1,020 of 9,839 (about 1 in 10) | 100% | 91.0% | 28.7% | 0.021bb |
+| 8 | 88.7% | 1,150 of 9,899 (about 1 in 9) | 100% | 87.6% | 26.5% | 0.021bb |
+| 9 | 87.6% | 1,254 of 9,915 (about 1 in 8) | 100% | 87.3% | 18.2% | 0.022bb |
+
+Against 6-max's 98% (section 18.12), the gap is the tree: most unanswered spots are "options", the table offering a move
+the solve's node doesn't have (a cold call of an open that already has a caller, a call or cold 4-bet against a 3-bet);
+those keep the chart's grade under the chart's name, as any spot the solve can't answer does. The charts' most played
+move was graded Mistake or worse 1, 2 and 3 times in 9,008, 8,905 and 8,741 graded decisions: QQ's 4-bet against a blind
+3-bet (7.7 to 12.4bb lost), AQs's and JJ's fold to a squeeze (6.9 to 7.7bb), and the big blind's JJ 3-bet (1.3bb). These
+are where the class-level model and the charts part, as in section 18.11. **[M]**
+
+**Practice's setup note** says the share for 7 to 9 players as for 2 to 6 (`SetupForm.tsx` `PF_UNGRADED`). A 7-to-9-player
+game off the grid's depths says the grid's depths and the nearest, as at 2 to 6 (`practice.ts` `pfBlocked`). **[V]**

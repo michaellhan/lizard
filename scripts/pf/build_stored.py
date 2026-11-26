@@ -11,8 +11,9 @@ Without --engine: upstream's class-level model's grid (engine/pf_stored.py, keys
 engine/pf_solve.py (its calibrated model, engine/pf_calib.py; keys like lz4_6max_100bb, logged to lz4_built.jsonl), the
 one the worker answers Study's, Practice's and Analyze's preflop solve from.
 
---forced: engine/pf_solve.py's games with a straddle or a big-blind ante (forced_games, keys like lz4_6max_100bb_s and
-lz4_9max_40bb_a0.11), the most played first. Each is solved FORCED_STEP iterations at a time until its stored strategy is
+--forced: engine/pf_solve.py's games with a straddle or a big-blind ante, then the full-ring games with neither (7 to 9
+players, 2026-11-26) (forced_games, keys like lz4_6max_100bb_s, lz4_9max_40bb_a0.11 and lz4_9max_100bb), the most played
+first. Each is solved FORCED_STEP iterations at a time until its stored strategy is
 within its target (`target`: TARGET_MBB per 1.5bb of chips in before anyone acts) or FORCED_MAX iterations, logged to DIR/lz4_forced_built.jsonl. --out writes them outside
 the repository (library-build/runs/<name>/), so a long build survives the worktree; --install DIR then copies every
 file there that is its game's tree and within the bound into engine/pf/, adds their log lines to
@@ -141,14 +142,15 @@ def install(src: str) -> None:
     # (the lists say what engine/pf/ holds of the set now: a file here with its log line, its game's tree)
     keys = [k for k, s in specs.items() if k in have and built(os.path.join(pf_solve.STORE_DIR, k + ".bin"), s)]
     with open(BUILT_PY, "w") as f:
-        f.write('"""The stored preflop games with an ante or a straddle (engine/pf_solve.py forced_games) whose files are '
-                'in engine/pf/,\nwith the iterations each was solved for. Written by `scripts/pf/build_stored.py --forced '
+        f.write('"""The stored preflop games with an ante or a straddle, and the full-ring games with neither (engine/pf_solve.py '
+                'forced_games),\nwhose files are in engine/pf/, with the iterations each was solved for. Written by `scripts/pf/build_stored.py --forced '
                 '--install DIR`, with\nweb/src/solver/pfForcedBuilt.ts; don\'t edit by hand."""\nBUILT = {\n')
         for k in keys:
             f.write(f'    "{k}": {have[k]["iterations"]},\n')
         f.write("}\n")
     with open(BUILT_TS, "w") as f:
-        f.write("// The stored preflop games with an ante or a straddle whose files are in engine/pf/ (engine/pf_forced_built.py"
+        f.write("// The stored preflop games with an ante or a straddle, and the full-ring games with neither, whose files are in"
+                " engine/pf/ (engine/pf_forced_built.py"
                 ",\n// engine/pf_solve.py forced_games). Written by `scripts/pf/build_stored.py --forced --install DIR`; don't edit"
                 " by hand.\nexport const PF_FORCED_BUILT: readonly string[] = [\n")
         for k in keys:

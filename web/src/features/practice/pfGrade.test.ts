@@ -24,7 +24,7 @@ import type { Move } from "@/poker/table";
 import type { AdvisorResponse } from "@/solver/protocol";
 import { describe as words, provenanceOf } from "@/solver/provenance";
 import { PF_FORCED_BUILT } from "@/solver/pfForcedBuilt";
-import { PF_ANTE_DEPTHS, PF_ANTE_PLAYERS, PF_STRADDLE_DEPTHS, PF_STRADDLE_PLAYERS, pfGameKey, pfStoredAnte } from "@/solver/pfStored";
+import { PF_ANTE_DEPTHS, PF_ANTE_PLAYERS, PF_DEPTHS, PF_RING_PLAYERS, PF_STRADDLE_DEPTHS, PF_STRADDLE_PLAYERS, pfGameKey, pfStoredAnte } from "@/solver/pfStored";
 import type { Provenance, SolveRequest, SolveResult, SolverTransport } from "@/solver/types";
 
 const NODES = nodes as unknown as Record<"first" | "opened" | "offSize" | "other" | "unsolved", AdvisorResponse>;
@@ -63,8 +63,8 @@ describe("where it can be set", () => {
       expect(pfBlocked(p, s, { ...plain, rake: 5, rakeCap: 3 })).toBeNull();
     }
     for (const [p, s, o] of [
-      [7, 100, plain],
-      [9, 100, plain],
+      [7, 90, plain],
+      [9, 65, plain],
       [6, 65, plain],
       [2, 250, plain],
       [6, 12, plain],
@@ -96,9 +96,19 @@ describe("where it can be set", () => {
         const built = PF_FORCED_BUILT.includes(pfGameKey(n, d, { forced: "ante", chart: true }));
         expect(pfBlocked(n, d, { ...plain, ante: pfStoredAnte(n) }) === null, `${n} ${d}`).toBe(built);
       }
+    // the full-ring games (7 to 9 players, neither): offered where the game at the charts' sizes is built
+    for (const n of PF_RING_PLAYERS)
+      for (const d of PF_DEPTHS)
+        for (const raked of [false, true]) {
+          const o = { ...plain, ...(raked ? { rake: 5, rakeCap: 3 } : {}) };
+          const built = PF_FORCED_BUILT.includes(pfGameKey(n, d, { raked, chart: true }));
+          expect(pfBlocked(n, d, o) === null, `${n} ${d} ${raked}`).toBe(built);
+        }
   });
   it("is said in words that send you to Study, not into a solve", () => {
-    expect(pfBlocked(7, 100, plain)).toMatch(/^The preflop solve is stored for 2 to 6 players without an ante or a straddle(, and at 7 players with .*)?\. This game would need a solve first, and Practice doesn't start one: Study can\.$/);
+    // (the full-ring games are built at every depth of the grid, so 7 to 9 players are said as the grid is)
+    expect(pfBlocked(7, 90, plain)).toMatch(/^The preflop solve is stored for stacks of 20, 25, .* or 200bb only; the nearest is 80bb\. This game would need a solve first, and Practice doesn't start one: Study can\.$/);
+    expect(pfBlocked(10, 100, plain)).toMatch(/^The preflop solve is stored for 2 to 6 players without an ante or a straddle(, and at 10 players with .*)?\. This game would need/);
     expect(pfBlocked(6, 100, { ...plain, ante: 0.1 })).toMatch(/^The preflop solve is stored for no ante, or a 0\.17bb ante a seat \(a 1bb big-blind ante's share at 6 players\)\. This game/);
     expect(pfBlocked(6, 100, { ...plain, ante: 0.17, straddle: true })).toMatch(/^The preflop solve is stored for an ante or a straddle, not both\./);
     expect(pfBlocked(6, 120, { ...plain, straddle: true })).toMatch(/^The preflop solve is stored for a straddle at 6 players (at stacks of .* only; the nearest is \d+bb|at no depth yet)\. This game/);
@@ -109,7 +119,8 @@ describe("where it can be set", () => {
     expect(newHand(6, 100, 0, 7, {}).pfSolve).toBeUndefined();
     expect(newHand(6, 100, 0, 7, { pfSolve: true, pot: "srp" }).pfSolve).toBeUndefined();
     expect(newHand(3, 100, 0, 7, { pfSolve: true }).pfSolve).toBe(true);
-    expect(newHand(7, 100, 0, 7, { pfSolve: true }).pfSolve).toBeUndefined();
+    expect(newHand(7, 100, 0, 7, { pfSolve: true }).pfSolve).toBe(true); // (a full-ring game)
+    expect(newHand(9, 90, 0, 7, { pfSolve: true }).pfSolve).toBeUndefined();
     expect(newHand(6, 90, 0, 7, { pfSolve: true }).pfSolve).toBeUndefined();
   });
 });
@@ -710,7 +721,7 @@ describe("kept apart", () => {
     expect(s.opts.pfSolve).toBe(true);
     expect(scenarioWords(s)).toContain("preflop graded by the preflop solve");
     expect(readSetup({ players: 6, stack: 100, opts: {} })!.opts).not.toHaveProperty("pfSolve");
-    expect(readSetup({ players: 7, stack: 100, opts })).toBeNull();
+    expect(readSetup({ players: 7, stack: 90, opts })).toBeNull();
     expect(readSetup({ players: 6, stack: 90, opts })).toBeNull();
     expect(readSetup({ players: 6, stack: 100, opts: { pfSolve: true, pot: "srp" } })).toBeNull();
     expect(readSetup({ players: 6, stack: 100, opts: { pfSolve: 1 } })).toBeNull();

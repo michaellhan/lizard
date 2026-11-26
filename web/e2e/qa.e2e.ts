@@ -627,9 +627,10 @@ test("7j. A game of Lizard's stored grid, 4 players at 40bb: graded by the prefl
 // is graded by the stored solve of that very game where one is stored and by the charts where none is (each under its own
 // name), a decision after the flop is graded too, and only that game's preflop file is read.
 const FORMATS = [
-  // (a cash grade at 2 to 6 players reads the game at the charts' own raise sizes, _ch, not the tree's own: see 7g)
+  // (a cash grade at 2 to 9 players reads the game at the charts' own raise sizes, _ch, not the tree's own: see 7g)
   { name: "cash at 5% capped at 3bb, 6 players at 100bb", players: "6", stack: "100", rake: ["5", "3"], file: "lz4_6max_100bb_r5c3_ch.bin" },
-  { name: "9 players at 100bb, where nothing is stored", players: "9", stack: "100", file: null },
+  { name: "full ring, 9 players at 100bb (stored since 2026-11-26)", players: "9", stack: "100", file: "lz4_9max_100bb_ch.bin" },
+  { name: "full ring, 8 players at 90bb, between the stored depths", players: "8", stack: "90", file: null },
   { name: "short, 3 players at 25bb", players: "3", stack: "25", file: "lz4_3max_25bb_ch.bin" },
   { name: "short, 6 players at 15bb, between push/fold and the stored depths", players: "6", stack: "15", file: null },
   { name: "deep, heads-up at 200bb", players: "2", stack: "200", file: "lz4_2max_200bb_ch.bin" },

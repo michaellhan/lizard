@@ -57,13 +57,19 @@ import {
 /** How many hands hold a preflop decision the stored solve can't grade, at 100bb, playing the charts, by table size: the
  * games at the charts' own raise sizes, lz4 (scripts/pf_practice_coverage.py --chart-sizes, 10,000 hands at 2 to 5 players and
  * 30,000 at 6: 234 of 9,595 hands with a decision, 62 of 9,035, 77 of 9,509, 97 of 9,717, 541 of 29,347; docs/ACCURACY.md
- * section 18.12). At 6 players most are moves the solve never trains (pfGrade.ts untrainedMoves), left to the chart. */
+ * section 18.12). At 6 players most are moves the solve never trains (pfGrade.ts untrainedMoves), left to the chart.
+ * At 7 to 9 players, the full-ring games (2026-11-26, 10,000 hands each: 1,020 of 9,839, 1,150 of 9,899, 1,254 of 9,915;
+ * section 39): their smaller tree lets at most two see a flop, so a cold call of an open that has a caller, or of a 3-bet,
+ * isn't on it and that spot keeps the chart's grade. */
 const PF_UNGRADED: Record<number, string> = {
   2: "about 1 hand in 40",
   3: "about 1 hand in 145",
   4: "about 1 hand in 125",
   5: "about 1 hand in 100",
   6: "about 1 hand in 55",
+  7: "about 1 hand in 10",
+  8: "about 1 hand in 9",
+  9: "about 1 hand in 8",
 };
 
 const setTexture = (
@@ -683,7 +689,7 @@ export function SetupForm({
           >
             Not a full solve.{" "}
             {PF_UNGRADED[p] && game?.tournament?.model !== "icm"
-              ? // (a cash grade at 2 to 6 players asks the game stored at the charts' own raise sizes, so the second box
+              ? // (a cash grade at 2 to 9 players asks the game stored at the charts' own raise sizes, so the second box
                 // moves no button)
                 `Spots it can\u2019t answer (${PF_UNGRADED[p]} at 100bb) keep the chart\u2019s grade. Its raise sizes are the charts\u2019 own.`
               : pfSizes

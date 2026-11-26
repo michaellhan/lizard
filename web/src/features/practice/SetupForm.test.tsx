@@ -191,8 +191,11 @@ describe("grading preflop by the preflop solve", () => {
   it("isn't there where no solve is stored, and says why", () => {
     open();
     pick("Players", "8");
+    typed("Stack in big blinds", "90");
     expect(box()).toBeNull();
-    expect(screen.getByText(/Preflop is graded by the charts here\. The preflop solve is stored for 2 to 6 players without an ante or a straddle/)).toBeInTheDocument();
+    // (8-max: the full-ring games, at every depth of the grid)
+    expect(screen.getByText(/Preflop is graded by the charts here\. The preflop solve is stored for stacks of 20, 25, .* or 200bb only; the nearest is 80bb/)).toBeInTheDocument();
+    typed("Stack in big blinds", "100");
     pick("Players", "2");
     expect(box()).not.toBeNull();
     pick("Players", "6");
@@ -208,6 +211,7 @@ describe("grading preflop by the preflop solve", () => {
   it("doesn't go on into a game that has no stored solve", () => {
     const start = open();
     pick("Players", "7");
+    typed("Stack in big blinds", "90");
     fireEvent.click(screen.getByRole("button", { name: "New session" }));
     expect(start.mock.calls[0]![2]).not.toHaveProperty("pfSolve");
   });
@@ -239,9 +243,9 @@ describe("grading preflop by the preflop solve", () => {
       expect(start.mock.calls[1]![2]).toMatchObject({ pfSolve: false });
       expect(start.mock.calls[1]![2]).not.toHaveProperty("pfSizes");
     });
-    it("at 2 to 6 players, says its sizes are the charts' own and how much that table size leaves ungraded, ticked or not", () => {
+    it("at 2 to 9 players, says its sizes are the charts' own and how much that table size leaves ungraded, ticked or not", () => {
       // (since 2026-11-17 every stored cash game the grade asks is at the charts' own raise sizes: no 12bb blind 3bet)
-      for (const [n, said] of [[6, "about 1 hand in 55 at 100bb"], [5, "about 1 hand in 100 at 100bb"], [2, "about 1 hand in 40 at 100bb"]] as const) {
+      for (const [n, said] of [[6, "about 1 hand in 55 at 100bb"], [5, "about 1 hand in 100 at 100bb"], [2, "about 1 hand in 40 at 100bb"], [9, "about 1 hand in 8 at 100bb"]] as const) {
         open(OPTS, vi.fn(), n);
         const note = document.getElementById("pf-note")!;
         expect(sizes()).toHaveAccessibleDescription(/Not a full solve/);
@@ -257,6 +261,7 @@ describe("grading preflop by the preflop solve", () => {
       const start = open();
       fireEvent.click(sizes()!);
       pick("Players", "7");
+      typed("Stack in big blinds", "90");
       expect(sizes()).toBeNull();
       fireEvent.click(screen.getByRole("button", { name: "New session" }));
       expect(start.mock.calls[0]![2]).not.toHaveProperty("pfSizes");

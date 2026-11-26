@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import nodes from "@/test/fixtures/pf_nodes.json";
 import type { AdvisorResponse } from "@/solver/protocol";
 import { provenanceOf } from "@/solver/provenance";
+import { PF_FORCED_BUILT } from "@/solver/pfForcedBuilt";
 import { classCombos, pfActionLabel, pfDeal, pfDecisions, pfDrillable, pfDrillState, pfStory, SURE_FOLD_SHARE } from "./pfDrill";
 import { PF_MODEL, pfNodeRead } from "./pfGrade";
 
@@ -17,7 +18,9 @@ describe("a preflop drill's spot", () => {
     expect(pfDrillable({ game: { players: 2, stack: 100, ante: 0, straddle: false } })).toBe(true);
     expect(pfDrillable({ game: { players: 6, stack: 100, ante: 0.12, straddle: false } })).toBe(false);
     expect(pfDrillable({ game: { players: 6, stack: 70, ante: 0, straddle: false } })).toBe(false);
-    expect(pfDrillable({ game: { players: 8, stack: 100, ante: 0, straddle: false } })).toBe(false);
+    // (8-max: a full-ring game, stored once it's built)
+    expect(pfDrillable({ game: { players: 8, stack: 100, ante: 0, straddle: false } })).toBe(PF_FORCED_BUILT.includes("lz4_8max_100bb"));
+    expect(pfDrillable({ game: { players: 8, stack: 90, ante: 0, straddle: false } })).toBe(false);
   });
 
   it("takes every action on the line as a decision, with the ones before it played", () => {

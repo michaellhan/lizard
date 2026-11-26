@@ -373,11 +373,15 @@ export function pfBlocked(players: number, stack: number, o: Pick<HandOptions, "
   }
   const raked = !!o.rake;
   if (forced === "none") {
-    if (!(PF_PLAYERS as readonly number[]).includes(players)) {
+    // (7 to 9 players: the full-ring games as far as they're built, pfGradeDepths)
+    const ring = (PF_PLAYERS as readonly number[]).includes(players) ? null : pfGradeDepths(players, "none", raked);
+    if (ring && !ring.length) {
       const more = (["straddle", "ante"] as const).filter((f) => pfGradeDepths(players, f, false).length);
       const also = more.length ? `, and at ${players} players with ${more.map((f) => (f === "ante" ? anteWords : "a straddle")).join(" or ")}` : "";
       return `${stored} 2 to ${PF_PLAYERS.at(-1)} players without an ante or a straddle${also}. ${solveFirst}`;
     }
+    // (built at only some depths, it says which; built at all of them, it's said as the grid is)
+    if (ring && ring.length < PF_DEPTHS.length && !ring.includes(stack)) return `${stored} ${players} players without an ante or a straddle at stacks of ${depthsWords(ring)} only; the nearest is ${nearestOf(ring, stack)}bb. ${solveFirst}`;
     if (!(PF_DEPTHS as readonly number[]).includes(stack)) return `${stored} stacks of ${PF_DEPTHS_WORDS} only; the nearest is ${nearestDepth(stack)}bb. ${solveFirst}`;
   }
   if (raked && forced === "ante") return `${stored} ${anteWords} with no rake only. ${solveFirst}`;

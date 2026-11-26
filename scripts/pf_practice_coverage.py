@@ -16,7 +16,7 @@ can grade whose options are its in kind, your raise is at the solve's own size, 
 the table's half big blind). Anywhere else your raise stays the chart's, and that decision the chart's.
 
     .venv/bin/python scripts/pf_practice_coverage.py --hands 30000 --policy chart,uniform,solve [--rake] [--own-sizes]
-        [--players 2..6] [--stack 20..200]   (a game of engine/pf_solve.py's grid; 6 players at 100bb by default)
+        [--players 2..9] [--stack 20..200]   (a stored game: the grid at 2 to 6, the full-ring games at 7 to 9; 6 at 100bb by default)
         [--chart-sizes]   (the grid's game at the charts' raise sizes, engine/pf_solve.py chart_sized: what Practice's
                            grade asks, at 2 to 6 players since 2026-11-17; at 6-max the 4x blind 3bet alone from 11-13)
         [--upstream]      (pf_study's stored grid, what ACCURACY sections 18 to 18.3 measured)
@@ -315,7 +315,7 @@ def main():
     ap.add_argument("--seed", type=int, default=20261105)
     ap.add_argument("--rake", action="store_true", help="the 5% capped at 3bb game")
     ap.add_argument("--own-sizes", action="store_true")
-    ap.add_argument("--players", type=int, default=6, help="2 to 6: a stored game of engine/pf_stored.py")
+    ap.add_argument("--players", type=int, default=6, help="2 to 9: a stored game (the grid, or the full-ring games at 7 to 9)")
     ap.add_argument("--stack", type=float, default=100.0)
     ap.add_argument("--upstream", action="store_true", help="pf_study's stored solve (before 2026-11-11), not Lizard's")
     ap.add_argument("--chart-sizes", action="store_true", help="the stored game at the charts' raise sizes "

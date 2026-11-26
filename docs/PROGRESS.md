@@ -7128,3 +7128,22 @@ Workstream W11 of the second GAP_PLAN run (ACCURACY section 18.13).
 - Not done: nothing published or checked in a browser. After the build: `build_single_size.py index --set mw3`, merge
   this branch, assemble with `--ss-mw3` and `LIZARD_R2_BASE` set, publish, and check a 3-way line in Study.
   FEATURE_MATRIX: Single-size library and Multiway rows updated; grades unchanged (PARTIAL, WORKING).
+
+## 2026-11-26 — Stored full-ring preflop games: 7 to 9 players graded by EV
+
+- Why: Practice's and Analyze's preflop EV grade had stored games for 2 to 6 players and, at 7 to 9, only with an ante
+  or a straddle; a plain full-ring cash table was graded by the charts' frequencies alone.
+- `engine/pf_solve.py` `forced_games` now ends with the 132 full-ring games (`RING_PLAYERS` 9, 8, 7 at the grid's 11
+  depths, raked or not, at the tree's and the charts' sizes), on the 7-to-9 tree. Built through the CPU slot
+  (`library-build/runs/pf-ring`, 03:23 to 04:43, 79 CPU minutes, each within target at 1,500 iterations, 0.014 to 0.59
+  mbb/hand a seat) and installed with `build_stored.py --forced --install` (372 of 372 forced games now built).
+- Page: `pfStored.ts` `PF_RING_PLAYERS`, `pfGradeDepths` and `pfGradeSizes` cover 7 to 9 players with neither, and
+  `pfPlainStored` lets a preflop drill use the full-ring games; `practice.ts` `pfBlocked` says the grid's depths at 7 to 9
+  as at 2 to 6. Practice's setup note gives the share it can't grade at 7 to 9 (about 1 hand in 10, 9, 8 at 100bb:
+  `scripts/pf_practice_coverage.py`, 10,000 hands each), ACCURACY section 39.
+- Gates: `test_pf_forced.py` 9 OK; typecheck and lint clean; full vitest through slot.sh (`--maxWorkers=3`): one stale
+  test (`settings.sim.test.ts`, 9-max 100bb was "not stored") fixed and rerun; `qa.e2e.ts` 7k now expects
+  `lz4_9max_100bb_ch.bin` for 9 players at 100bb and nothing at 8 players 90bb (run by CI).
+- FEATURE_MATRIX: Preflop trainer, EV-loss scoring, Preflop solves and 2–9 handed rows updated; grades unchanged.
+- Not done: not clicked through in a browser here. The smaller 7-to-9 tree leaves cold calls with two already in to the
+  charts (a wider 7-to-9 tree wasn't tried).

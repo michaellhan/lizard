@@ -17,6 +17,7 @@ import {
   PF_KEYS,
   PF_MODEL_TAG,
   PF_PLAYERS,
+  PF_RING_PLAYERS,
   PF_STRADDLE_DEPTHS,
   PF_STRADDLE_PLAYERS,
   pfChartKey,
@@ -25,6 +26,7 @@ import {
   pfGradeDepths,
   pfGradeSizes,
   pfKey,
+  pfPlainStored,
   pfStoredAnte,
 } from "./pfStored";
 
@@ -60,7 +62,9 @@ describe("the stored preflop games", () => {
     expect(tuple("STORED_CHART_PLAYERS")).toEqual([...PF_CHART_PLAYERS]);
     expect(pfGradeSizes({ players: 6 })).toEqual({ pf_tree: { sizing: "chart" } });
     expect(pfGradeSizes({ players: 2 })).toEqual({ pf_tree: { sizing: "chart" } });
-    expect(pfGradeSizes({ players: 7 })).toEqual({});
+    // (the full-ring games, 7 to 9 players, are stored at the charts' sizes too)
+    expect(pfGradeSizes({ players: 7 })).toEqual({ pf_tree: { sizing: "chart" } });
+    expect(pfGradeSizes({ players: 9, payouts: [50, 30, 20] })).toEqual({});
     expect(pfGradeSizes({ players: 6, payouts: [50, 30, 20] })).toEqual({});
   });
   it("each have a file in engine/pf/, and none is upstream's", () => {
@@ -68,7 +72,10 @@ describe("the stored preflop games", () => {
     // (one solve of a game: a name in both would fail scripts/build-solver-assets.mjs)
     expect(PF_KEYS.filter((k) => existsSync(resolve(ROOT, "solver/gto/static/pf", `${k}.bin`)))).toEqual([]);
   });
-  it("hold the games with an ante or a straddle as engine/pf_solve.py's forced set", () => {
+  it("hold the games with an ante or a straddle, and the full-ring games, as engine/pf_solve.py's forced set", () => {
+    expect(tuple("RING_PLAYERS")).toEqual([...PF_RING_PLAYERS].reverse());
+    expect([...tuple("RING_DEPTHS")].sort((a, b) => a - b)).toEqual([...PF_DEPTHS]);
+    expect(py).toMatch(/^RING_RAKES = STORED_RAKES$/m);
     expect(tuple("STRADDLE_PLAYERS")).toEqual([...PF_STRADDLE_PLAYERS]);
     expect(tuple("STRADDLE_DEPTHS")).toEqual([...PF_STRADDLE_DEPTHS]);
     expect(tuple("ANTE_PLAYERS")).toEqual([...PF_ANTE_PLAYERS]);
@@ -89,10 +96,11 @@ describe("the stored preflop games", () => {
   it("offer only the forced games whose files are in engine/pf/, each a game of the set", () => {
     const all = new Set(
       [...PF_STRADDLE_PLAYERS.flatMap((n) => PF_STRADDLE_DEPTHS.flatMap((d) => [false, true].map((r) => ({ n, d, forced: "straddle" as const, raked: r })))),
-        ...PF_ANTE_PLAYERS.flatMap((n) => PF_ANTE_DEPTHS.map((d) => ({ n, d, forced: "ante" as const, raked: false })))]
+        ...PF_ANTE_PLAYERS.flatMap((n) => PF_ANTE_DEPTHS.map((d) => ({ n, d, forced: "ante" as const, raked: false }))),
+        ...PF_RING_PLAYERS.flatMap((n) => PF_DEPTHS.flatMap((d) => [false, true].map((r) => ({ n, d, forced: "none" as const, raked: r }))))]
         .flatMap(({ n, d, forced, raked }) => [false, true].map((chart) => pfGameKey(n, d, { forced, raked, chart }))),
     );
-    expect(all.size).toBe(240);
+    expect(all.size).toBe(240 + 132);
     expect(PF_FORCED_BUILT.filter((k) => !all.has(k))).toEqual([]);
     expect(PF_FORCED_BUILT.filter((k) => !existsSync(resolve(ROOT, "engine/pf", `${k}.bin`)))).toEqual([]);
     expect(PF_KEYS).toEqual(expect.arrayContaining([...PF_FORCED_BUILT]));
@@ -104,7 +112,15 @@ describe("the stored preflop games", () => {
       for (const raked of [false, true])
         expect(pfGradeDepths(n, "straddle", raked)).toEqual(PF_STRADDLE_DEPTHS.filter((d) => PF_FORCED_BUILT.includes(pfGameKey(n, d, { forced: "straddle", raked, chart: true }))));
     expect(pfGradeDepths(6, "none", false)).toEqual(PF_DEPTHS);
-    expect(pfGradeDepths(7, "none", false)).toEqual([]);
+    // the full-ring games (7 to 9, neither): a depth only where its game at the charts' sizes is built
+    for (const n of PF_RING_PLAYERS)
+      for (const raked of [false, true])
+        expect(pfGradeDepths(n, "none", raked)).toEqual(PF_DEPTHS.filter((d) => PF_FORCED_BUILT.includes(pfGameKey(n, d, { raked, chart: true }))));
+    expect(pfGradeDepths(10, "none", false)).toEqual([]);
+    // Study's and a preflop drill's (the tree's sizes, no rake): the grid, and the full-ring games built
+    expect(pfPlainStored(6, 100)).toBe(true);
+    expect(pfPlainStored(6, 90)).toBe(false);
+    for (const n of PF_RING_PLAYERS) for (const d of PF_DEPTHS) expect(pfPlainStored(n, d)).toBe(PF_FORCED_BUILT.includes(pfKey(n, d, false)));
     expect(pfGradeDepths(6, null, false)).toEqual([]);
   });
   it("read a game's forced bets: the table size's stored ante, a straddle, or neither", () => {

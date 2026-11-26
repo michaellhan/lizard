@@ -17,8 +17,8 @@ describe("a setup link", () => {
   it("grades preflop by the preflop solve where the game is stored, as a new session does, and by the charts elsewhere", () => {
     expect(linkSetup({ ...LINK, play: "full" })?.opts).toMatchObject({ pfSolve: true });
     expect(linkSetup({ ...LINK, play: "preflop", players: 3, stack: 40 })?.opts).toMatchObject({ pfSolve: true });
-    // (no stored solve at 7 players or 90bb, and a pot drill has no preflop of yours to grade)
-    expect(linkSetup({ ...LINK, play: "full", players: 7, seat: "moves" })?.opts).not.toHaveProperty("pfSolve");
+    // (no stored solve at 7 players and 90bb, and a pot drill has no preflop of yours to grade)
+    expect(linkSetup({ ...LINK, play: "full", players: 7, stack: 90, seat: "moves" })?.opts).not.toHaveProperty("pfSolve");
     expect(linkSetup({ ...LINK, play: "full", stack: 90 })?.opts).not.toHaveProperty("pfSolve");
     expect(linkSetup(LINK)?.opts).not.toHaveProperty("pfSolve");
   });

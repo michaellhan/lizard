@@ -1,8 +1,8 @@
 // A preflop decision graded by the stored preflop solve (solver/gto/pf_study.py), a session's choice, in place of the
 // charts' frequency grade. The solve is an equilibrium of a simplified game: 169 hand classes and one size at each raise.
 // Your buttons stay the chart's and the opponents go on playing the charts, so turning this on changes no move, only the
-// grade. A cash grade at 2 to 6 players asks the game stored at the charts' own raise sizes (pfStored.ts PF_CHART_TREE,
-// since 2026-11-17), so the charts' raises stay on its tree; a line leaves it where the solve has folded your class, or
+// grade. A cash grade at 2 to 9 players asks the game stored at the charts' own raise sizes (pfStored.ts PF_CHART_TREE,
+// since 2026-11-17; 7 to 9 players, the full-ring games, since 2026-11-26), so the charts' raises stay on its tree; a line leaves it where the solve has folded your class, or
 // rarely goes there.
 //
 // So whether a decision is graded by EV is settled at the spot, before you choose, and never by what you chose: `pfRead`
