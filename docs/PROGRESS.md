@@ -7164,3 +7164,18 @@ Workstream W11 of the second GAP_PLAN run (ACCURACY section 18.13).
   typecheck and lint clean; solver, practice and analyze vitest (98 files, 2,029 tests).
 - Left: cold calls and cold 4-bets against a 3-bet at 7 to 9 players (past the gigabyte); 3-way flops at 8 players past
   125bb and 9 players past 60bb; stacks off the grid and tournaments beyond the stored presets.
+
+## 2026-11-26 — Library publish: the 3-way single-size set back to 552 flops
+
+- The 12:02 publish (lizard-library 6ded71d9f, 125,804 files) carried the 3-way single-size lines on 292 flops each,
+  down from 552 at the 02:47 publish of 2026-11-25. The ante and straddle build had gone on toward 789 flops a spot, and
+  since the games are staged before the 3-way set, their extra files used up the file cap (126,000, the bytes weren't
+  close) before the 3-way set's turn.
+- `scripts/library/assemble.py`: without R2 the game spots are held to the 552 phase (`SS_GAMES_FLOPS`,
+  `CAPS["games_flops"]`; a bigger previous copy is cut to it, logged); with R2 the cap is off.
+  `docs/single-size-library.md` says so.
+- Gates: `test_assemble.py` 57 OK (a new test: games held to their flop cap, a bigger previous copy cut to it). A dry run
+  of `publish.sh` staged 125,799 files, 615 MB, with all 6 game spots and all 6 3-way spots on 552 flops.
+- Published 2026-11-26 (lizard-library 00e73f678, 125,799 files); the live `ss_index.json` has all 6 game spots and all 6
+  3-way spots on 552 flops, and 3-way flop files past the old 292 (`mw_btn_sb_bb/Jc6c2d.bin`, `AcKc7c.bin`) are served
+  at their staged sizes. Not clicked through in Study in a browser this time.

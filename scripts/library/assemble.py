@@ -134,7 +134,12 @@ HOSTS_FORMAT = 1
 R2_MAX_BYTES = 8 * 2**30  # (R2's free tier stores 10 GB-month)
 R2_EXTRA_FILES = 300_000  # files the breadth and single-size builds may add past Pages' cap, served from R2
 R2_SS_BYTES = 2 * 2**30   # the single-size library's byte budget with R2 (250 MB without)
-CAPS = {"files": MAX_FILES, "ss_bytes": SS_BYTES}  # (main raises them when R2 is configured)
+# The games' single-size spots are held to their 552 phase (the representative flops the 100bb and 3-way sets use) where
+# Pages alone serves the library: past it, their flops are R2's (the build's own plan). Before 2026-11-26 they weren't, so
+# they grew to 789 flops each and, going in before the 3-way set, filled the file cap it needed: the 12:02 publish of
+# 2026-11-26 cut the 3-way set from 552 flops to 292.
+SS_GAMES_FLOPS = 552
+CAPS = {"files": MAX_FILES, "ss_bytes": SS_BYTES, "games_flops": SS_GAMES_FLOPS}  # (main raises them when R2 is configured)
 
 # The single-size spots of the ante and straddle games (build_single_size.py --set games, W13 of docs/GAP_PLAN.md): their
 # own source and byte budget (6 spots at 552 flops: ~25 MB, ~3,900 files; at every flop ~80 MB, ~12,300 files)
@@ -863,7 +868,12 @@ def add_single_size(src: Path, out: Path, taken: set[str], prev: Path | None, al
             p = src / s["id"] / name
             nbytes += p.stat().st_size if p.exists() else 0
     chosen: list[str] = []
+    flop_cap = CAPS["games_flops"] if games else None
     for f in common:
+        if flop_cap is not None and len(chosen) >= flop_cap:
+            log.append(f"single-size games: held to {flop_cap} of {len(common)} complete flops (past them, R2's), so the "
+                       "3-way set after them has its room")
+            break
         b = c = 0
         for s in spots:
             if f not in s.get("flops", {}):
@@ -899,7 +909,9 @@ def add_single_size(src: Path, out: Path, taken: set[str], prev: Path | None, al
                 if ss_kind(ps) != kind:
                     continue   # (another source's call keeps it)
                 cur = now.get(ps["id"])
-                if cur is not None and len(cur["flops"]) >= len(ps["flops"]):
+                # (a game spot's previous copy counts to the flop cap only: a bigger one is cut to it, never kept whole)
+                want = len(ps["flops"]) if flop_cap is None else min(len(ps["flops"]), flop_cap)
+                if cur is not None and len(cur["flops"]) >= want:
                     continue
                 if allow_shrink:
                     log.append(f"{ps['id']}: shrinks from {len(ps['flops'])} flops (allowed)")
@@ -916,7 +928,7 @@ def add_single_size(src: Path, out: Path, taken: set[str], prev: Path | None, al
                              f"publishing (--allow-shrink publishes it smaller)")
                 if (out / ps["id"]).exists():
                     shutil.rmtree(out / ps["id"])
-                kept = stage_ss_spot(prev, out, ps, list(ps["flops"]), link=True, log=log)
+                kept = stage_ss_spot(prev, out, ps, list(ps["flops"])[:want], link=True, log=log)
                 if kept is None:
                     sys.exit(f"{ps['id']}: shrank and the previous release failed validation; not publishing")
                 n_stage += dir_files(out / ps["id"]) - have
@@ -1032,7 +1044,7 @@ def main() -> int:
                                   or not a.r2_base.endswith("/")):
         sys.exit(f"--r2-base {a.r2_base!r}: an https URL ending in '/' expected")
     if a.r2_base is not None:
-        CAPS["files"], CAPS["ss_bytes"] = MAX_FILES + R2_EXTRA_FILES, R2_SS_BYTES
+        CAPS["files"], CAPS["ss_bytes"], CAPS["games_flops"] = MAX_FILES + R2_EXTRA_FILES, R2_SS_BYTES, None
     hu_sources = a.hu if a.hu else HU_SOURCES
     ext_sources = a.extend if a.extend else EXTEND_SOURCES
     mw_sources = a.mw if a.mw else MW_SOURCES

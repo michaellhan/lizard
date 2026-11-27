@@ -201,7 +201,10 @@ Six heads-up spots in two games beside the 100bb ones, on the same one-size tree
   100bb spots' `flops` list stays theirs. `lizard-library.json`'s `singleSize.games` carries the target and each game's
   flops. About 7 files a flop for the six spots (single-raised entries 1 file, the 3bet pot 2): 552 flops is about 3,900
   files and 25 MB, which fits beside the 111,655 files published; more than about 1,150 flops needs a higher file cap or
-  the R2 path. A game spot keeps the previous release's copy when it would hold fewer flops, as the 100bb spots do, but
+  the R2 path. Without R2 the game spots are held to the 552 phase (`SS_GAMES_FLOPS`; a bigger previous copy is cut to
+  it, logged): the build ran on toward 789 flops a spot, and since the games go in before the 3-way set, those flops took
+  the file room it needed (the publish of 2026-11-26 12:02 cut the 3-way set from 552 flops to 292). With R2 the cap is
+  off. A game spot keeps the previous release's copy when it would hold fewer flops, as the 100bb spots do, but
   only while that copy fits the file cap (counted, less the 5 index files still to come); where it doesn't (a source
   before the games grew), the game spot shrinks, logged, rather than stop the publish. The 100bb spots stop it, as before,
   with a message naming `--allow-shrink`.

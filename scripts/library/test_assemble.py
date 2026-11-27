@@ -1115,6 +1115,52 @@ class SingleSizeGamesTest(unittest.TestCase):
             self.assertFalse((self.out / s["id"]).exists())
         self.assertLessEqual(sum(1 for p in self.out.rglob("*") if p.is_file()), per)  # (within the cap)
 
+    def test_the_games_are_held_to_their_flop_cap_and_a_bigger_previous_copy_is_cut_to_it(self):
+        # (without R2 the games stop at SS_GAMES_FLOPS, their 552 phase, so the 3-way set after them keeps its room)
+        sys.path.insert(0, str(HERE))
+        try:
+            import assemble
+        finally:
+            sys.path.remove(str(HERE))
+        self.assertEqual(assemble.SS_GAMES_FLOPS, 552)
+        self.assertEqual(assemble.CAPS["games_flops"], 552)
+        both = {sid: {"5c4d2h": (sid.encode() + b"5", 33.0), "6c5d2h": (sid.encode() + b"6", 33.0)}
+                for sid in ("ss_srp_btn_bb_ante", "ss_srp_co_bb_ante", "ss_srp_btn_utg_straddle")}
+        idx = make_ss(self.games, both, order=["5c4d2h", "6c5d2h"], target=1755)
+        for sp in idx["spots"]:
+            sp.pop("base")
+            straddle = sp["id"].endswith("straddle")
+            sp["game"] = {"players": 6, "stack": 100.0, "ante": 0.0 if straddle else 0.17, "straddle": straddle}
+            sp["pf"] = {"key": "k", "sha1": "x", "model": "m", "words": "w"}
+            sp["pf_ranges"] = [[1] * 169, [1] * 169]
+        (self.games / "ss-index.json").write_text(json.dumps(idx))
+        prev = self.tmp / "prev"
+        r = run("--out", prev, "--base", self.base, "--hu", self.hu, "--single-size", self.ss, "--ss-games", self.games)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        pg = [x for x in json.loads((prev / "ss_index.json").read_text())["spots"] if x.get("game")]
+        self.assertTrue(all(len(x["flops"]) == 2 for x in pg))  # (the previous release: both flops)
+        old = assemble.CAPS["games_flops"]
+        try:
+            assemble.CAPS["games_flops"] = 1
+            self.out.mkdir()
+            log = []
+            got, _ = assemble.add_single_size(self.games, self.out, set(), prev, False, 1000, log, games=True)
+            # and a previous copy alone (the source gone from a spot) is cut to the cap too
+            gone = self.tmp / "gone"
+            gone.mkdir()
+            log2 = []
+            kept, _ = assemble.add_single_size(self.games, gone, {"ss_srp_co_bb_ante"}, prev, False, 1000, log2, games=True)
+        finally:
+            assemble.CAPS["games_flops"] = old
+        self.assertEqual({x["id"]: sorted(x["flops"]) for x in got["spots"]},
+                         {x["id"]: ["5c4d2h"] for x in pg})
+        self.assertTrue(any("held to 1 of 2 complete flops" in x for x in log), log)
+        self.assertFalse(any("kept the previous release" in x for x in log), log)
+        self.assertFalse((self.out / "ss_srp_btn_bb_ante" / "6c5d2h.bin").exists())
+        co = next(x for x in kept["spots"] if x["id"] == "ss_srp_co_bb_ante")
+        self.assertEqual(sorted(co["flops"]), ["5c4d2h"])
+        self.assertTrue(any("ss_srp_co_bb_ante: kept the previous release (1 flops)" in x for x in log2), log2)
+
     def test_the_games_alone(self):
         r = self.stage("--single-size", NO_SS)
         self.assertEqual(r.returncode, 0, r.stderr)
