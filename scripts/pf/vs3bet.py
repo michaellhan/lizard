@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """The opener facing a 3bet in Lizard's preflop solve (engine/pf_solve.py), hand by hand: totals against the published
 references (solver/tests/preflop_refs.py), every class against a local reference file (PokerData's 6-max 100bb solve,
-personal-use licence: read from ~/Desktop/projects/poker-reference, never committed or shipped), and the hands played
+personal-use licence: read from ~/projects/poker-reference, never committed or shipped), and the hands played
 out of order (pf_order.out_of_order).
 
     .venv/bin/python scripts/pf/vs3bet.py --stored lz2_6max_100bb_r5c3            # a stored game
@@ -25,7 +25,7 @@ sys.path[:0] = [os.path.join(ROOT, "solver"), ROOT]
 
 import numpy as np  # noqa: E402
 
-REF_FILE = os.path.expanduser("~/Desktop/projects/poker-reference/pokerdata_6max_100bb_vs3bet.json")
+REF_FILE = os.path.expanduser("~/projects/poker-reference/pokerdata_6max_100bb_vs3bet.json")
 # the published references' opener-vs-3bet spots (preflop_refs.py, 5% capped at 4bb): (fold, call, raise) of the range
 REF_TOTALS = {("UTG", "BTN"): (0.570, 0.244, 0.187), ("HJ", "CO"): (0.636, 0.183, 0.181),
               ("CO", "BTN"): (0.640, 0.169, 0.192), ("CO", "BB"): (0.680, 0.224, 0.096),

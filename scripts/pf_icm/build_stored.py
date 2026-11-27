@@ -20,7 +20,7 @@ so `all --missing` after a stop builds only the games with no file yet (a game t
 checkpointed inside its solve). Each game is solved in its own process so its arrays are freed: the biggest (6 players
 at 75bb, 7,542 nodes; 9 at 75bb, 3,318) hold under 1 GB. Over a minute of CPU in all: run it through the shared slot,
 
-    /Users/mhan/Desktop/projects/gtosolver/.work/bin/slot.sh .venv/bin/python scripts/pf_icm/build_stored.py all --missing
+    /Users/mhan/projects/gtosolver/.work/bin/slot.sh .venv/bin/python scripts/pf_icm/build_stored.py all --missing
 
 A game whose manifest key isn't the key it has now (another flop model, equity table or calibration: pf_icm.FLOP_MODEL_TAG
 is in the key) rebuilds under --missing; `index` deletes the files no manifest entry names (a changed game's old key). A

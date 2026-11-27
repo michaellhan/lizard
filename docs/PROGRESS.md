@@ -6,13 +6,13 @@ commits, and whether the two heads-up precompute builds were left alone. Read th
 
 ## How to resume
 
-1. `git status` and `git log --oneline` in `/Users/mhan/Desktop/projects/lizard` (this repo). Never run git in
-   `/Users/mhan/Desktop/projects/gtosolver`, and never touch `gto-wt/*`.
+1. `git status` and `git log --oneline` in `/Users/mhan/projects/lizard` (this repo). Never run git in
+   `/Users/mhan/projects/gtosolver`, and never touch `gto-wt/*`.
 2. Check the builds only with read-only commands, for example
    `ps -axo pid,etime,rss,command | grep build_flop_library`. Do not signal, renice or restart them.
 3. `npm install`, `npm run check`, then pick the next item in `docs/ROADMAP.md`.
 4. Newly finished heads-up flops publish themselves every 6 hours by launchd (`docs/DEPLOYMENT.md` §4). To publish sooner:
-   `/Users/mhan/Desktop/projects/gtosolver/.work/bin/slot.sh scripts/library/publish.sh`.
+   `/Users/mhan/projects/gtosolver/.work/bin/slot.sh scripts/library/publish.sh`.
 
 ## 2026-11-03 — Phase 1: audit, repo, first deploy
 
@@ -34,7 +34,7 @@ The synthesized documents are `EXISTING_SOLVER_AUDIT.md`, `ACCURACY.md`, `FEATUR
 
 ### Repository
 
-- New, separate directory `/Users/mhan/Desktop/projects/lizard`. The existing gto-solver checkout was neither moved
+- New, separate directory `/Users/mhan/projects/lizard`. The existing gto-solver checkout was neither moved
   nor modified.
 - `solver/` is a snapshot of gto-solver at `9b907bd61a95758c48b1141cfadd854ba2c0eeaa`. Provenance and local patches
   are recorded in `solver/UPSTREAM.json`.
@@ -7179,3 +7179,10 @@ Workstream W11 of the second GAP_PLAN run (ACCURACY section 18.13).
 - Published 2026-11-26 (lizard-library 00e73f678, 125,799 files); the live `ss_index.json` has all 6 game spots and all 6
   3-way spots on 552 flops, and 3-way flop files past the old 292 (`mw_btn_sb_bb/Jc6c2d.bin`, `AcKc7c.bin`) are served
   at their staged sizes. Not clicked through in Study in a browser this time.
+
+## 2026-11-26 — Projects moved to /Users/mhan/projects
+
+- The projects folder moved from `~/Desktop/projects` to `/Users/mhan/projects` (23:40). Every path in the scripts,
+  the two launchd plists, `CLAUDE.md` and the docs now names the new place (the installed LaunchAgents and gtosolver's
+  `slot.sh` already did). Gates: `test_assemble.py` 57 OK; a dry run of `publish.sh` through the new `slot.sh` staged
+  the same 125,799 files, only the summary's source paths changing.

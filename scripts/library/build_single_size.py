@@ -83,7 +83,7 @@ def main_checkout() -> Path:
                            capture_output=True, text=True, check=True).stdout.strip()
         return Path(d).parent
     except (OSError, subprocess.CalledProcessError):
-        return Path("/Users/mhan/Desktop/projects/lizard")
+        return Path("/Users/mhan/projects/lizard")
 
 
 MAIN = Path(os.environ.get("SINGLE_SIZE_MAIN") or main_checkout())

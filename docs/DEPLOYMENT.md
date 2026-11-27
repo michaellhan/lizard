@@ -117,7 +117,7 @@ One merged format-2 library, because the solver worker reads a single base URL:
 
 - the 6-max library from `solver/gto/static/flop_library/` (gitignored here; a verified copy of
   `/gto-solver-library/`): 18 spots and 4 three-way spots;
-- the heads-up spots from the offline builds in `/Users/mhan/Desktop/projects/gtosolver/.work/hu-lib` and
+- the heads-up spots from the offline builds in `/Users/mhan/projects/gtosolver/.work/hu-lib` and
   `.work/hu-lp-lib`, as far as they have got. Whether or not a build is running, its output is only ever read;
 - the 3-way spots' flops beyond their 185 from Lizard's own build in `library-build/sources/mw-every-flop` (below),
   added to the published 3-way spots in `mw_index.json` as they finish. Each 3-way spot also gets `heads.json`, its
@@ -166,7 +166,7 @@ The rebuild solves every flop of each moved spot on today's ranges: 4 x 1,755 = 
 checkout's ignored `library-build/sources/mw-rebuild`, with the same settings as the build above:
 
 ```bash
-cd /Users/mhan/Desktop/projects/lizard            # the main checkout
+cd /Users/mhan/projects/lizard            # the main checkout
 git status --short solver/                         # must be empty: the build solves on $MAIN/solver's charts
 MW_REBUILD=1 scripts/library/mw_every_flop.sh start    # status and stop the same way; start resumes
 ```
@@ -200,7 +200,7 @@ what changed, pushes, and waits until the live `index.json` matches. `DRY_RUN=1`
 builds run, launch it through the CPU slot helper:
 
 ```bash
-/Users/mhan/Desktop/projects/gtosolver/.work/bin/slot.sh scripts/library/publish.sh
+/Users/mhan/projects/gtosolver/.work/bin/slot.sh scripts/library/publish.sh
 ```
 
 launchd now does this every 6 hours (§4), so by hand it's only for flops wanted sooner.

@@ -24,7 +24,7 @@ then hold one or two combos each where real ranges put 10-20 in one; `fast-k8` p
 pushes. The turn and river menu is one size (75%), the menu every live flop solve plays below the flop
 (Config.later_sizes), so what's measured is the card and hand abstraction, not a smaller menu.
 
-    SLOT=/Users/mhan/Desktop/projects/gtosolver/.work/bin/slot.sh   # while the precomputation builds run
+    SLOT=/Users/mhan/projects/gtosolver/.work/bin/slot.sh   # while the precomputation builds run
     PY=scripts/benchmarks/.venv/bin/python
     $SLOT nice -n 10 $PY scripts/benchmarks/abstraction.py run                     # every spot and variant, resumable
     $SLOT nice -n 10 $PY scripts/benchmarks/abstraction.py run --spots srp-K72 --variants fast

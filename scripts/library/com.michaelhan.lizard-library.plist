@@ -9,9 +9,9 @@
   <key>ProgramArguments</key><array>
     <string>/bin/bash</string>
     <string>-c</string>
-    <string>/bin/zsh /Users/mhan/Desktop/projects/gtosolver/.work/bin/slot.sh /Users/mhan/Desktop/projects/lizard/scripts/library/publish.sh</string>
+    <string>/bin/zsh /Users/mhan/projects/gtosolver/.work/bin/slot.sh /Users/mhan/projects/lizard/scripts/library/publish.sh</string>
   </array>
-  <key>WorkingDirectory</key><string>/Users/mhan/Desktop/projects/lizard</string>
+  <key>WorkingDirectory</key><string>/Users/mhan/projects/lizard</string>
   <key>EnvironmentVariables</key><dict>
     <key>PATH</key><string>/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin</string>
   </dict>

@@ -16,10 +16,10 @@ import { SolverError, type PlayRequest, type RuntimeStatus, type SolverTransport
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 export const ROOT = resolve(HERE, "../..");
-export const PYTHON = process.env.QA_PYTHON || "/Users/mhan/Desktop/projects/lizard/.venv/bin/python";
-export const LIBRARY = process.env.QA_LIBRARY || "/Users/mhan/Desktop/projects/lizard/library-build/lizard-library";
+export const PYTHON = process.env.QA_PYTHON || "/Users/mhan/projects/lizard/.venv/bin/python";
+export const LIBRARY = process.env.QA_LIBRARY || "/Users/mhan/projects/lizard/library-build/lizard-library";
 /** the machine's CPU slot wrapper; empty runs the advisor directly */
-export const SLOT = process.env.QA_SLOT ?? "/Users/mhan/Desktop/projects/gtosolver/.work/bin/slot.sh";
+export const SLOT = process.env.QA_SLOT ?? "/Users/mhan/projects/gtosolver/.work/bin/slot.sh";
 /** Before a preflop request, a process whose RSS is past this, MB, is started afresh: a preflop request can read a stored
  * preflop solve, the most one request added to the RSS in the default matrix (up to 494 MB at its peak), and a hand's
  * preflop has no earlier street for a fresh process to lose (the reference's warm-up asks the hand from its start again

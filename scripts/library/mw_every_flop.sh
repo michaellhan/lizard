@@ -9,7 +9,7 @@
 #   status  running or not, progress.json, the log's last lines
 # MW_REBUILD=1 before any of them: the rebuild of the spots on today's ranges (--rebuild, sources/mw-rebuild) instead
 set -euo pipefail
-MAIN=${LIZARD_MAIN:-/Users/mhan/Desktop/projects/lizard}
+MAIN=${LIZARD_MAIN:-/Users/mhan/projects/lizard}
 # MW_REBUILD=1: the spots rebuilt on today's ranges (build_mw_every_flop.py --rebuild) into sources/mw-rebuild
 REBUILD=()
 if [ "${MW_REBUILD:-0}" = 1 ]; then REBUILD=(--rebuild); fi

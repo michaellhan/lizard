@@ -5,7 +5,7 @@ This audit covers the solver snapshot that LIZARD is built on, in `solver/`. It 
 key claims against the code. It is written for engineers who need to know what the solver is, what LIZARD reuses,
 and where the risks are. For how accurate the answers are, see `docs/ACCURACY.md`.
 
-All paths are relative to `/Users/mhan/Desktop/projects/lizard/` unless shown otherwise.
+All paths are relative to `/Users/mhan/projects/lizard/` unless shown otherwise.
 
 **Method.** Everything here is read-only. The sources are file reads, `grep`, `wc`, `du`, `shasum`, and JSON reads
 of the library indexes plus a 450-entry sample of library entry headers. I did not import the solver, and I did not

@@ -7,7 +7,7 @@ what LIZARD has to preserve.
 
 **Method.** Everything here comes from reading code and data files, without running anything heavy. No tests, solves,
 builds or benchmarks were run, because the machine is shared with two library builds that have been running for days.
-All paths are relative to `/Users/mhan/Desktop/projects/lizard` unless they are absolute.
+All paths are relative to `/Users/mhan/projects/lizard` unless they are absolute.
 
 Every claim carries one of these labels:
 

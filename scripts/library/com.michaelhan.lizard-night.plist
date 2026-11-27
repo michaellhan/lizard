@@ -8,7 +8,7 @@
   <key>Label</key><string>com.michaelhan.lizard-night</string>
   <key>ProgramArguments</key><array>
     <string>/bin/bash</string>
-    <string>/Users/mhan/Desktop/projects/lizard/scripts/library/night_boost.sh</string>
+    <string>/Users/mhan/projects/lizard/scripts/library/night_boost.sh</string>
     <string>auto</string>
   </array>
   <key>StartCalendarInterval</key><array>

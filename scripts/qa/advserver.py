@@ -58,7 +58,7 @@ sys.dont_write_bytecode = True
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(os.path.dirname(HERE))
-LIB = os.environ.get("QA_LIBRARY", "/Users/mhan/Desktop/projects/lizard/library-build/lizard-library")
+LIB = os.environ.get("QA_LIBRARY", "/Users/mhan/projects/lizard/library-build/lizard-library")
 # (the worker's /app holds gto/ and engine/ side by side: here solver/ for gto and the repo root for engine)
 sys.path.insert(0, ROOT)
 sys.path.insert(0, os.path.join(ROOT, "solver"))

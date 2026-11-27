@@ -3,7 +3,7 @@
 the mean over seats, and the worst seat), on the tables the section names, with the game's default sizes (pf_icm.Sizes)
 and Study's averaging (pf_study.AVG_POWER).
 
-    /Users/mhan/Desktop/projects/gtosolver/.work/bin/slot.sh .venv/bin/python scripts/pf_icm/convergence.py [--only NAME]
+    /Users/mhan/projects/gtosolver/.work/bin/slot.sh .venv/bin/python scripts/pf_icm/convergence.py [--only NAME]
 
 About 4 minutes of CPU in all, the 6-max tables most of it (0.7 GB each): run it through the shared slot.
 """

@@ -7,7 +7,7 @@ Research date: 2026-11-03. Scope: public pages only (gtowizard.com, help.gtowiza
 - Each fact carries a reference tag such as [H-study]. The tags resolve to full URLs in §9.
 - Tag prefixes show source quality. **H-** is GTO Wizard's own help center or product pages, **B-** is the official blog and patch notes, **P-/PF-/PL-/PS-** are press and review coverage (secondhand), and **C-** is a competitor's site.
 - **Verified** means read on the cited page this session. **Inferred** means my reading of several sources together or a gap filler, and is labeled as such.
-- References to the Lizard/upstream solver are relative to `/Users/mhan/Desktop/projects/lizard`. Ones marked "(code)" were checked with grep this session. Ones marked "(plan)" come from `IMPLEMENTATION_PLAN.md` §1 and were **not** re-verified.
+- References to the Lizard/upstream solver are relative to `/Users/mhan/projects/lizard`. Ones marked "(code)" were checked with grep this session. Ones marked "(plan)" come from `IMPLEMENTATION_PLAN.md` §1 and were **not** re-verified.
 
 **Staleness warning.** GTO Wizard's help center lags its patch notes by up to two years. The Custom Solving FAQ still says custom solving is two-player, postflop, chip-EV only, with SPR ≤ 100 [H-csfaq]. The trainer-against-custom page labels its limits "as of September 2024" [H-traincs]. Since then the blog has shipped:
 

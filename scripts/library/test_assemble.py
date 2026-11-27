@@ -262,7 +262,7 @@ class AssembleTest(unittest.TestCase):
         (foreign / "keep.txt").write_text("mine")
         self.assertNotEqual(run("--out", foreign, "--base", self.base, "--hu", self.hu).returncode, 0)
         self.assertTrue((foreign / "keep.txt").exists())
-        self.assertNotEqual(run("--out", "/Users/mhan/Desktop/projects/gtosolver/.work/x", "--base", self.base,
+        self.assertNotEqual(run("--out", "/Users/mhan/projects/gtosolver/.work/x", "--base", self.base,
                                 "--hu", self.hu).returncode, 0)
 
     def test_a_depth_build_is_taken_hash_checked_with_its_game(self):

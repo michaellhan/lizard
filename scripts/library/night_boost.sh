@@ -15,7 +15,7 @@
 # "on" won't start with under 35% of memory free; ~/.mem-guard stays the emergency brake. Launchd job:
 # scripts/library/com.michaelhan.lizard-night.plist (log ~/Library/Logs/lizard-night.log).
 set -uo pipefail
-MAIN=/Users/mhan/Desktop/projects/lizard
+MAIN=/Users/mhan/projects/lizard
 OUT="$MAIN/library-build/sources/srp-every-flop"
 SHIM="$MAIN/library-build/night-shim"
 MARK="$MAIN/library-build/night-boost.on"

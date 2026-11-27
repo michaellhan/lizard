@@ -1,6 +1,6 @@
 # 07b: Feature status for hand analysis and custom solving (upstream snapshot)
 
-Scope: this report grades the **upstream solver snapshot** in `solver/` (michaellhan/gto-solver @ `9b907bd6`, imported 2026-11-03) on the ANALYSIS and CUSTOM SOLVING rows of the Lizard parity matrix. The comparison is GTO Wizard's public inventory in `docs/research/02-gtowizard-inventory.md` §3.5–3.6. All paths below are relative to `/Users/mhan/Desktop/projects/lizard`.
+Scope: this report grades the **upstream solver snapshot** in `solver/` (michaellhan/gto-solver @ `9b907bd6`, imported 2026-11-03) on the ANALYSIS and CUSTOM SOLVING rows of the Lizard parity matrix. The comparison is GTO Wizard's public inventory in `docs/research/02-gtowizard-inventory.md` §3.5–3.6. All paths below are relative to `/Users/mhan/projects/lizard`.
 
 **Method and evidence tags**
 - **[V]** I read the implementing code at the cited `file:line`.

@@ -12,7 +12,7 @@ leaves out.
    range-weighted mean (a constant doesn't change a solve), weighted by the two ranges.
 3. The next card's odds the folds give against the even deal (what the solves still deal evenly).
 
-Run (over a minute of CPU): /Users/mhan/Desktop/projects/gtosolver/.work/bin/slot.sh .venv/bin/python \
+Run (over a minute of CPU): /Users/mhan/projects/gtosolver/.work/bin/slot.sh .venv/bin/python \
     scripts/engine/measure_bunching.py [--quick]
 """
 import json

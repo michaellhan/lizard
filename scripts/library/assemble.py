@@ -79,7 +79,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 BASE = ROOT / "solver" / "gto" / "static" / "flop_library"
-WORK = Path("/Users/mhan/Desktop/projects/gtosolver/.work")
+WORK = Path("/Users/mhan/projects/gtosolver/.work")
 HU_SOURCES = [WORK / "hu-lib", WORK / "hu-lp-lib"]
 SOURCES = ROOT / "library-build" / "sources"  # Lizard's own library builds (gitignored), one folder each
 EXTEND_SOURCES = [SOURCES / "srp-every-flop"]
@@ -92,7 +92,7 @@ BREADTH_SOURCES = [SOURCES / "breadth"]  # scripts/library/breadth.sh
 BREADTH_RESERVE = 200  # files the cap keeps free after the breadth spots (nuts.json, a spot carried from --previous)
 LATE_FILES = 5  # files main() writes after the single-size spots (index.json, mw_index.json, ss_index.json, .nojekyll,
 #                 lizard-library.json): a single-size spot kept from --previous leaves room for them under MAX_FILES
-PROTECTED = Path("/Users/mhan/Desktop/projects/gtosolver")
+PROTECTED = Path("/Users/mhan/projects/gtosolver")
 STAGE_MARK = ".lizard-stage"
 NUTS = ROOT / "library-build" / "nuts"
 NUTS_FORMAT = 1  # scripts/library/nuts.py FORMAT

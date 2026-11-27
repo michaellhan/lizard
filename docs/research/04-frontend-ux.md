@@ -13,7 +13,7 @@ Evidence labels:
 - **[I]** inferred: reasoning, platform behaviour I did not test here, or a design decision.
 - **[X]** cross-referenced from a sibling report in `docs/research/` (`05-deployment.md` ran live HTTP checks).
 
-All paths are relative to `/Users/mhan/Desktop/projects/lizard`. `index.html` means
+All paths are relative to `/Users/mhan/projects/lizard`. `index.html` means
 `solver/gto/static/index.html`, and so on for the other static files.
 
 ---
@@ -425,7 +425,7 @@ or version field on any result.** Lizard should add a `schema` field at the adap
   reports, and `drills.js` decodes the `.bin` nodes (`decode`, `nodeAt`).
 - **Library status** must come from the published index's `spots[].flops` count. Build outputs are not a source.
   The HU builds that are still running are partial: `srp_sb_bb_2max` at 292/474 and `lp_sb_bb_2max` at 28/424, per
-  the last lines of `/Users/mhan/Desktop/projects/gtosolver/.work/flop-core/hu_2max.log` and `hu_lp.log`, read-only
+  the last lines of `/Users/mhan/projects/gtosolver/.work/flop-core/hu_2max.log` and `hu_lp.log`, read-only
   [M]. A status page must say "partial: N of M flops" and must never imply full coverage.
 
 ## A5. Rendering

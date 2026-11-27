@@ -4,7 +4,7 @@ This document explains how accurate LIZARD's poker answers are, how that accurac
 breaks down. The first sections are for anyone using LIZARD. The later ones (provenance mapping, verification
 commands) are for engineers. The solver itself is described in `docs/EXISTING_SOLVER_AUDIT.md`.
 
-Paths are relative to `/Users/mhan/Desktop/projects/lizard/`. The tags are the same as in the audit:
+Paths are relative to `/Users/mhan/projects/lizard/`. The tags are the same as in the audit:
 
 | Tag | Meaning |
 |---|---|
@@ -534,7 +534,7 @@ sizes, not speeds. Measured 2026-11-05.
 ```bash
 python3 -m venv scripts/benchmarks/.venv                    # dev only: nothing in the app depends on it
 scripts/benchmarks/.venv/bin/pip install numpy==2.0.2 treys==0.1.8 scipy==1.13.1
-SLOT=/Users/mhan/Desktop/projects/gtosolver/.work/bin/slot.sh   # while the precomputation builds run
+SLOT=/Users/mhan/projects/gtosolver/.work/bin/slot.sh   # while the precomputation builds run
 PY=scripts/benchmarks/.venv/bin/python
 $SLOT nice -n 10 $PY scripts/benchmarks/run_benchmark.py        # every spot: 6 minutes; --spots a,b for some
 $SLOT nice -n 10 $PY scripts/benchmarks/invariants.py           # the checks in 14.5: 20 seconds
@@ -1451,7 +1451,7 @@ UTG opened 16.6% against the references' 18.3%.
 
 **Reproduced [V].** `scripts/pf/vs3bet.py --stored` on the lz2 file gives every figure above. It also measures the
 opener facing a 3bet hand by hand, at all 15 seat pairs, against a full 6-max 100bb solve kept locally
-(PokerData's, personal-use licence; read from `~/Desktop/projects/poker-reference`, never committed or shipped; this
+(PokerData's, personal-use licence; read from `~/projects/poker-reference`, never committed or shipped; this
 section quotes only distances to it). Three measures:
 - **Per-hand gap:** half the L1 distance of each class's 4bet/call/fold mix from the solve's, weighted by the solve's
   combos at the node.

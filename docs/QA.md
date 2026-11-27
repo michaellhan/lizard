@@ -38,8 +38,8 @@ the stored solve) and library answers replay exactly.
 
 | Environment variable | Meaning |
 |---|---|
-| `QA_LIBRARY` | Flop library directory. Default `/Users/mhan/Desktop/projects/lizard/library-build/lizard-library`. Opened read only. |
-| `QA_PYTHON` | Python executable. Default `/Users/mhan/Desktop/projects/lizard/.venv/bin/python`. |
+| `QA_LIBRARY` | Flop library directory. Default `/Users/mhan/projects/lizard/library-build/lizard-library`. Opened read only. |
+| `QA_PYTHON` | Python executable. Default `/Users/mhan/projects/lizard/.venv/bin/python`. |
 | `QA_SLOT` | CPU slot wrapper each advisor process runs under. Default gtosolver's `.work/bin/slot.sh`; set it empty to run them directly. |
 | `QA_THREADS` | Native solver threads per advisor (default 2). |
 | `QA_CACHE_MB` | Solve cache size (default 150; the worker's is 700). |

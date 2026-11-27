@@ -8,7 +8,7 @@ pf_engine's game with pf_model's calibrated flop values), docs/ACCURACY.md 20.7.
 2. Prize equity: how far the two models' strategies are apart on spots of the final-table set (first-in raise and jam
    shares by seat, and the big blind's defence against the button), and each one's distance from its own equilibrium.
 
-    /Users/mhan/Desktop/projects/gtosolver/.work/bin/slot.sh .venv/bin/python scripts/pf_icm/compare_models.py [iters] [refs|icm|all]
+    /Users/mhan/projects/gtosolver/.work/bin/slot.sh .venv/bin/python scripts/pf_icm/compare_models.py [iters] [refs|icm|all]
 
 Writes scripts/pf_icm/compare_models.json, or compare_models_refs.json / compare_models_icm.json for one part.
 """

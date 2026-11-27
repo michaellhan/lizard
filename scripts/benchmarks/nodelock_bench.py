@@ -2,7 +2,7 @@
 identical trees and input ranges, each side in its own process, every number that says "by the reference" from the
 reference's own walker. This file imports no engine code at the top; only `worker` does, in its own process.
 
-    /Users/mhan/Desktop/projects/gtosolver/.work/bin/slot.sh \\
+    /Users/mhan/projects/gtosolver/.work/bin/slot.sh \\
         scripts/benchmarks/.venv/bin/python scripts/benchmarks/nodelock_bench.py        # everything
     python scripts/benchmarks/nodelock_bench.py --cases river-whole-root,turn-merged    # some; merged into the results
     python scripts/benchmarks/nodelock_bench.py --table                                 # the tables from the results

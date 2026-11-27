@@ -1,7 +1,7 @@
 # 01 · Codebase audit: the GTO Solver snapshot in `solver/`
 
 **Project:** LIZARD, an original poker GTO study app built on the user's existing GTO Solver.
-**Snapshot audited:** `/Users/mhan/Desktop/projects/lizard/solver/`, taken from `michaellhan/gto-solver` `main` @ `9b907bd6` (full sha `9b907bd61a95758c48b1141cfadd854ba2c0eeaa`, committed 2026-11-03 04:17:27 -0500).
+**Snapshot audited:** `/Users/mhan/projects/lizard/solver/`, taken from `michaellhan/gto-solver` `main` @ `9b907bd6` (full sha `9b907bd61a95758c48b1141cfadd854ba2c0eeaa`, committed 2026-11-03 04:17:27 -0500).
 **Audit date:** 2026-11-03.
 **Method:** read-only. I used file reads, `grep`, `wc`, `du`, Python `ast` (static parsing; nothing in the solver was imported), and `git show` / `git ls-tree` on the upstream object store. I did not run any test suite, solve, benchmark, build, install or Pyodide. I did not change the upstream checkout or the running library builds.
 
@@ -65,7 +65,7 @@
 | `solver/requirements.txt` | n/a | `numpy>=1.24`, `treys>=0.1.8` |
 | `solver/.gitignore` | n/a | `.venv/ __pycache__/ *.pyc .DS_Store .claude/ sanity_report.md reports/ .pf_cache/ node_modules/ .wrangler/ .dev.vars core/build/`. **No `gto/static/flop_library`** |
 
-Lizard root `/Users/mhan/Desktop/projects/lizard/`: only `.venv/` and `solver/` (before this report). It is not a git repo. [V]
+Lizard root `/Users/mhan/projects/lizard/`: only `.venv/` and `solver/` (before this report). It is not a git repo. [V]
 
 ### 1.2 Languages and LOC ([V] `wc -l`)
 

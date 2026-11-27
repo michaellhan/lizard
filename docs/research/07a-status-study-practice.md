@@ -7,7 +7,7 @@
 - I counted tests with `grep -c '^test('` (Node) and `grep -c 'def test_'` (Python).
 - I read the library index (`solver/gto/static/flop_library/index.json`, `mw_index.json`, `<spot>/report.json`) with small `python3 -c` snippets that do not import the solver.
 - Nothing was run: no tests, no solves, no builds.
-- Paths are relative to `/Users/mhan/Desktop/projects/lizard`.
+- Paths are relative to `/Users/mhan/projects/lizard`.
 
 **Evidence tags.**
 - **[V]**: verified in code or data files.

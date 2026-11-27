@@ -76,13 +76,13 @@ its own table for the single-size library, with flop counts, Study links that pi
 `library-build/runs/single-size.log`.
 
 ```bash
-PY=/Users/mhan/Desktop/projects/lizard/.venv/bin/python
+PY=/Users/mhan/projects/lizard/.venv/bin/python
 B=scripts/library/build_single_size.py
 $PY $B status                     # supervisor, entries done, s/entry, KB/entry, ETA, the log's tail
 $PY $B plan                       # spots, phases, entry count
 # start (or resume) detached, from the run directory so slot.sh doesn't tie it to a checkout's slot:
-cd /Users/mhan/Desktop/projects/lizard/library-build/runs/single-size && \
-  nohup /Users/mhan/Desktop/projects/gtosolver/.work/bin/slot.sh $PY <checkout>/$B start --jobs 2 --hours 48 \
+cd /Users/mhan/projects/lizard/library-build/runs/single-size && \
+  nohup /Users/mhan/projects/gtosolver/.work/bin/slot.sh $PY <checkout>/$B start --jobs 2 --hours 48 \
   > ../single-size.log 2>&1 & disown
 $PY $B index                      # rewrite ss-index.json from what's on disk (the build does this every 20 entries)
 ```
@@ -151,7 +151,7 @@ The tests are `SingleSizeTest` in `scripts/library/test_assemble.py` and `script
 
    ```bash
    S=$(mktemp -d)/stage
-   /Users/mhan/Desktop/projects/gtosolver/.work/bin/slot.sh .venv/bin/python scripts/library/assemble.py \
+   /Users/mhan/projects/gtosolver/.work/bin/slot.sh .venv/bin/python scripts/library/assemble.py \
      --out "$S" --previous library-build/lizard-library
    du -sm "$S"; find "$S" -type f | wc -l; python3 -m json.tool "$S/lizard-library.json" | grep -A8 singleSize
    ```

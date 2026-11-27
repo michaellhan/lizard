@@ -2,7 +2,7 @@
 
 Research date: 2026-11-03, 06:00–06:17 EST (11:00–11:17 UTC). Method: read-only only (`dig`, `curl -sI`/`curl -s`,
 `gh api` GET, `gh repo list`, reading files). Nothing was created, enabled, pushed or changed. No processes were
-signalled. Paths are relative to `/Users/mhan/Desktop/projects/lizard` unless absolute.
+signalled. Paths are relative to `/Users/mhan/projects/lizard` unless absolute.
 
 How claims are marked: **[V]** I checked it myself (command output or code read). **[D]** It comes from vendor docs
 fetched today (docs.github.com, developers.cloudflare.com). **[I]** It is my inference and is not verified.
@@ -470,9 +470,9 @@ costs nothing extra (the legacy build uses no workflow minutes [I]).
 ### 4.4 Safe incremental sync design (read-only source, validated, atomic publish)
 
 **Invariants**
-- Source directories (`/Users/mhan/Desktop/projects/gtosolver/.work/hu-lib`, `.../hu-lp-lib`) are opened read-only.
+- Source directories (`/Users/mhan/projects/gtosolver/.work/hu-lib`, `.../hu-lp-lib`) are opened read-only.
   The script never writes, moves, deletes, `chmod`s or `rsync --delete`s there. It refuses to run if any destination
-  path resolves inside `/Users/mhan/Desktop/projects/gtosolver`.
+  path resolves inside `/Users/mhan/projects/gtosolver`.
 - Only **indexed** entries are copied. Anything not listed is ignored: `.tmp` files, entries newer than the index,
   turn files not listed.
 - Every copied file is validated against the index or its own header, **after** copying, on the copy.
@@ -618,7 +618,7 @@ curl -sI https://www.michael-han.com/gto-solver-library/index.json | grep -i eta
 gh api repos/michaellhan/michaellhan.github.io/commits/main --jq .sha >> /tmp/claude-baseline-gto.txt
 
 # 1. Repo (PRIVATE), after the secret/IP scan in section 5
-cd /Users/mhan/Desktop/projects/lizard
+cd /Users/mhan/projects/lizard
 git init -b main && git add -A && git status --short | grep -E 'flop_library|\.env|node_modules' && echo "STOP: ignored data staged"
 git commit -m "Lizard: initial import"
 gh repo create michaellhan/lizard --private --source=. --remote=origin --push

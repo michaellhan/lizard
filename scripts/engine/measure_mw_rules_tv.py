@@ -10,7 +10,7 @@ the softening, the rules' bet ranges stay far from the solve's, so the advisor n
 solve of it (Advisor.mw_current_solve) and the softening is unchanged.
 
 Fixed iterations, so the numbers don't depend on machine load. About 4 min of CPU: run it through the CPU slot
-    /Users/mhan/Desktop/projects/gtosolver/.work/bin/slot.sh .venv/bin/python scripts/engine/measure_mw_rules_tv.py
+    /Users/mhan/projects/gtosolver/.work/bin/slot.sh .venv/bin/python scripts/engine/measure_mw_rules_tv.py
 """
 import argparse
 import sys

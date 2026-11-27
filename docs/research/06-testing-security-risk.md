@@ -1,6 +1,6 @@
 # 06: Testing, security and technical-risk assessment
 
-**Scope.** This report covers the imported solver snapshot at `solver/` (upstream `michaellhan/gto-solver` main @ `9b907bd6`, 2026-11-03, per `solver/UPSTREAM.json`) and the Lizard scaffold present on 2026-11-03 (`package.json`, `web/`, `.gitignore`, `.npmrc`). Paths are relative to `/Users/mhan/Desktop/projects/lizard`.
+**Scope.** This report covers the imported solver snapshot at `solver/` (upstream `michaellhan/gto-solver` main @ `9b907bd6`, 2026-11-03, per `solver/UPSTREAM.json`) and the Lizard scaffold present on 2026-11-03 (`package.json`, `web/`, `.gitignore`, `.npmrc`). Paths are relative to `/Users/mhan/projects/lizard`.
 
 **Method.** Everything here was read-only: grep/wc/cat, small `python3 -c` snippets that read JSON (none imported the solver), and read-only `git log`/`ls-files` on the upstream checkout. **No test suite, solve, build or install was run.** The baseline test run is happening separately.
 
@@ -163,7 +163,7 @@ The Lizard guard added at the top of `solver/scripts/deploy.sh:5-10` and `deploy
 
 ### 1.7 Time-budgeted and load-sensitive tests
 
-- **Rules file [V].** `/Users/mhan/Desktop/projects/gtosolver/.work/AGENT_RULES.md`, "Two flaky tests (11-02 19:50)" and "A gap between holds":
+- **Rules file [V].** `/Users/mhan/projects/gtosolver/.work/AGENT_RULES.md`, "Two flaky tests (11-02 19:50)" and "A gap between holds":
   - `test_instant.TestStudyPrev.test_none_where_it_doesnt_apply` and `test_runouts.TestReports.test_turn_solve_rivers` "fail on main whenever the machine is busy: their solves stop after 1 s". The fix 1d8e2d3b landed as 7e1561d3.
   - `test_progress` "is still load-sensitive (its 0.5 s flop solve must reach 300 iterations): it fails at load 9+, passes at ~5 … don't loosen it."
 - **Snapshot state [V]:**
@@ -595,8 +595,8 @@ Likelihood and impact use H/M/L. Owners are roles; assign people at kickoff.
 
 - **Test counts.** `grep -c 'def test_' tests/*.py` and `grep -cE '(^|[^a-zA-Z_.])test\(' tests/js/*.test.js`.
 - **Expected failures, skips, time asserts.** `grep -n` for `expectedFailure`, `skipUnless`, `SkipTest` and `assertLess(...time...)`.
-- **Durations.** `grep 'Ran .* tests in'` over `/Users/mhan/Desktop/projects/gtosolver/.work/*/ship*.log`.
-- **Upstream churn.** `git -C /Users/mhan/Desktop/projects/gtosolver rev-list --count --since=… origin/main` and `git log --name-only` (read-only).
+- **Durations.** `grep 'Ran .* tests in'` over `/Users/mhan/projects/gtosolver/.work/*/ship*.log`.
+- **Upstream churn.** `git -C /Users/mhan/projects/gtosolver rev-list --count --since=… origin/main` and `git log --name-only` (read-only).
 - **Library stats.** `find`/`du`, and `python3 -c` over `index.json`/`mw_index.json` plus a zlib sample.
 - **Heads-up progress.** `ls`/`tail` of `.work/hu-lib`, `.work/hu-lp-lib` and `.work/flop-core/hu_*.log`.
 - **Machine load.** `memory_pressure`, `sysctl vm.swapusage vm.loadavg`, `ps -r` (no signals sent).

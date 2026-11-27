@@ -5,7 +5,7 @@
 #   scripts/library/publish.sh            assemble, commit what changed, push, then verify the live index
 #   DRY_RUN=1 scripts/library/publish.sh  assemble and commit locally; push nothing
 #
-# The heads-up builds in /Users/mhan/Desktop/projects/gtosolver/.work are only read (see assemble.py). The release
+# The heads-up builds in /Users/mhan/projects/gtosolver/.work are only read (see assemble.py). The release
 # is a persistent local clone (library-build/lizard-library, gitignored), so each publish pushes only the files that
 # changed, not the whole ~255 MB. Low CPU by design: niced, single-threaded git packing, no recompression of the
 # already-compressed .bin files. Safe to run while the builds run, by hand or on a timer.

@@ -5,7 +5,7 @@ response to that held strategy. The independent check is the engine's own best-r
 solve's tree with TendencyLock laid on during the walk (what gto/exploit.py's one-node answer computes, here at every
 node), a code path apart from the re-solve's CFR and its pins.
 
-    /Users/mhan/Desktop/projects/gtosolver/.work/bin/slot.sh \\
+    /Users/mhan/projects/gtosolver/.work/bin/slot.sh \\
         .venv/bin/python scripts/benchmarks/profile_bench.py            # writes results/profile.json, prints tables
 
   exact     exact trees (every card dealt, per combo): rivers and a turn, 4 presets x both players, at several

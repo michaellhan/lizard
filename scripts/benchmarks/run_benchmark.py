@@ -1,6 +1,6 @@
 """The benchmark: every spot on the reference and on the engine, each in its own process, then the comparison.
 
-    /Users/mhan/Desktop/projects/gtosolver/.work/bin/slot.sh \\
+    /Users/mhan/projects/gtosolver/.work/bin/slot.sh \\
         scripts/benchmarks/.venv/bin/python scripts/benchmarks/run_benchmark.py         # all spots
     python scripts/benchmarks/run_benchmark.py --spots river-flush,turn-one-size        # some; merged into the results
     python scripts/benchmarks/run_benchmark.py --table                                  # the tables from the results

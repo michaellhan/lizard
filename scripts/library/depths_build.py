@@ -41,7 +41,7 @@ from pathlib import Path
 from typing import NamedTuple, Optional
 
 ROOT = Path(__file__).resolve().parents[2]
-MAIN = Path("/Users/mhan/Desktop/projects/lizard")  # the main checkout, whose library-build/ is the build's home
+MAIN = Path("/Users/mhan/projects/lizard")  # the main checkout, whose library-build/ is the build's home
 # DEPTHS_OUT / DEPTHS_RUN build elsewhere (the supervisor and the job inherit them): a rebuild of published spots after
 # a chart change goes to its own folder, since assemble.py reads sources/depths as it is (a 6-hourly publish mid-build
 # would take entries solved on the new charts under the old index's fingerprints, which the reader rejects); its spot
